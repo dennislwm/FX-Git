@@ -2,6 +2,8 @@
 //|                                                                           pluslinex.mqh |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.32    Fixed main to use Points as argument.                                           |
+//| 1.31    Fixed bug in LinexComment().                                                    |
 //| 1.30    Default Trend logic is to buy and sell. Added option to turn off buy or sell:   |
 //|             Linex1NoBuy                                                                 |
 //|             Linex1NoSell                                                                |
@@ -34,11 +36,11 @@ extern   bool     Linex1NoSell= false;
 extern   string   Linex2      = "linex2";
 extern   bool     Linex2NoBuy = false;
 extern   bool     Linex2NoSell= false;
-extern   double   PipLimit    = 3;
-extern   double   PipWide     = 3;
-extern   int      LinexMagic1 = 20090206;
-extern   int      LinexMagic2 = 20090207;
-extern   bool     OneTrade    = false;
+extern   double   LinexPipLimit= 3;
+extern   double   LinexPipWide = 3;
+extern   int      Linex1Magic = 20090206;
+extern   int      Linex2Magic = 20090207;
+extern   bool     LinexOneTrade= false;
 
 //|-----------------------------------------------------------------------------------------|
 //|                           I N T E R N A L   V A R I A B L E S                           |
@@ -46,14 +48,13 @@ extern   bool     OneTrade    = false;
 double   I_LineLevel, I_Hlimit, I_Llimit, I_Hlimit1, I_Llimit1;
 double   II_LineLevel, II_Hlimit, II_Llimit, II_Hlimit1, II_Llimit1;
 string   LinexName="PlusLinex";
-string   LinexVer="1.20";
+string   LinexVer="1.32";
 
 //|-----------------------------------------------------------------------------------------|
 //|                               M A I N   P R O C E D U R E                               |
 //|-----------------------------------------------------------------------------------------|
-int Linex()
+int Linex(double Pts)
 {
-
    // Check for Trendline and Determine the Limits
    // ============================================
    
@@ -66,10 +67,10 @@ int Linex()
    I_Hlimit=0; I_Llimit=0;
    if (I_LineLevel>0)
    {
-      I_Hlimit  = I_LineLevel + (PipLimit*Point);
-      I_Hlimit1 = I_Hlimit    + (PipWide *Point);
-      I_Llimit  = I_LineLevel - (PipLimit*Point);
-      I_Llimit1 = I_Llimit    - (PipWide *Point);
+      I_Hlimit  = I_LineLevel + (LinexPipLimit*Pts);
+      I_Hlimit1 = I_Hlimit    + (LinexPipWide *Pts);
+      I_Llimit  = I_LineLevel - (LinexPipLimit*Pts);
+      I_Llimit1 = I_Llimit    - (LinexPipWide *Pts);
    }
 
    if (ObjectFind(Linex2)<0)   II_LineLevel = -1;
@@ -77,10 +78,10 @@ int Linex()
    II_Hlimit=0; II_Llimit=0;
    if (II_LineLevel>0)
    {
-      II_Hlimit  = II_LineLevel + (PipLimit*Point);
-      II_Hlimit1 = II_Hlimit    + (PipWide *Point);
-      II_Llimit  = II_LineLevel - (PipLimit*Point);
-      II_Llimit1 = II_Llimit    - (PipWide *Point);
+      II_Hlimit  = II_LineLevel + (LinexPipLimit*Pts);
+      II_Hlimit1 = II_Hlimit    + (LinexPipWide *Pts);
+      II_Llimit  = II_LineLevel - (LinexPipLimit*Pts);
+      II_Llimit1 = II_Llimit    - (LinexPipWide *Pts);
    }
 
    // Trade Decision
@@ -92,12 +93,12 @@ int Linex()
       if (!Linex1NoBuy && Close[0]>I_Hlimit && Close[0]<I_Hlimit1)
       {
       //--  Assert Open orders are removed
-         if (LinexOpenOrd(LinexMagic1)==0)   return(-1);
+         if (LinexOpenOrd(Linex1Magic)==0)   return(-1);
          else
-            if (LinexOpenLast(LinexMagic1)==OP_SELL)
+            if (LinexOpenLast(Linex1Magic)==OP_SELL)
             {   
-                LinexCloseOrders(LinexMagic1);
-                if (OneTrade && LinexOpenOrd(LinexMagic2)>0)    LinexCloseOrders(LinexMagic2);
+                LinexCloseOrders(Linex1Magic);
+                if (LinexOneTrade && LinexOpenOrd(Linex2Magic)>0)    LinexCloseOrders(Linex2Magic);
                 Sleep(3000);
             //--  Assert Open orders are removed
                 return(-1);
@@ -107,12 +108,12 @@ int Linex()
       if (!Linex1NoSell && Close[0]<I_Llimit && Close[0]>I_Llimit1)
       {
       //--  Assert Open orders are removed
-         if (LinexOpenOrd(LinexMagic1)==0)   return(1);
+         if (LinexOpenOrd(Linex1Magic)==0)   return(1);
          else
-            if (LinexOpenLast(LinexMagic1)==OP_BUY)
+            if (LinexOpenLast(Linex1Magic)==OP_BUY)
             {   
-                LinexCloseOrders(LinexMagic1); 
-                if (OneTrade && LinexOpenOrd(LinexMagic2)>0)    LinexCloseOrders(LinexMagic2);
+                LinexCloseOrders(Linex1Magic); 
+                if (LinexOneTrade && LinexOpenOrd(Linex2Magic)>0)    LinexCloseOrders(Linex2Magic);
                 Sleep(3000); 
             //--  Assert Open orders are removed
                 return(1);
@@ -126,12 +127,12 @@ int Linex()
       if (!Linex2NoBuy && Close[0]>II_Hlimit && Close[0]<II_Hlimit1)
       {
       //--  Assert Open orders are removed
-         if (LinexOpenOrd(LinexMagic2)==0)   return(-2);
+         if (LinexOpenOrd(Linex2Magic)==0)   return(-2);
          else
-            if (LinexOpenLast(LinexMagic2)==OP_SELL)
+            if (LinexOpenLast(Linex2Magic)==OP_SELL)
             {   
-                LinexCloseOrders(LinexMagic2); 
-                if (OneTrade && LinexOpenOrd(LinexMagic1)>0)    LinexCloseOrders(LinexMagic1);
+                LinexCloseOrders(Linex2Magic); 
+                if (LinexOneTrade && LinexOpenOrd(Linex1Magic)>0)    LinexCloseOrders(Linex1Magic);
                 Sleep(3000); 
             //--  Assert Open orders are removed
                 return(-2);
@@ -141,12 +142,12 @@ int Linex()
       if (!Linex2NoSell && Close[0]<II_Llimit && Close[0]>II_Llimit1)
       {
       //--  Assert Open orders are removed
-         if (LinexOpenOrd(LinexMagic2)==0)   return(2);
+         if (LinexOpenOrd(Linex2Magic)==0)   return(2);
          else
-            if (LinexOpenLast(LinexMagic2)==OP_BUY)
+            if (LinexOpenLast(Linex2Magic)==OP_BUY)
             {   
-                LinexCloseOrders(LinexMagic2); 
-                if (OneTrade && LinexOpenOrd(LinexMagic1)>0)    LinexCloseOrders(LinexMagic1);
+                LinexCloseOrders(Linex2Magic); 
+                if (LinexOneTrade && LinexOpenOrd(Linex1Magic)>0)    LinexCloseOrders(Linex1Magic);
                 Sleep(3000); 
             //--  Assert Open orders are removed
                 return(2);
@@ -174,7 +175,7 @@ string LinexComment(string cmt="")
          if (!Linex1NoSell)   strtmp = strtmp + " (Sell >" + DoubleToStr(I_Llimit1,Digits) + " && <" + DoubleToStr(I_Llimit,Digits) + ")";
 
          strtmp = strtmp + " Last Order: ";  
-         switch (LinexOpenLast(LinexMagic1))
+         switch (LinexOpenLast(Linex2Magic))
          {
             case 0:  strtmp = strtmp + "BUY";    break;
             case 1:  strtmp = strtmp + "SELL";   break;
@@ -186,10 +187,10 @@ string LinexComment(string cmt="")
          strtmp = strtmp + "\n    " +Linex2+ " : " + DoubleToStr(II_LineLevel,Digits)
                          + " Pending:";
          if (!Linex2NoBuy)    strtmp = strtmp + " (Buy >" + DoubleToStr(II_Hlimit,Digits) + " && <" + DoubleToStr(II_Hlimit1,Digits) + ")";
-         if (!Linex1NoSell)   strtmp = strtmp + " (Sell >" + DoubleToStr(II_Llimit1,Digits) + " && <" + DoubleToStr(II_Llimit,Digits) + ")";
+         if (!Linex2NoSell)   strtmp = strtmp + " (Sell >" + DoubleToStr(II_Llimit1,Digits) + " && <" + DoubleToStr(II_Llimit,Digits) + ")";
 
          strtmp = strtmp + " Last Order: ";
-         switch (LinexOpenLast(LinexMagic2))
+         switch (LinexOpenLast(Linex2Magic))
          {
             case 0:  strtmp = strtmp + "BUY";    break;
             case 1:  strtmp = strtmp + "SELL";   break;
@@ -292,5 +293,4 @@ void LinexCloseOrders(int mgc)
 //|-----------------------------------------------------------------------------------------|
 //|                       E N D   O F   E X P E R T   A D V I S O R                         |
 //|-----------------------------------------------------------------------------------------|
-
 
