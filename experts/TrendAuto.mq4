@@ -2,6 +2,8 @@
 //|                                                                           TrendAuto.mq4 |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.11    Changed Lot from internal to extern.                                            |
+//|         Added LinexInit().                                                              |
 //| 1.10    First EA to open pending orders using trendlines.                               |
 //| 1.00    Added PlusLinex.mqh                                                             |
 //|         Added PlusEasy.mqh                                                              |
@@ -17,13 +19,13 @@ extern string s2="-->PlusLinex Settings<--";
 #include <pluslinex.mqh>
 //---- Assert Extra externs
 extern string s3="-->Extra Settings<--";
-extern string TradeComment="-->TrendAuto v1.10<--";
+extern string TradeComment="-->TrendAuto v1.11<--";
 extern int Debug=2;
+extern double Lot=0.1;
 
 //|-----------------------------------------------------------------------------------------|
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
-double Lot=0.1;
 
 // ------------------------------------------------------------------------------------------ //
 //                             I N I T I A L I S A T I O N                                    //
@@ -32,6 +34,7 @@ double Lot=0.1;
 int init()
 {
    EasyInit();
+   LinexInit();
    return(0);    
 }
 
