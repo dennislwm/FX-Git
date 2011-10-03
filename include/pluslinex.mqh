@@ -2,6 +2,8 @@
 //|                                                                           pluslinex.mqh |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 2.02    Fixed bug in determining the limits.                                            |
+//| 2.01    Fixed calculation in ObjectSet().                                               |
 //| 2.00    New concept: Trailing trendline can be set to watch and trail the price.        |
 //|            When price crosses the first time, the trendline will start to watch and     |
 //|            trail the price at a gap (user specified+PipWide).                           |
@@ -60,7 +62,7 @@ double   I_Mlimit, II_Mlimit;
 double   I_LineLevelStart, II_LineLevelStart;
 int      I_Status, II_Status;
 string   LinexName="PlusLinex";
-string   LinexVer="2.00";
+string   LinexVer="2.01";
 
 //|-----------------------------------------------------------------------------------------|
 //|                             I N I T I A L I Z A T I O N                                 |
@@ -109,8 +111,8 @@ int Linex(double Pts)
             I_Mlimit=I_LineLevel+(LinexPipLimit+LinexPipMove)*Pts;
             if (Close[0]>I_Mlimit)
             {
-               ObjectSet(Linex1,OBJPROP_PRICE1,I_LinePrice1+(LinexPipLimit+LinexPipMove)*Pts);
-               ObjectSet(Linex1,OBJPROP_PRICE2,I_LinePrice2+(LinexPipLimit+LinexPipMove)*Pts);
+               ObjectSet(Linex1,OBJPROP_PRICE1,I_LinePrice1+(Close[0]-I_Mlimit));
+               ObjectSet(Linex1,OBJPROP_PRICE2,I_LinePrice2+(Close[0]-I_Mlimit));
             }
          }
          if (!Linex1NoBuy)
@@ -118,8 +120,8 @@ int Linex(double Pts)
             I_Mlimit=I_LineLevel-(LinexPipLimit+LinexPipMove)*Pts;
             if (Close[0]<I_Mlimit)
             {
-               ObjectSet(Linex1,OBJPROP_PRICE1,I_LinePrice1-(LinexPipLimit+LinexPipMove)*Pts);
-               ObjectSet(Linex1,OBJPROP_PRICE2,I_LinePrice2-(LinexPipLimit+LinexPipMove)*Pts);
+               ObjectSet(Linex1,OBJPROP_PRICE1,I_LinePrice1-(I_Mlimit-Close[0]));
+               ObjectSet(Linex1,OBJPROP_PRICE2,I_LinePrice2-(I_Mlimit-Close[0]));
             }
          }
       }   
@@ -149,17 +151,17 @@ int Linex(double Pts)
             II_Mlimit=II_LineLevel+(LinexPipLimit+LinexPipMove)*Pts;
             if (Close[0]>II_Mlimit)
             {
-               ObjectSet(Linex2,OBJPROP_PRICE1,II_LinePrice1+(LinexPipLimit+LinexPipMove)*Pts);
-               ObjectSet(Linex2,OBJPROP_PRICE2,II_LinePrice2+(LinexPipLimit+LinexPipMove)*Pts);
+               ObjectSet(Linex2,OBJPROP_PRICE1,II_LinePrice1+(Close[0]-I_Mlimit));
+               ObjectSet(Linex2,OBJPROP_PRICE2,II_LinePrice2+(Close[0]-I_Mlimit));
             }
          }
-         if (!Linex1NoBuy)
+         if (!Linex2NoBuy)
          {
             II_Mlimit=II_LineLevel-(LinexPipLimit+LinexPipMove)*Pts;
             if (Close[0]<II_Mlimit)
             {
-               ObjectSet(Linex2,OBJPROP_PRICE1,II_LinePrice1-(LinexPipLimit+LinexPipMove)*Pts);
-               ObjectSet(Linex2,OBJPROP_PRICE2,II_LinePrice2-(LinexPipLimit+LinexPipMove)*Pts);
+               ObjectSet(Linex2,OBJPROP_PRICE1,II_LinePrice1-(I_Mlimit-Close[0]));
+               ObjectSet(Linex2,OBJPROP_PRICE2,II_LinePrice2-(I_Mlimit-Close[0]));
             }
          }
       }
