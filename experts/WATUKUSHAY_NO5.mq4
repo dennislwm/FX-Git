@@ -1,6 +1,10 @@
 //+-----------------------------------------------------------------------------------+
 //| Watukushay No.5 - Atipaq :o)                                                      |
 //| Copyright © 2010, Daniel Fernandez, fxreviews.blogspot.com , Asirikuy.com         |
+//|                                                      Copyright © 2011, Dennis Lee |
+//| Assert History                                                                    |
+//| 1.00    Added PlusLinex.mqh                                                       |
+//|         Added PlusEasy.mqh                                                        |
 //|                                                                                   |
 //+-----------------------------------------------------------------------------------+
 
@@ -151,6 +155,12 @@ extern string s114 = "distance as box multiple from high/low to set pending orde
 extern double Buffer_Box_Multiple = 1.0;
 extern string s115 = "profit of the pending orders as a box multiple";
 extern double Profit_Box_Multiple = 3.1 ;
+//---- Assert PlusEasy externs
+extern string s51="-->PlusEasy Settings<--";
+#include <pluseasy.mqh>
+//---- Assert PlusLinex externs
+extern string s52="-->PlusLinex Settings<--";
+#include <pluslinex.mqh>
 extern string s6_1 = "The identifier of trades, opened by this instance";
 extern int InstanceID = -1;
 extern string s6_2 = "Trade description";
@@ -263,6 +273,9 @@ double g_textDensingFactor = 1.5;
 // The EA initialization funtion
 int init() 
 {
+//--- Assert PlusLinex.mqh
+   EasyInit();
+   LinexInit();
 
    displayWelcomeMessage() ;
    
@@ -498,8 +511,31 @@ int start()
 		if( OperationalMode != OPERATIONAL_MODE_TESTING )
 			updateStatusUI( true );
 	}							
-
 									  } // switch( g_tradingSignal )
+//--- Assert Added PlusLinex.mqh
+   string strtmp;
+   int wave=Linex(Pts);
+   switch(wave)
+   {
+      case 1:  
+         EasySell(Linex1Magic,g_tradeSize);
+         strtmp = Linex1+" "+Symbol()+" Open Sell: " + DoubleToStr(Close[0],Digits);   
+         break;
+      case -1: 
+         EasyBuy(Linex1Magic,g_tradeSize); 
+         strtmp = Linex1+" "+Symbol()+" Open Buy: " + DoubleToStr(Close[0],Digits);   
+         break;
+      case 2:  
+         EasySell(Linex2Magic,g_tradeSize);
+         strtmp = Linex2+" "+Symbol()+" Open Sell: " + DoubleToStr(Close[0],Digits);   
+         break;
+      case -2:  
+         EasyBuy(Linex2Magic,g_tradeSize);
+         strtmp = Linex1+" "+Symbol()+" Open Buy: " + DoubleToStr(Close[0],Digits);   
+         break;
+   }
+   if (wave!=0) Print(strtmp);
+                                      
 	return (0);
 }
 
@@ -924,7 +960,7 @@ void saveWindowScreenshot(int tradeTicket)
 void openBuyOrder()
 {
 
-		if( ! IsTradeAllowed() )
+    if( ! IsTradeAllowed() )
 	{
 		g_lastStatusID = STATUS_TRADING_NOT_ALLOWED;
 		Print( "openBuyOrder: Trading is not allowed." );
@@ -951,22 +987,22 @@ void openBuyOrder()
 
 	// ECN brokers support pending orders by default so TP and SL are entered directly
 
-   int tradeTicket ;
+    int tradeTicket ;
   
-  double tradeEntryPrice ,
-		   stopLossPrice   ,
-		   takeProfitPrice ,
-		   tradeexpirationtime  ; 
+    double  tradeEntryPrice ,
+            stopLossPrice   ,
+            takeProfitPrice ,
+            tradeexpirationtime  ; 
 
-if(preferred_order == PREFERED_ORDER_TYPE_STOP){ // use this if regular sell stops are being placed (this is done when you want to trade and NOT fade
+    if(preferred_order == PREFERED_ORDER_TYPE_STOP){ // use this if regular sell stops are being placed (this is done when you want to trade and NOT fade
 	                     // the breakout.
 	                     
-	       tradeEntryPrice = calculateEntryPrice( OP_BUYSTOP, g_BoxSize );
-	       stopLossPrice   = calculateStopLossPrice( OP_BUYSTOP, tradeEntryPrice );
-			 takeProfitPrice = calculateTakeProfitPrice( OP_BUYSTOP, tradeEntryPrice );
-			 tradeexpirationtime = calculateExpirationTime() ; 
+            tradeEntryPrice = calculateEntryPrice( OP_BUYSTOP, g_BoxSize );
+            stopLossPrice   = calculateStopLossPrice( OP_BUYSTOP, tradeEntryPrice );
+            takeProfitPrice = calculateTakeProfitPrice( OP_BUYSTOP, tradeEntryPrice );
+            tradeexpirationtime = calculateExpirationTime() ; 
 			 
-	 tradeTicket = OrderSend(
+            tradeTicket = OrderSend(
 									g_symbol,
 									OP_BUYSTOP,
 									g_tradeSize,
@@ -980,55 +1016,65 @@ if(preferred_order == PREFERED_ORDER_TYPE_STOP){ // use this if regular sell sto
 									BUY_COLOR
 							  		   );
 							  		   
-	if( -1 == tradeTicket )
-	{
-		logOrderSendInfo(
-						"openBuyOrder-OrderSend: ",
-						g_tradeSize,
-						tradeEntryPrice,
-						g_adjustedSlippage,
-						stopLossPrice,
-						takeProfitPrice,
-						GetLastError()
-							 );
-		return;
-	}
-	                 }
+            if( -1 == tradeTicket )
+            {
+                    logOrderSendInfo(
+                                    "openBuyOrder-OrderSend: ",
+                                    g_tradeSize,
+                                    tradeEntryPrice,
+                                    g_adjustedSlippage,
+                                    stopLossPrice,
+                                    takeProfitPrice,
+                                    GetLastError()
+                                    );
+                    return;
+            }
+    }
 	                 
- if(preferred_order == PREFERED_ORDER_TYPE_LIMIT){ // use this if you want to fade breakouts, placing limits instead of stops
+    if(preferred_order == PREFERED_ORDER_TYPE_LIMIT){ // use this if you want to fade breakouts, placing limits instead of stops
  
-          tradeEntryPrice = calculateEntryPrice( OP_BUYLIMIT, g_BoxSize );
-	       stopLossPrice   = calculateStopLossPrice( OP_BUYLIMIT, tradeEntryPrice );
-			 takeProfitPrice = calculateTakeProfitPrice( OP_BUYLIMIT, tradeEntryPrice );
-			 tradeexpirationtime = calculateExpirationTime() ;
+            tradeEntryPrice = calculateEntryPrice( OP_BUYLIMIT, g_BoxSize );
+            stopLossPrice   = calculateStopLossPrice( OP_BUYLIMIT, tradeEntryPrice );
+            takeProfitPrice = calculateTakeProfitPrice( OP_BUYLIMIT, tradeEntryPrice );
+            tradeexpirationtime = calculateExpirationTime() ;
 			 
-   tradeTicket = OrderSend(
-									g_symbol,
-									OP_BUYLIMIT,
-									g_tradeSize,
-									tradeEntryPrice,
-									g_adjustedSlippage,
-									stopLossPrice,
-									takeProfitPrice,
-									TradeDescription,
-									InstanceID,
-									tradeexpirationtime,
-									BUY_COLOR
-							  		   );
-	if( -1 == tradeTicket )
-	{
-		logOrderSendInfo(
-						"openBuyOrder-OrderSend: ",
-						g_tradeSize,
-						tradeEntryPrice,
-						g_adjustedSlippage,
-						takeProfitPrice,
-						stopLossPrice,
-						GetLastError()
-							 );
-		return;
-	}
-	                 }
+//            tradeTicket = OrderSend(
+//									g_symbol,
+//									OP_BUYLIMIT,
+//									g_tradeSize,
+//									tradeEntryPrice,
+//									g_adjustedSlippage,
+//									stopLossPrice,
+//									takeProfitPrice,
+//									TradeDescription,
+//									InstanceID,
+//									tradeexpirationtime,
+//									BUY_COLOR
+//							  		   );
+//            if( -1 == tradeTicket )
+        //--- Assert Added PlusLinex.mqh
+            string desc="BUY_LIMIT: Lot="+DoubleToStr(g_tradeSize,2)+" Price="+DoubleToStr(tradeEntryPrice,5)+" SL="+DoubleToStr(stopLossPrice,5)+" TP="+DoubleToStr(takeProfitPrice,5)+" Expiry="+tradeexpirationtime;
+            if (ObjectFind(Linex2)<0)
+            {
+                //--- No previous object, so create a new object.
+                ObjectCreate(Linex2,OBJ_TREND,0,iTime(NULL,0,50),tradeEntryPrice,iTime(NULL,0,0),tradeEntryPrice);
+                ObjectSetText(Linex2,desc);
+            }
+            
+            if (ObjectFind(Linex2)<0)
+            {
+                    logOrderSendInfo(
+                                    "openBuyOrder-OrderSend: ",
+                                    g_tradeSize,
+                                    tradeEntryPrice,
+                                    g_adjustedSlippage,
+                                    takeProfitPrice,
+                                    stopLossPrice,
+                                    GetLastError()
+                                    );
+                    return;
+            }
+    }
 	
 	// if the recordAdaptiveMax value is set to true
 	// then execute the saveAdaptiveCriteria function
@@ -1127,22 +1173,33 @@ void openSellOrder()
 		    	 tradeexpirationtime = calculateExpirationTime() ;
 
 			 
-	tradeTicket = OrderSend(
-									g_symbol,
-									OP_SELLLIMIT,
-									g_tradeSize,
-									tradeEntryPrice,
-									g_adjustedSlippage,
-									stopLossPrice,
-									takeProfitPrice,
-									TradeDescription,
-									InstanceID,
-									tradeexpirationtime,
-									SELL_COLOR
-							  		   );
-	if( -1 == tradeTicket )
-	{
-		logOrderSendInfo(
+//	           tradeTicket = OrderSend(
+//									g_symbol,
+//									OP_SELLLIMIT,
+//									g_tradeSize,
+//									tradeEntryPrice,
+//									g_adjustedSlippage,
+//									stopLossPrice,
+//									takeProfitPrice,
+//									TradeDescription,
+//									InstanceID,
+//									tradeexpirationtime,
+//									SELL_COLOR
+//							  		   );
+//	if( -1 == tradeTicket )
+
+        //--- Assert Added PlusLinex.mqh
+            string desc="SELL_LIMIT: Lot="+DoubleToStr(g_tradeSize,2)+" Price="+DoubleToStr(tradeEntryPrice,5)+" SL="+DoubleToStr(stopLossPrice,5)+" TP="+DoubleToStr(takeProfitPrice,5)+" Expiry="+tradeexpirationtime;
+            if (ObjectFind(Linex1)<0)
+            {
+                //--- No previous object, so create a new object.
+                ObjectCreate(Linex1,OBJ_TREND,0,iTime(NULL,0,50),tradeEntryPrice,iTime(NULL,0,0),tradeEntryPrice);
+                ObjectSetText(Linex1,desc);
+            }
+            
+            if (ObjectFind(Linex1)<0)
+	         {
+		          logOrderSendInfo(
 						"openSellOrder-OrderSend: ",
 						g_tradeSize,
 						tradeEntryPrice,
@@ -1151,8 +1208,8 @@ void openSellOrder()
 						takeProfitPrice,
 						GetLastError()
 							 );
-		return;
-	}
+		          return;
+	         }
 	                     }
 
    // if the recordAdaptiveMax value is set to true
@@ -1875,6 +1932,9 @@ void updateUI()
 	updateStatusUI( false );
 	
 	string text ;
+
+//--- Assert Added PlusLinex.mqh
+   Comment(LinexComment());
 	
 	// Line and text on screen indicating current box high/low values
 	if(Hour() == Entry_Hour_Set_Used && ShowLines)
