@@ -2,6 +2,7 @@
 //|                                                                           plusgridx.mqh |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.01    Fixed return values in Gridx(), I_Trade() and II_Trade().                       |
 //| 1.00    Copied from PlusLinex.mqh to PlusGridx.mqh.                                     |
 //|         Added dynamic arrays to allow maximum of 100 upper and lower trendlines each.   |
 //|-----------------------------------------------------------------------------------------|
@@ -29,7 +30,7 @@ extern   double   GridxPipMove   = 6;
 extern   int      GridxUpperMagic    = 10000;
 extern   int      GridxLowerMagic    = 20000;
 extern   bool     GridxOneTrade= false;
-extern   int      GridxDebug     = 1;
+extern   int      GridxDebug     = 0;
 
 //|-----------------------------------------------------------------------------------------|
 //|                           I N T E R N A L   V A R I A B L E S                           |
@@ -43,7 +44,7 @@ double   I_LineLevelStart[], II_LineLevelStart[];
 int      I_Status[], II_Status[], I_Magic[], II_Magic[];
 string   I_Name[], II_Name[];
 string   GridxName="PlusGridx";
-string   GridxVer="1.00";
+string   GridxVer="1.01";
 
 //|-----------------------------------------------------------------------------------------|
 //|                             I N I T I A L I Z A T I O N                                 |
@@ -141,7 +142,7 @@ int I_Check(int gridno)
             {
                ObjectSet(I_Name[gridno],OBJPROP_PRICE1,I_LinePrice1+(Close[0]-I_Mlimit[gridno]));
                ObjectSet(I_Name[gridno],OBJPROP_PRICE2,I_LinePrice2+(Close[0]-I_Mlimit[gridno]));
-               if (1==GridxDebug) Print("PlusGridx: SELL Close[0]=",DoubleToStr(Close[0],5),">I_Mlimit=",DoubleToStr(I_Mlimit[gridno],5)," I_LinePrice1=",DoubleToStr(I_LinePrice1,5)," I_LinePrice2=",DoubleToStr(I_LinePrice2,5)," Delta=",DoubleToStr(Close[0]-I_Mlimit[gridno],5));
+               if (GridxDebug>=2) Print("PlusGridx: ",Symbol()," I_Check",DoubleToStr(gridno,0),": Close[0]=",DoubleToStr(Close[0],5),">I_Mlimit=",DoubleToStr(I_Mlimit[gridno],5)," I_LinePrice1=",DoubleToStr(I_LinePrice1,5)," I_LinePrice2=",DoubleToStr(I_LinePrice2,5)," Delta=",DoubleToStr(Close[0]-I_Mlimit[gridno],5));
             }
          }
          if (!GridxUpperNoBuy)
@@ -151,7 +152,7 @@ int I_Check(int gridno)
             {
                ObjectSet(I_Name[gridno],OBJPROP_PRICE1,I_LinePrice1-(I_Mlimit[gridno]-Close[0]));
                ObjectSet(I_Name[gridno],OBJPROP_PRICE2,I_LinePrice2-(I_Mlimit[gridno]-Close[0]));
-               if (1==GridxDebug) Print("PlusGridx: BUY Close[0]=",DoubleToStr(Close[0],5),"<I_Mlimit=",DoubleToStr(I_Mlimit[gridno],5)," I_LinePrice1=",DoubleToStr(I_LinePrice1,5)," I_LinePrice2=",DoubleToStr(I_LinePrice2,5)," Delta=",DoubleToStr(Close[0]-I_Mlimit[gridno],5));
+               if (GridxDebug>=2) Print("PlusGridx: ",Symbol()," I_Check",DoubleToStr(gridno,0),": Close[0]=",DoubleToStr(Close[0],5),"<I_Mlimit=",DoubleToStr(I_Mlimit[gridno],5)," I_LinePrice1=",DoubleToStr(I_LinePrice1,5)," I_LinePrice2=",DoubleToStr(I_LinePrice2,5)," Delta=",DoubleToStr(Close[0]-I_Mlimit[gridno],5));
             }
          }
       }   
@@ -187,7 +188,7 @@ int II_Check(int gridno)
             {
                ObjectSet(II_Name[gridno],OBJPROP_PRICE1,II_LinePrice1+(Close[0]-II_Mlimit[gridno]));
                ObjectSet(II_Name[gridno],OBJPROP_PRICE2,II_LinePrice2+(Close[0]-II_Mlimit[gridno]));
-               if (1==GridxDebug) Print("PlusGridx: SELL Close[0]=",DoubleToStr(Close[0],5),">II_Mlimit=",DoubleToStr(II_Mlimit[gridno],5)," II_LinePrice1=",DoubleToStr(II_LinePrice1,5)," II_LinePrice2=",DoubleToStr(II_LinePrice2,5)," Delta=",DoubleToStr(Close[0]-II_Mlimit[gridno],5));
+               if (GridxDebug>=2) Print("PlusGridx: ",Symbol()," II_Check",DoubleToStr(gridno,0),": Close[0]=",DoubleToStr(Close[0],5),">II_Mlimit=",DoubleToStr(II_Mlimit[gridno],5)," II_LinePrice1=",DoubleToStr(II_LinePrice1,5)," II_LinePrice2=",DoubleToStr(II_LinePrice2,5)," Delta=",DoubleToStr(Close[0]-II_Mlimit[gridno],5));
             }
          }
          if (!GridxLowerNoBuy)
@@ -197,7 +198,7 @@ int II_Check(int gridno)
             {
                ObjectSet(II_Name[gridno],OBJPROP_PRICE1,II_LinePrice1-(II_Mlimit[gridno]-Close[0]));
                ObjectSet(II_Name[gridno],OBJPROP_PRICE2,II_LinePrice2-(II_Mlimit[gridno]-Close[0]));
-               if (1==GridxDebug) Print("PlusGridx: BUY Close[0]=",DoubleToStr(Close[0],5),">II_Mlimit=",DoubleToStr(II_Mlimit[gridno],5)," II_LinePrice1=",DoubleToStr(II_LinePrice1,5)," II_LinePrice2=",DoubleToStr(II_LinePrice2,5)," Delta=",DoubleToStr(Close[0]-II_Mlimit[gridno],5));
+               if (GridxDebug>=2) Print("PlusGridx: ",Symbol()," II_Check",DoubleToStr(gridno,0),": Close[0]=",DoubleToStr(Close[0],5),">II_Mlimit=",DoubleToStr(II_Mlimit[gridno],5)," II_LinePrice1=",DoubleToStr(II_LinePrice1,5)," II_LinePrice2=",DoubleToStr(II_LinePrice2,5)," Delta=",DoubleToStr(Close[0]-II_Mlimit[gridno],5));
             }
          }
       }
@@ -230,7 +231,7 @@ int I_Trade(int gridno)
             if (I_Status[gridno]!=1 && !GridxUpperNoMove)   {}   // do nothing
             else
             //--  Assert Open orders are removed
-               if (GridxOpenOrd(I_Magic[gridno])==0)   return(-1);
+               if (GridxOpenOrd(I_Magic[gridno])==0)   return(-(GridxUpperPrefix+gridno));
                else
                   if (GridxOpenLast(I_Magic[gridno])==OP_SELL)
                   {   
@@ -258,7 +259,7 @@ int I_Trade(int gridno)
             if (I_Status[gridno]!=1 && !GridxUpperNoMove)   {}   // do nothing
             else
             //--  Assert Open orders are removed
-               if (GridxOpenOrd(I_Magic[gridno])==0)   return(1);
+               if (GridxOpenOrd(I_Magic[gridno])==0)   return(GridxUpperPrefix+gridno);
                else
                   if (GridxOpenLast(I_Magic[gridno])==OP_BUY)
                   {   
@@ -292,7 +293,7 @@ int II_Trade(int gridno)
             if (II_Status[gridno]!=1 && !GridxLowerNoMove)  {}    // do nothing
             else
             //--  Assert Open orders are removed
-               if (GridxOpenOrd(II_Magic[gridno])==0)   return(-2);
+               if (GridxOpenOrd(II_Magic[gridno])==0)   return(-(GridxLowerPrefix+gridno));
                else
                   if (GridxOpenLast(II_Magic[gridno])==OP_SELL)
                   {   
@@ -320,7 +321,7 @@ int II_Trade(int gridno)
             if (II_Status[gridno]!=1 && !GridxLowerNoMove)  {}    // do nothing
             else
             //-- Assert Open orders are removed
-               if (GridxOpenOrd(II_Magic[gridno])==0)   return(2);
+               if (GridxOpenOrd(II_Magic[gridno])==0)   return(GridxLowerPrefix+gridno);
                else
                   if (GridxOpenLast(II_Magic[gridno])==OP_BUY)
                   {   
@@ -342,6 +343,8 @@ int II_Trade(int gridno)
 //|-----------------------------------------------------------------------------------------|
 int Gridx(double Pts)
 {
+   int wave;
+   
    // Check for Trendline and Determine the Limits
    // ============================================
    for (int i=1; i<=GridxUpperNo; i++)
@@ -358,11 +361,21 @@ int Gridx(double Pts)
    // ==============
    for (i=1; i<=GridxUpperNo; i++)
    {
-      I_Trade(i);
+      wave=I_Trade(i);
+      if (wave!=0)
+      {
+         if (GridxDebug>=2) Print("PlusGridx: ",Symbol()," I_Trade: wave=",DoubleToStr(wave,0));
+         return(wave);
+      }
    }
    for (i=1; i<=GridxLowerNo; i++)
    {
-      II_Trade(i);
+      wave=II_Trade(i);
+      if (wave!=0) 
+      {
+         if (GridxDebug>=2) Print("PlusGridx: ",Symbol()," II_Trade: wave=",DoubleToStr(wave,0));
+         return(wave);
+      }
    }
    
    return(0);
