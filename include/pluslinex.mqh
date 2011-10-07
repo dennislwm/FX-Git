@@ -2,6 +2,7 @@
 //|                                                                           pluslinex.mqh |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 2.04    Fixed bug in LinexComment().                                                    |
 //| 2.03    Added debug info and fixed ObjectSetText                                        |
 //| 2.02    Fixed bug in determining the limits.                                            |
 //| 2.01    Fixed calculation in ObjectSet().                                               |
@@ -64,7 +65,7 @@ double   I_Mlimit, II_Mlimit;
 double   I_LineLevelStart, II_LineLevelStart;
 int      I_Status, II_Status;
 string   LinexName="PlusLinex";
-string   LinexVer="2.03";
+string   LinexVer="2.04";
 
 //|-----------------------------------------------------------------------------------------|
 //|                             I N I T I A L I Z A T I O N                                 |
@@ -333,7 +334,7 @@ string LinexComment(string cmt="")
          if (!Linex1NoSell)   strtmp = strtmp + " (Sell >" + DoubleToStr(I_Llimit1,Digits) + " && <" + DoubleToStr(I_Llimit,Digits) + ")";
 
          strtmp = strtmp + " Last Order: ";  
-         switch (LinexOpenLast(Linex2Magic))
+         switch (LinexOpenLast(Linex1Magic))
          {
             case 0:  strtmp = strtmp + "BUY";    break;
             case 1:  strtmp = strtmp + "SELL";   break;
