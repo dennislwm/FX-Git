@@ -2,8 +2,9 @@
 //|                                                                          ReverseGrid.mq4 |
 //|                                                             Copyright © 2011, Dennis Lee |
 //| Assert History                                                                           |
-//| 1.00    Copied from TrendAuto.mq4 to ReverseGrid.mq4.                                    |
+//| 1.11    Changed order of comments.                                                       |
 //| 1.10    Added PlusSwiss.mqh.                                                             |
+//| 1.00    Copied from TrendAuto.mq4 to ReverseGrid.mq4.                                    |
 //|------------------------------------------------------------------------------------------|
 #property   copyright "Copyright © 2011, Dennis Lee"
 #import "WinUser32.mqh"
@@ -26,7 +27,7 @@ extern double  ReverseLot=0.1;
 //|                           I N T E R N A L   V A R I A B L E S                            |
 //|------------------------------------------------------------------------------------------|
 string   ReverseName="ReverseGrid";
-string   ReverseVer="1.10";
+string   ReverseVer="1.11";
 
 // ------------------------------------------------------------------------------------------|
 //                             I N I T I A L I S A T I O N                                   |
@@ -136,8 +137,8 @@ int start()
       profit=profit+EasyProfitsMagic(m);
    }
    strtmp=EasyComment(profit,strtmp);
-   strtmp=GridxComment(strtmp);
    strtmp=SwissComment(strtmp);
+   strtmp=GridxComment(strtmp);
    Comment(strtmp);
    return(0);
 }
