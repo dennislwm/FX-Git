@@ -2,6 +2,7 @@
 //|                                                           WallStreetForexRobot_v3.9.mq4 |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.21    Fixed minor bug in Comment().                                                   |
 //| 1.20    Added PlusSwiss.mqh.                                                            |
 //|         Fixed Linex to use EasyLot.                                                     |
 //| 1.10    Added PlusLinex.mqh.                                                            |
@@ -434,7 +435,10 @@ int start() {
       + "\n  Account Profit = " + DoubleToStr(ld_64, 2);
    }
 //--- Assert Added PlusLinex.mqh
-   Cmt=EasyComment(Cmt);
+   Cmt=StringConcatenate(Cmt,"\n\n\n");
+   double profit=EasyProfitsMagic(Linex1Magic)+EasyProfitsMagic(Linex2Magic);
+   Cmt=EasyComment(profit,Cmt);
+   Cmt=StringConcatenate(Cmt,"    Lot=",DoubleToStr(EasyLot,2),"\n");
    Cmt=SwissComment(Cmt);
    Cmt=LinexComment(Cmt);
    Comment(Cmt);
