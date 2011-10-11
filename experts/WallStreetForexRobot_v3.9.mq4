@@ -2,6 +2,7 @@
 //|                                                           WallStreetForexRobot_v3.9.mq4 |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.22    Added ObjectDelete(). Tightened entry criteria for trendlines.                  |
 //| 1.21    Fixed minor bug in Comment().                                                   |
 //| 1.20    Added PlusSwiss.mqh.                                                            |
 //|         Fixed Linex to use EasyLot.                                                     |
@@ -463,19 +464,35 @@ int start() {
    {
       case 1:  
          ticket=EasySell(Linex1Magic,EasyLot);
-         if(ticket>0) strtmp = "EasySell: "+Linex1+" "+Linex1Magic+" "+Symbol()+" "+ticket+" sell at " + DoubleToStr(Close[0],Digits);   
+         if(ticket>0) 
+         {
+            ObjectDelete(Linex1);
+            strtmp = "EasySell: "+Linex1+" "+Linex1Magic+" "+Symbol()+" "+ticket+" sell at " + DoubleToStr(Close[0],Digits);   
+         }
          break;
       case -1: 
          ticket=EasyBuy(Linex1Magic,EasyLot); 
-         if(ticket>0) strtmp = "EasyBuy: "+Linex1+" "+Linex1Magic+" "+Symbol()+" "+ticket+" buy at " + DoubleToStr(Close[0],Digits);   
+         if(ticket>0) 
+         {
+            ObjectDelete(Linex1);
+            strtmp = "EasyBuy: "+Linex1+" "+Linex1Magic+" "+Symbol()+" "+ticket+" buy at " + DoubleToStr(Close[0],Digits);   
+         }
          break;
       case 2:  
          ticket=EasySell(Linex2Magic,EasyLot);
-         if(ticket>0) strtmp = "EasySell: "+Linex2+" "+Linex2Magic+" "+Symbol()+" "+ticket+" sell at " + DoubleToStr(Close[0],Digits);   
+         if(ticket>0) 
+         {
+            ObjectDelete(Linex2);
+            strtmp = "EasySell: "+Linex2+" "+Linex2Magic+" "+Symbol()+" "+ticket+" sell at " + DoubleToStr(Close[0],Digits);   
+         }
          break;
       case -2:  
          ticket=EasyBuy(Linex2Magic,EasyLot);
-         if(ticket>0) strtmp = "EasyBuy: "+Linex2+" "+Linex2Magic+" "+Symbol()+" "+ticket+" buy at " + DoubleToStr(Close[0],Digits);   
+         if(ticket>0) 
+         {
+            ObjectDelete(Linex2);
+            strtmp = "EasyBuy: "+Linex2+" "+Linex2Magic+" "+Symbol()+" "+ticket+" buy at " + DoubleToStr(Close[0],Digits);   
+         }
          break;
    }
    if (wave!=0) Print(strtmp);
@@ -540,20 +557,21 @@ int start() {
    
    if (OrType >= OP_BUY && CheckLossPause()) {
       RefreshRates();
-      if (OrType == OP_BUY) OrPrice = NormalizeDouble(Ask, Digits);
+   //--- Switch Ask and Bid for trendlines.
+      if (OrType == OP_SELL) OrPrice = NormalizeDouble(Ask, Digits);
       else
-         if (OrType == OP_SELL) OrPrice = NormalizeDouble(Bid, Digits);
+         if (OrType == OP_BUY) OrPrice = NormalizeDouble(Bid, Digits);
 
    //--- Assert Added PlusLinex.mqh.
       if (OrType==OP_BUY)
       {
             string desc="BUY_LIMIT: Lot="+DoubleToStr(EasyLot,2)+" Price="+DoubleToStr(OrPrice,5)+" SL="+DoubleToStr(StopLoss,0)+" TP="+DoubleToStr(TakeProfit,0);
-            TrendLinexCreate(Linex2,OrPrice-0.0003,desc);
+            TrendLinexCreate(Linex2,OrPrice-0.0006,desc);
       }
       else if (OrType==OP_SELL)
       {
             desc="SELL_LIMIT: Lot="+DoubleToStr(EasyLot,2)+" Price="+DoubleToStr(OrPrice,5)+" SL="+DoubleToStr(StopLoss,0)+" TP="+DoubleToStr(TakeProfit,0);
-            TrendLinexCreate(Linex1,OrPrice+0.0003,desc);
+            TrendLinexCreate(Linex1,OrPrice+0.0006,desc);
       }
    }
    return (0);
