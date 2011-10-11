@@ -2,6 +2,7 @@
 //|                                                                           TrendAuto.mq4 |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.21    Added PlusSwiss.mqh.                                                            |
 //| 1.11    Changed Lot from internal to extern.                                            |
 //|         Added LinexInit().                                                              |
 //| 1.10    First EA to open pending orders using trendlines.                               |
@@ -14,14 +15,17 @@
 //---- Assert Basic externs
 extern string s1="-->PlusEasy Settings<--";
 #include <pluseasy.mqh>
+extern double EasyLot=0.1;
+//---- Assert PlusSwiss externs
+extern string s2="-->PlusSwiss Settings<--";
+#include <plusswiss.mqh>
 //---- Assert PlusLinex externs
-extern string s2="-->PlusLinex Settings<--";
+extern string s3="-->PlusLinex Settings<--";
 #include <pluslinex.mqh>
 //---- Assert Extra externs
-extern string s3="-->Extra Settings<--";
-extern string TradeComment="-->TrendAuto v1.11<--";
+extern string s4="-->Extra Settings<--";
+extern string TradeComment="-->TrendAuto v1.21<--";
 extern int Debug=2;
-extern double Lot=0.1;
 
 //|-----------------------------------------------------------------------------------------|
 //|                           I N T E R N A L   V A R I A B L E S                           |
@@ -57,32 +61,46 @@ int start()
 {
    double profit;
    string strtmp;
-   int wave;
+   int wave,ticket;
    
+//--- Assert PlusSwiss.mqh
+   if (EasyOrdersMagic(Linex1Magic)>0)
+   {
+      SwissEvenManager(Linex1Magic,Symbol(),SwissEvenAt,SwissEvenSlide,Pts);
+      SwissTrailingStopManager(Linex1Magic,Symbol(),SwissTrailingStop,SwissOnlyTrailProfits,Pts);
+   }
+   if (EasyOrdersMagic(Linex2Magic)>0)
+   {
+      SwissEvenManager(Linex2Magic,Symbol(),SwissEvenAt,SwissEvenSlide,Pts);
+      SwissTrailingStopManager(Linex2Magic,Symbol(),SwissTrailingStop,SwissOnlyTrailProfits,Pts);
+   }
+
    wave=Linex(Pts);
    switch(wave)
    {
       case 1:  
-         EasySell(Linex1Magic,Lot);
-         strtmp = Linex1+ " Open Sell: " + DoubleToStr(Close[0],Digits);   
+         ticket = EasySell(Linex1Magic,EasyLot);
+         if(ticket>0) strtmp = "EasySell: "+Linex1+" "+Linex1Magic+" "+Symbol()+" "+ticket+" sell at " + DoubleToStr(Close[0],Digits);   
          break;
       case -1: 
-         EasyBuy(Linex1Magic,Lot); 
-         strtmp = Linex1+ " Open Buy: " + DoubleToStr(Close[0],Digits);   
+         ticket = EasyBuy(Linex1Magic,EasyLot); 
+         if(ticket>0) strtmp = "EasyBuy: "+Linex1+" "+Linex1Magic+" "+Symbol()+" "+ticket+" buy at " + DoubleToStr(Close[0],Digits);   
          break;
       case 2:  
-         EasySell(Linex2Magic,Lot);
-         strtmp = Linex2+ " Open Sell: " + DoubleToStr(Close[0],Digits);   
+         ticket = EasySell(Linex2Magic,EasyLot);
+         if(ticket>0) strtmp = "EasySell: "+Linex2+" "+Linex2Magic+" "+Symbol()+" "+ticket+" sell at " + DoubleToStr(Close[0],Digits);   
          break;
       case -2:  
-         EasyBuy(Linex2Magic,Lot);
-         strtmp = Linex1+ " Open Buy: " + DoubleToStr(Close[0],Digits);   
+         ticket = EasyBuy(Linex2Magic,EasyLot);
+         if(ticket>0) strtmp = "EasyBuy: "+Linex2+" "+Linex2Magic+" "+Symbol()+" "+ticket+" buy at " + DoubleToStr(Close[0],Digits);   
          break;
    }
    if (wave!=0) Print(strtmp);
 
    profit=EasyProfitsMagic(Linex1Magic)+EasyProfitsMagic(Linex2Magic);
    strtmp=EasyComment(profit);
+   strtmp=StringConcatenate(strtmp,"    Lot=",DoubleToStr(EasyLot,2),"\n");
+   strtmp=SwissComment(strtmp);
    strtmp=LinexComment(strtmp);
    Comment(strtmp);
    return(0);
