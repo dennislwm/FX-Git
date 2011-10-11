@@ -2,6 +2,7 @@
 //|                                                                           TrendAuto.mq4 |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.22    Updated with Swiss Parabolic SAR.                                               |
 //| 1.21    Added PlusSwiss.mqh.                                                            |
 //| 1.11    Changed Lot from internal to extern.                                            |
 //|         Added LinexInit().                                                              |
@@ -24,12 +25,13 @@ extern string s3="-->PlusLinex Settings<--";
 #include <pluslinex.mqh>
 //---- Assert Extra externs
 extern string s4="-->Extra Settings<--";
-extern string TradeComment="-->TrendAuto v1.21<--";
-extern int Debug=2;
+extern int Debug=0;
 
 //|-----------------------------------------------------------------------------------------|
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
+string TrendName="TrendAuto";
+string TrendVer="1.22";
 
 // ------------------------------------------------------------------------------------------ //
 //                             I N I T I A L I S A T I O N                                    //
@@ -38,6 +40,7 @@ extern int Debug=2;
 int init()
 {
    EasyInit();
+   SwissInit();
    LinexInit();
    return(0);    
 }
@@ -66,13 +69,11 @@ int start()
 //--- Assert PlusSwiss.mqh
    if (EasyOrdersMagic(Linex1Magic)>0)
    {
-      SwissEvenManager(Linex1Magic,Symbol(),SwissEvenAt,SwissEvenSlide,Pts);
-      SwissTrailingStopManager(Linex1Magic,Symbol(),SwissTrailingStop,SwissOnlyTrailProfits,Pts);
+      SwissManager(Linex1Magic,Symbol(),Pts);
    }
    if (EasyOrdersMagic(Linex2Magic)>0)
    {
-      SwissEvenManager(Linex2Magic,Symbol(),SwissEvenAt,SwissEvenSlide,Pts);
-      SwissTrailingStopManager(Linex2Magic,Symbol(),SwissTrailingStop,SwissOnlyTrailProfits,Pts);
+      SwissManager(Linex2Magic,Symbol(),Pts);
    }
 
    wave=Linex(Pts);
@@ -98,7 +99,7 @@ int start()
    if (wave!=0) Print(strtmp);
 
    profit=EasyProfitsMagic(Linex1Magic)+EasyProfitsMagic(Linex2Magic);
-   strtmp=EasyComment(profit);
+   strtmp=EasyComment(profit,StringConcatenate("==>",TrendName," ",TrendVer,"<==\n"));
    strtmp=StringConcatenate(strtmp,"    Lot=",DoubleToStr(EasyLot,2),"\n");
    strtmp=SwissComment(strtmp);
    strtmp=LinexComment(strtmp);
