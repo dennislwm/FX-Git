@@ -3,6 +3,9 @@
 //| Copyright © 2010, Daniel Fernandez, fxreviews.blogspot.com , Asirikuy.com         |
 //|                                                      Copyright © 2011, Dennis Lee |
 //| Assert History                                                                    |
+//| 1.20    Added PlusSwiss.mqh.                                                      |
+//| 1.10    Revert the fade code as box functions depend on actual pending orders.    |
+//|             Hard-coded fade code to use 0.01 lot, but Linex uses g_tradeSize.     |
 //| 1.00    Added PlusLinex.mqh                                                       |
 //|         Added PlusEasy.mqh                                                        |
 //|                                                                                   |
@@ -158,8 +161,12 @@ extern double Profit_Box_Multiple = 3.1 ;
 //---- Assert PlusEasy externs
 extern string s51="-->PlusEasy Settings<--";
 #include <pluseasy.mqh>
+//extern double EasyLot=0.1;
+//---- Assert PlusSwiss externs
+extern string s52="-->PlusSwiss Settings<--";
+#include <plusswiss.mqh>
 //---- Assert PlusLinex externs
-extern string s52="-->PlusLinex Settings<--";
+extern string s53="-->PlusLinex Settings<--";
 #include <pluslinex.mqh>
 extern string s6_1 = "The identifier of trades, opened by this instance";
 extern int InstanceID = -1;
@@ -275,6 +282,7 @@ int init()
 {
 //--- Assert PlusLinex.mqh
    EasyInit();
+   SwissInit();
    LinexInit();
 
    displayWelcomeMessage() ;
@@ -512,26 +520,36 @@ int start()
 			updateStatusUI( true );
 	}							
 									  } // switch( g_tradingSignal )
+//--- Assert PlusSwiss.mqh
+   if (EasyOrdersMagic(Linex1Magic)>0)
+   {
+      SwissManager(Linex1Magic,Symbol(),Pts);
+   }
+   if (EasyOrdersMagic(Linex2Magic)>0)
+   {
+      SwissManager(Linex2Magic,Symbol(),Pts);
+   }
 //--- Assert Added PlusLinex.mqh
    string strtmp;
+   int ticket;
    int wave=Linex(Pts);
    switch(wave)
    {
       case 1:  
-         EasySell(Linex1Magic,g_tradeSize);
-         strtmp = Linex1+" "+Symbol()+" Open Sell: " + DoubleToStr(Close[0],Digits);   
+         ticket=EasySell(Linex1Magic,g_tradeSize);
+         if(ticket>0) strtmp = "EasySell: "+Linex1+" "+Linex1Magic+" "+Symbol()+" "+ticket+" sell at " + DoubleToStr(Close[0],Digits);   
          break;
       case -1: 
-         EasyBuy(Linex1Magic,g_tradeSize); 
-         strtmp = Linex1+" "+Symbol()+" Open Buy: " + DoubleToStr(Close[0],Digits);   
+         ticket=EasyBuy(Linex1Magic,g_tradeSize); 
+         if(ticket>0) strtmp = "EasyBuy: "+Linex1+" "+Linex1Magic+" "+Symbol()+" "+ticket+" buy at " + DoubleToStr(Close[0],Digits);   
          break;
       case 2:  
-         EasySell(Linex2Magic,g_tradeSize);
-         strtmp = Linex2+" "+Symbol()+" Open Sell: " + DoubleToStr(Close[0],Digits);   
+         ticket=EasySell(Linex2Magic,g_tradeSize);
+         if(ticket>0) strtmp = "EasySell: "+Linex2+" "+Linex2Magic+" "+Symbol()+" "+ticket+" sell at " + DoubleToStr(Close[0],Digits);   
          break;
       case -2:  
-         EasyBuy(Linex2Magic,g_tradeSize);
-         strtmp = Linex1+" "+Symbol()+" Open Buy: " + DoubleToStr(Close[0],Digits);   
+         ticket=EasyBuy(Linex2Magic,g_tradeSize);
+         if(ticket>0) strtmp = "EasyBuy: "+Linex2+" "+Linex2Magic+" "+Symbol()+" "+ticket+" buy at " + DoubleToStr(Close[0],Digits);   
          break;
    }
    if (wave!=0) Print(strtmp);
@@ -1038,19 +1056,19 @@ void openBuyOrder()
             takeProfitPrice = calculateTakeProfitPrice( OP_BUYLIMIT, tradeEntryPrice );
             tradeexpirationtime = calculateExpirationTime() ;
 			 
-//            tradeTicket = OrderSend(
-//									g_symbol,
-//									OP_BUYLIMIT,
-//									g_tradeSize,
-//									tradeEntryPrice,
-//									g_adjustedSlippage,
-//									stopLossPrice,
-//									takeProfitPrice,
-//									TradeDescription,
-//									InstanceID,
-//									tradeexpirationtime,
-//									BUY_COLOR
-//							  		   );
+            tradeTicket = OrderSend(
+									g_symbol,
+									OP_BUYLIMIT,
+									0.01,
+									tradeEntryPrice,
+									g_adjustedSlippage,
+									stopLossPrice,
+									takeProfitPrice,
+									TradeDescription,
+									InstanceID,
+									tradeexpirationtime,
+									BUY_COLOR
+							  		   );
 //            if( -1 == tradeTicket )
         //--- Assert Added PlusLinex.mqh
             string desc="BUY_LIMIT: Lot="+DoubleToStr(g_tradeSize,2)+" Price="+DoubleToStr(tradeEntryPrice,5)+" SL="+DoubleToStr(stopLossPrice,5)+" TP="+DoubleToStr(takeProfitPrice,5)+" Expiry="+tradeexpirationtime;
@@ -1173,19 +1191,19 @@ void openSellOrder()
 		    	 tradeexpirationtime = calculateExpirationTime() ;
 
 			 
-//	           tradeTicket = OrderSend(
-//									g_symbol,
-//									OP_SELLLIMIT,
-//									g_tradeSize,
-//									tradeEntryPrice,
-//									g_adjustedSlippage,
-//									stopLossPrice,
-//									takeProfitPrice,
-//									TradeDescription,
-//									InstanceID,
-//									tradeexpirationtime,
-//									SELL_COLOR
-//							  		   );
+	           tradeTicket = OrderSend(
+									g_symbol,
+									OP_SELLLIMIT,
+									0.01,
+									tradeEntryPrice,
+									g_adjustedSlippage,
+									stopLossPrice,
+									takeProfitPrice,
+									TradeDescription,
+									InstanceID,
+									tradeexpirationtime,
+									SELL_COLOR
+							  		   );
 //	if( -1 == tradeTicket )
 
         //--- Assert Added PlusLinex.mqh
@@ -1934,7 +1952,12 @@ void updateUI()
 	string text ;
 
 //--- Assert Added PlusLinex.mqh
-   Comment(LinexComment());
+   double profit=EasyProfitsMagic(Linex1Magic)+EasyProfitsMagic(Linex2Magic);
+   string strtmp=EasyComment(profit,"\n\n\n\n\n\n\n\n\n\n\n\n");
+//   strtmp=StringConcatenate(strtmp,"    Lot=",DoubleToStr(EasyLot,2),"\n");
+   strtmp=SwissComment(strtmp);
+   strtmp=LinexComment(strtmp);
+   Comment(strtmp);
 	
 	// Line and text on screen indicating current box high/low values
 	if(Hour() == Entry_Hour_Set_Used && ShowLines)
