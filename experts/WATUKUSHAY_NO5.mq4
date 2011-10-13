@@ -3,6 +3,8 @@
 //| Copyright © 2010, Daniel Fernandez, fxreviews.blogspot.com , Asirikuy.com         |
 //|                                                      Copyright © 2011, Dennis Lee |
 //| Assert History                                                                    |
+//| 1.21    Delete pending orders once trendlines are established.                    |
+//|         Delete both trendlines once either pending order is opened.               |
 //| 1.20    Added PlusSwiss.mqh.                                                      |
 //| 1.10    Revert the fade code as box functions depend on actual pending orders.    |
 //|             Hard-coded fade code to use 0.01 lot, but Linex uses g_tradeSize.     |
@@ -529,6 +531,16 @@ int start()
    {
       SwissManager(Linex2Magic,Symbol(),Pts);
    }
+//--- Assert Delete pending orders once trendlines are established.
+   int count_pending_longs = queryOrdersCount(OP_BUYSTOP)+queryOrdersCount(OP_BUYLIMIT), // calculate pending buy orders
+      count_pending_shorts = queryOrdersCount(OP_SELLSTOP)+queryOrdersCount(OP_SELLLIMIT); // calculate pending buy orders
+   if (ObjectFind(Linex1)>=0 && ObjectFind(Linex2)>=0 && (count_pending_longs+count_pending_shorts)>=2)
+   {
+      deleteOrderType(OP_BUYSTOP);
+      deleteOrderType(OP_BUYLIMIT);
+      deleteOrderType(OP_SELLSTOP);
+      deleteOrderType(OP_SELLLIMIT);
+   }
 //--- Assert Added PlusLinex.mqh
    string strtmp;
    int ticket;
@@ -537,19 +549,39 @@ int start()
    {
       case 1:  
          ticket=EasySell(Linex1Magic,g_tradeSize);
-         if(ticket>0) strtmp = "EasySell: "+Linex1+" "+Linex1Magic+" "+Symbol()+" "+ticket+" sell at " + DoubleToStr(Close[0],Digits);   
+         if(ticket>0) 
+         {
+            if (ObjectFind(Linex1)>=0) ObjectDelete(Linex1);
+            if (ObjectFind(Linex2)>=0) ObjectDelete(Linex2);
+            strtmp = "EasySell: "+Linex1+" "+Linex1Magic+" "+Symbol()+" "+ticket+" sell at " + DoubleToStr(Close[0],Digits);   
+         }
          break;
       case -1: 
          ticket=EasyBuy(Linex1Magic,g_tradeSize); 
-         if(ticket>0) strtmp = "EasyBuy: "+Linex1+" "+Linex1Magic+" "+Symbol()+" "+ticket+" buy at " + DoubleToStr(Close[0],Digits);   
+         if(ticket>0) 
+         {
+            if (ObjectFind(Linex1)>=0) ObjectDelete(Linex1);
+            if (ObjectFind(Linex2)>=0) ObjectDelete(Linex2);
+            strtmp = "EasyBuy: "+Linex1+" "+Linex1Magic+" "+Symbol()+" "+ticket+" buy at " + DoubleToStr(Close[0],Digits);   
+         }
          break;
       case 2:  
          ticket=EasySell(Linex2Magic,g_tradeSize);
-         if(ticket>0) strtmp = "EasySell: "+Linex2+" "+Linex2Magic+" "+Symbol()+" "+ticket+" sell at " + DoubleToStr(Close[0],Digits);   
+         if(ticket>0) 
+         {
+            if (ObjectFind(Linex1)>=0) ObjectDelete(Linex1);
+            if (ObjectFind(Linex2)>=0) ObjectDelete(Linex2);
+            strtmp = "EasySell: "+Linex2+" "+Linex2Magic+" "+Symbol()+" "+ticket+" sell at " + DoubleToStr(Close[0],Digits);   
+         }
          break;
       case -2:  
          ticket=EasyBuy(Linex2Magic,g_tradeSize);
-         if(ticket>0) strtmp = "EasyBuy: "+Linex2+" "+Linex2Magic+" "+Symbol()+" "+ticket+" buy at " + DoubleToStr(Close[0],Digits);   
+         if(ticket>0) 
+         {
+            if (ObjectFind(Linex1)>=0) ObjectDelete(Linex1);
+            if (ObjectFind(Linex2)>=0) ObjectDelete(Linex2);
+            strtmp = "EasyBuy: "+Linex2+" "+Linex2Magic+" "+Symbol()+" "+ticket+" buy at " + DoubleToStr(Close[0],Digits);   
+         }
          break;
    }
    if (wave!=0) Print(strtmp);
@@ -560,6 +592,29 @@ int start()
 
 
 ////////////////------------ FUNCTIONS START -----------///////////////////////////////
+
+//+-----------------------------------------------------------------------------------+
+//|                           D E L E T E   O R D E R S                               |
+//+-----------------------------------------------------------------------------------+
+int deleteOrderType( int orderType ) 
+{
+	int ordersCount = 0;
+
+	int total = OrdersTotal() ;
+	for ( int i = 0 ; i < total+1; i++) 
+	{
+		OrderSelect( i, SELECT_BY_POS, MODE_TRADES );
+		
+		if( (        OrderType() ==  orderType ) &&
+			 ( OrderMagicNumber() == InstanceID ) )
+	   {
+			 OrderDelete(OrderTicket());
+			 ordersCount++;
+		}
+	}
+
+	return(ordersCount);
+}
 
 void displayWelcomeMessage()
 {
