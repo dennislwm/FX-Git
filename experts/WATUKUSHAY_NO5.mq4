@@ -3,6 +3,7 @@
 //| Copyright © 2010, Daniel Fernandez, fxreviews.blogspot.com , Asirikuy.com         |
 //|                                                      Copyright © 2011, Dennis Lee |
 //| Assert History                                                                    |
+//| 1.22    Once trendlines are established do not open actual pending orders.        |
 //| 1.21    Delete pending orders once trendlines are established.                    |
 //|         Delete both trendlines once either pending order is opened.               |
 //| 1.20    Added PlusSwiss.mqh.                                                      |
@@ -1111,6 +1112,7 @@ void openBuyOrder()
             takeProfitPrice = calculateTakeProfitPrice( OP_BUYLIMIT, tradeEntryPrice );
             tradeexpirationtime = calculateExpirationTime() ;
 			 
+      if ((ObjectFind(Linex1)<0) || (ObjectFind(Linex2)<0))
             tradeTicket = OrderSend(
 									g_symbol,
 									OP_BUYLIMIT,
@@ -1246,6 +1248,7 @@ void openSellOrder()
 		    	 tradeexpirationtime = calculateExpirationTime() ;
 
 			 
+      if ((ObjectFind(Linex1)<0) || (ObjectFind(Linex2)<0))
 	           tradeTicket = OrderSend(
 									g_symbol,
 									OP_SELLLIMIT,
