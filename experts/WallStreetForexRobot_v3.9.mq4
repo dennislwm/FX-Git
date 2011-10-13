@@ -2,6 +2,7 @@
 //|                                                           WallStreetForexRobot_v3.9.mq4 |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.24    Once a trade has been opened, do not create trendline.                          |
 //| 1.23    Updated with Swiss Parabolic SAR.                                               |
 //| 1.22    Added ObjectDelete(). Tightened entry criteria for trendlines.                  |
 //| 1.21    Fixed minor bug in Comment().                                                   |
@@ -466,7 +467,7 @@ int start() {
          ticket=EasySell(Linex1Magic,EasyLot);
          if(ticket>0) 
          {
-            ObjectDelete(Linex1);
+            if (ObjectFind(Linex1)>=0) ObjectDelete(Linex1);
             strtmp = "EasySell: "+Linex1+" "+Linex1Magic+" "+Symbol()+" "+ticket+" sell at " + DoubleToStr(Close[0],Digits);   
          }
          break;
@@ -474,7 +475,7 @@ int start() {
          ticket=EasyBuy(Linex1Magic,EasyLot); 
          if(ticket>0) 
          {
-            ObjectDelete(Linex1);
+            if (ObjectFind(Linex1)>=0) ObjectDelete(Linex1);
             strtmp = "EasyBuy: "+Linex1+" "+Linex1Magic+" "+Symbol()+" "+ticket+" buy at " + DoubleToStr(Close[0],Digits);   
          }
          break;
@@ -482,7 +483,7 @@ int start() {
          ticket=EasySell(Linex2Magic,EasyLot);
          if(ticket>0) 
          {
-            ObjectDelete(Linex2);
+            if (ObjectFind(Linex2)>=0) ObjectDelete(Linex2);
             strtmp = "EasySell: "+Linex2+" "+Linex2Magic+" "+Symbol()+" "+ticket+" sell at " + DoubleToStr(Close[0],Digits);   
          }
          break;
@@ -490,7 +491,7 @@ int start() {
          ticket=EasyBuy(Linex2Magic,EasyLot);
          if(ticket>0) 
          {
-            ObjectDelete(Linex2);
+            if (ObjectFind(Linex2)>=0) ObjectDelete(Linex2);
             strtmp = "EasyBuy: "+Linex2+" "+Linex2Magic+" "+Symbol()+" "+ticket+" buy at " + DoubleToStr(Close[0],Digits);   
          }
          break;
@@ -566,12 +567,12 @@ int start() {
       if (OrType==OP_BUY)
       {
             string desc="BUY_LIMIT: Lot="+DoubleToStr(EasyLot,2)+" Price="+DoubleToStr(OrPrice,5)+" SL="+DoubleToStr(StopLoss,0)+" TP="+DoubleToStr(TakeProfit,0);
-            TrendLinexCreate(Linex2,OrPrice-0.0006,desc);
+            if (EasyOrdersMagic(Linex2Magic)<=0) TrendLinexCreate(Linex2,OrPrice-0.0006,desc);
       }
       else if (OrType==OP_SELL)
       {
             desc="SELL_LIMIT: Lot="+DoubleToStr(EasyLot,2)+" Price="+DoubleToStr(OrPrice,5)+" SL="+DoubleToStr(StopLoss,0)+" TP="+DoubleToStr(TakeProfit,0);
-            TrendLinexCreate(Linex1,OrPrice+0.0006,desc);
+            if (EasyOrdersMagic(Linex1Magic)<=0) TrendLinexCreate(Linex1,OrPrice+0.0006,desc);
       }
    }
    return (0);
