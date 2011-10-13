@@ -2,6 +2,7 @@
 //|                                                           WallStreetForexRobot_v3.9.mq4 |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.23    Updated with Swiss Parabolic SAR.                                               |
 //| 1.22    Added ObjectDelete(). Tightened entry criteria for trendlines.                  |
 //| 1.21    Fixed minor bug in Comment().                                                   |
 //| 1.20    Added PlusSwiss.mqh.                                                            |
@@ -157,6 +158,7 @@ void init() {
    if (ObjectFind("LV") >= 0) ObjectDelete("LV");
 //--- Assert Added PlusLinex.mqh
    EasyInit();
+   SwissInit();
    LinexInit();
 }
 
@@ -447,13 +449,11 @@ int start() {
 //--- Assert PlusSwiss.mqh
    if (EasyOrdersMagic(Linex1Magic)>0)
    {
-      SwissEvenManager(Linex1Magic,Symbol(),SwissEvenAt,SwissEvenSlide,Pts);
-      SwissTrailingStopManager(Linex1Magic,Symbol(),SwissTrailingStop,SwissOnlyTrailProfits,Pts);
+      SwissManager(Linex1Magic,Symbol(),Pts);
    }
    if (EasyOrdersMagic(Linex2Magic)>0)
    {
-      SwissEvenManager(Linex2Magic,Symbol(),SwissEvenAt,SwissEvenSlide,Pts);
-      SwissTrailingStopManager(Linex2Magic,Symbol(),SwissTrailingStop,SwissOnlyTrailProfits,Pts);
+      SwissManager(Linex2Magic,Symbol(),Pts);
    }
 
 //--- Assert Added PlusLinex.mqh
