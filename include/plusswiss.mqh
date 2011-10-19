@@ -46,7 +46,7 @@ double   I_TargetLineLevelStart, II_TargetLineLevelStart;
 int      I_TargetStatus, II_TargetStatus;
 int      I_TargetMagic, II_TargetMagic;
 string SwissName="PlusSwiss";
-string SwissVer="1.20";
+string SwissVer="1.21";
 
 //|-----------------------------------------------------------------------------------------|
 //|                             I N I T I A L I Z A T I O N                                 |
