@@ -2,6 +2,7 @@
 //|                                                                           pluslinex.mqh |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 2.05    Fixed bug in reset status.                                                      |
 //| 2.04    Fixed bug in LinexComment().                                                    |
 //| 2.03    Added debug info and fixed ObjectSetText                                        |
 //| 2.02    Fixed bug in determining the limits.                                            |
@@ -65,7 +66,7 @@ double   I_Mlimit, II_Mlimit;
 double   I_LineLevelStart, II_LineLevelStart;
 int      I_Status, II_Status;
 string   LinexName="PlusLinex";
-string   LinexVer="2.04";
+string   LinexVer="2.05";
 
 //|-----------------------------------------------------------------------------------------|
 //|                             I N I T I A L I Z A T I O N                                 |
@@ -201,14 +202,13 @@ int Linex(double Pts)
                   {   
                      LinexCloseOrders(Linex1Magic);
                      if (LinexOneTrade && LinexOpenOrd(Linex2Magic)>0)    LinexCloseOrders(Linex2Magic);
-                     Sleep(3000);
+                     Sleep(300);
                   //--  Assert Open orders are removed
                       return(-1);
                   }
-               //-- Assert new concept moving trendline - Stage 6 of 5: Reset Status from 1 to 0.
-                  if (LinexOpenLast(Linex1Magic)==OP_BUY) I_Status=0;
          }
       }
+      
       // Sell Zone
       // =========
    //--  Assert Added option to turn off buy or sell
@@ -229,15 +229,16 @@ int Linex(double Pts)
                   {   
                      LinexCloseOrders(Linex1Magic); 
                      if (LinexOneTrade && LinexOpenOrd(Linex2Magic)>0)    LinexCloseOrders(Linex2Magic);
-                     Sleep(3000); 
+                     Sleep(300); 
                   //--  Assert Open orders are removed
                      return(1);
                   }
-               //-- Assert new concept moving trendline - Stage 6 of 5: Reset Status from 1 to 0.
-                  if (LinexOpenLast(Linex1Magic)==OP_SELL) I_Status=0;
          }
       }
    }
+   else
+//-- Assert new concept moving trendline - Stage 6 of 5: Reset Status from 1 to 0.
+      I_Status=0;
 
    // Trade Decision
    // ==============
@@ -262,12 +263,10 @@ int Linex(double Pts)
                   {   
                      LinexCloseOrders(Linex2Magic); 
                      if (LinexOneTrade && LinexOpenOrd(Linex1Magic)>0)    LinexCloseOrders(Linex1Magic);
-                     Sleep(3000); 
+                     Sleep(300); 
                   //--  Assert Open orders are removed
                      return(-2);
                   }
-               //-- Assert new concept moving trendline - Stage 6 of 5: Reset Status from 1 to 0.
-                  if (LinexOpenLast(Linex2Magic)==OP_BUY) II_Status=0;
          }
       }
       // Sell Zone
@@ -290,15 +289,16 @@ int Linex(double Pts)
                   {   
                       LinexCloseOrders(Linex2Magic); 
                       if (LinexOneTrade && LinexOpenOrd(Linex1Magic)>0)    LinexCloseOrders(Linex1Magic);
-                     Sleep(3000); 
+                     Sleep(300); 
                   //--  Assert Open orders are removed
                      return(2);
                   }
-               //-- Assert new concept moving trendline - Stage 6 of 5: Reset Status from 1 to 0.
-                  if (LinexOpenLast(Linex2Magic)==OP_SELL) II_Status=0;
          }
       }
    }
+   else
+//-- Assert new concept moving trendline - Stage 6 of 5: Reset Status from 1 to 0.
+      II_Status=0;
       
    return(0);
 }
