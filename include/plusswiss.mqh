@@ -2,6 +2,7 @@
 //|                                                                           PlusSwiss.mqh |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.21    Fixed bug in Trade Decision Sell Zone for Target2.                              |
 //| 1.20    Added PlusLinex.mqh for take profit lines.                                      |
 //| 1.10    Added SwissParabolicSarManager().                                               |
 //|         Added SwissInit().                                                              |
@@ -386,12 +387,12 @@ int SwissTargetLinex(double Pts)
          if (LinexOpenLast(II_TargetMagic)==OP_SELL && II_TargetStatus!=1 && !SwissTarget2NoMove) II_TargetStatus=1;
       //-- Assert Added option to turn off buy or sell
       //-- Assert new concept moving trendline - Stage 5 of 5: Open pending order.
-         if (LinexOpenLast(II_TargetMagic)==OP_SELL)
+         if (LinexOpenLast(II_TargetMagic)==OP_BUY)
          {
             if (II_TargetStatus!=1 && !SwissTarget2NoMove)  {}    // do nothing
             else
             //-- Assert Open orders are removed
-               if (LinexOpenOrd(II_TargetMagic)==0)   return(2);
+               if (LinexOpenOrd(II_TargetMagic)==0)   return(0);
                else
                   if (LinexOpenLast(II_TargetMagic)==OP_BUY)
                   {   
