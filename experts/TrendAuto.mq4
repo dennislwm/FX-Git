@@ -2,6 +2,9 @@
 //|                                                                           TrendAuto.mq4 |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.23    Updated with Swiss target profit lines.                                         |
+//|         Note this version can be used in conjunction with a custom indicator.           |
+//|         E.g. ForexGrowthBot.                                                            |
 //| 1.22    Updated with Swiss Parabolic SAR.                                               |
 //| 1.21    Added PlusSwiss.mqh.                                                            |
 //| 1.11    Changed Lot from internal to extern.                                            |
@@ -25,30 +28,30 @@ extern string s3="-->PlusLinex Settings<--";
 #include <pluslinex.mqh>
 //---- Assert Extra externs
 extern string s4="-->Extra Settings<--";
-extern int Debug=0;
+extern int TrendDebug=0;
 
-//|-----------------------------------------------------------------------------------------|
-//|                           I N T E R N A L   V A R I A B L E S                           |
-//|-----------------------------------------------------------------------------------------|
-string TrendName="TrendAuto";
-string TrendVer="1.22";
+//|------------------------------------------------------------------------------------------|
+//|                           I N T E R N A L   V A R I A B L E S                            |
+//|------------------------------------------------------------------------------------------|
+string   TrendName="TrendAuto";
+string   TrendVer="1.23";
 
-// ------------------------------------------------------------------------------------------ //
-//                             I N I T I A L I S A T I O N                                    //
-// ------------------------------------------------------------------------------------------ //
+// ------------------------------------------------------------------------------------------|
+//                             I N I T I A L I S A T I O N                                   |
+// ------------------------------------------------------------------------------------------|
 
 int init()
 {
    EasyInit();
-   SwissInit();
+   SwissInit(Linex1Magic,Linex2Magic);
    LinexInit();
    return(0);    
 }
 
 
-// ------------------------------------------------------------------------------------------ //
-//                            D E - I N I T I A L I S A T I O N                               //
-// ------------------------------------------------------------------------------------------ //
+//|------------------------------------------------------------------------------------------|
+//|                            D E - I N I T I A L I S A T I O N                             |
+//|------------------------------------------------------------------------------------------|
 
 int deinit()
 {
@@ -56,16 +59,15 @@ int deinit()
 }
 
 
-// ------------------------------------------------------------------------------------------ //
-//                                M A I N   P R O C E D U R E                                 //
-// ------------------------------------------------------------------------------------------ //
+//|------------------------------------------------------------------------------------------|
+//|                               M A I N   P R O C E D U R E                                |
+//|------------------------------------------------------------------------------------------|
 
 int start()
 {
-   double profit;
    string strtmp;
    int wave,ticket;
-   
+
 //--- Assert PlusSwiss.mqh
    if (EasyOrdersMagic(Linex1Magic)>0)
    {
@@ -75,6 +77,7 @@ int start()
    {
       SwissManager(Linex2Magic,Symbol(),Pts);
    }
+   SwissTargetLinex(Pts);
 
    wave=Linex(Pts);
    switch(wave)
@@ -98,16 +101,29 @@ int start()
    }
    if (wave!=0) Print(strtmp);
 
-   profit=EasyProfitsMagic(Linex1Magic)+EasyProfitsMagic(Linex2Magic);
-   strtmp=EasyComment(profit,StringConcatenate("==>",TrendName," ",TrendVer,"<==\n"));
-   strtmp=StringConcatenate(strtmp,"    Lot=",DoubleToStr(EasyLot,2),"\n");
-   strtmp=SwissComment(strtmp);
-   strtmp=LinexComment(strtmp);
-   Comment(strtmp);
+   Comment(TrendComment());
    return(0);
 }
 
 //|-----------------------------------------------------------------------------------------|
-//|                       E N D   O F   E X P E R T   A D V I S O R                         |
+//|                                     C O M M E N T                                       |
 //|-----------------------------------------------------------------------------------------|
+string TrendComment(string cmt="")
+{
+   string strtmp = cmt+"-->"+TrendName+" "+TrendVer+"<--\n";
+
+//--- Assert additional comments here
+   double profit=EasyProfitsMagic(Linex1Magic)+EasyProfitsMagic(Linex2Magic);
+   strtmp=EasyComment(profit,strtmp);
+   strtmp=StringConcatenate(strtmp,"    Lot=",DoubleToStr(EasyLot,2),"\n");
+   strtmp=SwissComment(strtmp);
+   strtmp=LinexComment(strtmp);
+   
+   strtmp = strtmp+"\n";
+   return(strtmp);
+}
+
+//|------------------------------------------------------------------------------------------|
+//|                       E N D   O F   E X P E R T   A D V I S O R                          |
+//|------------------------------------------------------------------------------------------|
 
