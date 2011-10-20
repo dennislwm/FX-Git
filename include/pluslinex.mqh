@@ -2,6 +2,7 @@
 //|                                                                           pluslinex.mqh |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 2.10    Added quota for each trend line.                                                |
 //| 2.05    Fixed bug in reset status.                                                      |
 //| 2.04    Fixed bug in LinexComment().                                                    |
 //| 2.03    Added debug info and fixed ObjectSetText                                        |
@@ -39,21 +40,23 @@
 //|-----------------------------------------------------------------------------------------|
 //|                 P L U S L I N E X   E X T E R N A L   V A R I A B L E S                 |
 //|-----------------------------------------------------------------------------------------|
-extern   string   Linex1         = "linex1";
-extern   bool     Linex1NoBuy    = false;
-extern   bool     Linex1NoSell   = false;
-extern   bool     Linex1NoMove   = false;
-extern   string   Linex2         = "linex2";
-extern   bool     Linex2NoBuy    = false;
-extern   bool     Linex2NoSell   = false;
-extern   bool     Linex2NoMove   = false;
-extern   double   LinexPipLimit  = 3;
-extern   double   LinexPipWide   = 3;
-extern   double   LinexPipMove   = 20;
-extern   int      Linex1Magic    = 20090206;
-extern   int      Linex2Magic    = 20090207;
-extern   bool     LinexOneTrade= false;
-extern   int      LinexDebug     = 1;
+extern   string   Linex1            = "linex1";
+extern   bool     Linex1NoBuy       = false;
+extern   bool     Linex1NoSell      = false;
+extern   bool     Linex1NoMove      = false;
+extern   int      Linex1Quota       = 1;
+extern   string   Linex2            = "linex2";
+extern   bool     Linex2NoBuy       = false;
+extern   bool     Linex2NoSell      = false;
+extern   bool     Linex2NoMove      = false;
+extern   int      Linex2Quota       = 1;
+extern   double   LinexPipLimit     = 4;
+extern   double   LinexPipWide      = 3;
+extern   double   LinexPipMove      = 3;
+extern   int      Linex1Magic       = 20090206;
+extern   int      Linex2Magic       = 20090207;
+extern   bool     LinexOneTrade     = false;
+extern   int      LinexDebug        = 0;
 
 //|-----------------------------------------------------------------------------------------|
 //|                           I N T E R N A L   V A R I A B L E S                           |
@@ -65,8 +68,10 @@ double   II_LineLevel, II_Hlimit, II_Llimit, II_Hlimit1, II_Llimit1;
 double   I_Mlimit, II_Mlimit;
 double   I_LineLevelStart, II_LineLevelStart;
 int      I_Status, II_Status;
+//-- Assert Added quota for each trend line.
+int      I_Quota, II_Quota;
 string   LinexName="PlusLinex";
-string   LinexVer="2.05";
+string   LinexVer="2.10";
 
 //|-----------------------------------------------------------------------------------------|
 //|                             I N I T I A L I Z A T I O N                                 |
@@ -183,6 +188,14 @@ int Linex(double Pts)
    // ==============
    if (I_LineLevel>0)
    {
+    //---- Assert Linex1 quota has not been exceeded
+      if (I_Quota==0 && LinexOpenOrd(Linex1Magic)>0) I_Quota=LinexOpenOrd(Linex1Magic);
+      if (I_Quota>=Linex1Quota)
+      {
+         Print(Linex1," has exceeded quota of ",Linex1Quota);
+         return(0);
+      }
+      
       // Buy Zone
       // ========
       if (Close[0]>I_Hlimit && Close[0]<I_Hlimit1)
@@ -196,7 +209,11 @@ int Linex(double Pts)
             if (I_Status!=1 && !Linex1NoMove)   {}   // do nothing
             else
             //--  Assert Open orders are removed
-               if (LinexOpenOrd(Linex1Magic)==0)   return(-1);
+               if (LinexOpenOrd(Linex1Magic)==0) 
+               {
+                  I_Quota++;
+                  return(-1);
+               }
                else
                   if (LinexOpenLast(Linex1Magic)==OP_SELL)
                   {   
@@ -204,7 +221,8 @@ int Linex(double Pts)
                      if (LinexOneTrade && LinexOpenOrd(Linex2Magic)>0)    LinexCloseOrders(Linex2Magic);
                      Sleep(300);
                   //--  Assert Open orders are removed
-                      return(-1);
+                     I_Quota++;
+                     return(-1);
                   }
          }
       }
@@ -223,7 +241,11 @@ int Linex(double Pts)
             if (I_Status!=1 && !Linex1NoMove)   {}   // do nothing
             else
             //--  Assert Open orders are removed
-               if (LinexOpenOrd(Linex1Magic)==0)   return(1);
+               if (LinexOpenOrd(Linex1Magic)==0)   
+               {
+                  II_Quota++;
+                  return(1);
+               }
                else
                   if (LinexOpenLast(Linex1Magic)==OP_BUY)
                   {   
@@ -231,19 +253,31 @@ int Linex(double Pts)
                      if (LinexOneTrade && LinexOpenOrd(Linex2Magic)>0)    LinexCloseOrders(Linex2Magic);
                      Sleep(300); 
                   //--  Assert Open orders are removed
+                     II_Quota++;
                      return(1);
                   }
          }
       }
    }
    else
+   {
 //-- Assert new concept moving trendline - Stage 6 of 5: Reset Status from 1 to 0.
       I_Status=0;
+      I_Quota=0;
+   }
 
    // Trade Decision
    // ==============
    if (II_LineLevel>0)
    {
+    //---- Assert Linex1 quota has not been exceeded
+      if (II_Quota==0 && LinexOpenOrd(Linex2Magic)>0) II_Quota=LinexOpenOrd(Linex2Magic);
+      if (II_Quota>=Linex2Quota)
+      {
+         Print(Linex2," has exceeded quota of ",Linex2Quota);
+         return(0);
+      }
+   
       // Buy Zone
       // ========
       if (Close[0]>II_Hlimit && Close[0]<II_Hlimit1)
@@ -297,8 +331,11 @@ int Linex(double Pts)
       }
    }
    else
+   {
 //-- Assert new concept moving trendline - Stage 6 of 5: Reset Status from 1 to 0.
       II_Status=0;
+      II_Quota=0;
+   }
       
    return(0);
 }
@@ -336,10 +373,18 @@ string LinexComment(string cmt="")
          strtmp = strtmp + " Last Order: ";  
          switch (LinexOpenLast(Linex1Magic))
          {
-            case 0:  strtmp = strtmp + "BUY";    break;
-            case 1:  strtmp = strtmp + "SELL";   break;
-            default: strtmp = strtmp + "NIL";
+            case 0:  strtmp = strtmp + "BUY ";    break;
+            case 1:  strtmp = strtmp + "SELL ";   break;
+            default: strtmp = strtmp + "NIL ";
          }
+    //--- Assert Added quota for each trend line.
+         if (Linex1Quota==0)
+            strtmp = strtmp + "No Quota Allowed.";
+         else if (I_Quota==Linex1Quota)
+            strtmp = strtmp + "Count="+I_Quota+" (Filled the quota of "+DoubleToStr(Linex1Quota,0)+")";
+         else
+            strtmp = strtmp + "Count="+I_Quota+" (OK <= "+DoubleToStr(Linex1Quota,0)+")";
+
    }
    if (II_LineLevel>=0)
    {
@@ -362,10 +407,17 @@ string LinexComment(string cmt="")
          strtmp = strtmp + " Last Order: ";
          switch (LinexOpenLast(Linex2Magic))
          {
-            case 0:  strtmp = strtmp + "BUY";    break;
-            case 1:  strtmp = strtmp + "SELL";   break;
-            default: strtmp = strtmp + "NIL";
+            case 0:  strtmp = strtmp + "BUY ";    break;
+            case 1:  strtmp = strtmp + "SELL ";   break;
+            default: strtmp = strtmp + "NIL ";
          }
+    //--- Assert Added quota for each trend line.
+         if (Linex2Quota==0)
+            strtmp = strtmp + "No Quota Allowed.";
+         else if (II_Quota==Linex2Quota)
+            strtmp = strtmp + "Count="+II_Quota+" (Filled the quota of "+DoubleToStr(Linex2Quota,0)+")";
+         else
+            strtmp = strtmp + "Count="+II_Quota+" (OK <= "+DoubleToStr(Linex2Quota,0)+")";
    }
                          
    strtmp = strtmp+"\n";
