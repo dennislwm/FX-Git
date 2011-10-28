@@ -2,6 +2,9 @@
 //|                                                           WallStreetForexRobot_v3.9.mq4 |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.30    Added Buy or Sell Stop/Limit user setting. Stop is conservative and Limit is    |
+//|             aggressive.
+//| 1.25    Updated with Swiss target profit lines.                                         |
 //| 1.24    Once a trade has been opened, do not create trendline.                          |
 //| 1.23    Updated with Swiss Parabolic SAR.                                               |
 //| 1.22    Added ObjectDelete(). Tightened entry criteria for trendlines.                  |
@@ -69,6 +72,8 @@ extern string s2="-->PlusSwiss Settings<--";
 //---- Assert PlusLinex externs
 extern string s3="-->PlusLinex Settings<--";
 #include <pluslinex.mqh>
+extern string s3_1=" Set Buy/Sell Stop=0 or Limit=1.";
+extern int LinexLimit=0;
 extern int Magic = 4698523;
 extern int AccountNo = 961648;
 extern string EA_Comment = "";
@@ -159,7 +164,7 @@ void init() {
    if (ObjectFind("LV") >= 0) ObjectDelete("LV");
 //--- Assert Added PlusLinex.mqh
    EasyInit();
-   SwissInit();
+   SwissInit(Linex1Magic,Linex2Magic);
    LinexInit();
 }
 
@@ -456,6 +461,7 @@ int start() {
    {
       SwissManager(Linex2Magic,Symbol(),Pts);
    }
+   SwissTargetLinex(Pts);
 
 //--- Assert Added PlusLinex.mqh
    string strtmp;
@@ -559,20 +565,43 @@ int start() {
    if (OrType >= OP_BUY && CheckLossPause()) {
       RefreshRates();
    //--- Switch Ask and Bid for trendlines.
-      if (OrType == OP_SELL) OrPrice = NormalizeDouble(Ask, Digits);
-      else
-         if (OrType == OP_BUY) OrPrice = NormalizeDouble(Bid, Digits);
+      string desc="";
+   //--- Added Buy or Sell Stop/Limit user setting.
+      int countLosingTrades=EasyCountLosingTradesMagic(Magic,3);
+      if (countLosingTrades>3) countLosingTrades=3;
+      
+      int entryPipLimit=LinexPipLimit+countLosingTrades;
+      int entryTP=TakeProfit-entryPipLimit;
+      
+      if (OrType==OP_SELL) 
+         OrPrice=NormalizeDouble(CalcEntryPrice(OP_SELL, LinexLimit, Bid, entryPipLimit*Pts),Digits);
+      else if (OrType==OP_BUY) 
+         OrPrice=NormalizeDouble(CalcEntryPrice(OP_BUY, LinexLimit, Ask, entryPipLimit*Pts),Digits);
 
    //--- Assert Added PlusLinex.mqh.
       if (OrType==OP_BUY)
       {
-            string desc="BUY_LIMIT: Lot="+DoubleToStr(EasyLot,2)+" Price="+DoubleToStr(OrPrice,5)+" SL="+DoubleToStr(StopLoss,0)+" TP="+DoubleToStr(TakeProfit,0);
-            if (EasyOrdersMagic(Linex2Magic)<=0) TrendLinexCreate(Linex2,OrPrice-0.0006,desc);
+            if (EasyOrdersMagic(Linex2Magic)<=0) 
+            {
+                desc="BUY: Lot="+DoubleToStr(EasyLot,2)+" Entry="+DoubleToStr(OrPrice,5)+
+                   " Ask="+DoubleToStr(Ask,5)+" PipLimit="+DoubleToStr(entryPipLimit,0);
+                TrendLinexCreate(Linex2,OrPrice,desc);    // account for market spread
+                
+                desc=SwissTarget2+": Price="+DoubleToStr(OrPrice+(entryTP*Pts),5)+" TP="+DoubleToStr(entryTP,0);
+                TrendLinexCreate(SwissTarget2,OrPrice+(entryTP*Pts),desc);
+            }
       }
       else if (OrType==OP_SELL)
       {
-            desc="SELL_LIMIT: Lot="+DoubleToStr(EasyLot,2)+" Price="+DoubleToStr(OrPrice,5)+" SL="+DoubleToStr(StopLoss,0)+" TP="+DoubleToStr(TakeProfit,0);
-            if (EasyOrdersMagic(Linex1Magic)<=0) TrendLinexCreate(Linex1,OrPrice+0.0006,desc);
+            if (EasyOrdersMagic(Linex1Magic)<=0) 
+            {
+                desc="SELL: Lot="+DoubleToStr(EasyLot,2)+" Entry="+DoubleToStr(OrPrice,5)+
+                   " Bid="+DoubleToStr(Bid,5)+" PipLimit="+DoubleToStr(entryPipLimit,0);
+                TrendLinexCreate(Linex1,OrPrice,desc);    // account for market spread
+
+                desc=SwissTarget1+": Price="+DoubleToStr(OrPrice-(entryTP*Pts),5)+" TP="+DoubleToStr(entryTP,0);
+                TrendLinexCreate(SwissTarget1,OrPrice-(entryTP*Pts),desc);
+            }
       }
    }
    return (0);
@@ -743,13 +772,13 @@ int OpenShort(double Close1, double Ma1, double Wpr1, double Cci1) {
 //|-----------------------------------------------------------------------------------------|
 //|                              C R E A T E   T R E N D L I N E                            |
 //|-----------------------------------------------------------------------------------------|
-bool TrendLinexCreate(string LinexName, double tradeEntryPrice, string desc)
+bool TrendLinexCreate(string LinexName, double tradeEntryPrice, string desc="")
 {
             if (ObjectFind(LinexName)<0)
             {
                 //--- No previous object, so create a new object.
-                ObjectCreate(LinexName,OBJ_TREND,0,iTime(NULL,0,50),tradeEntryPrice,iTime(NULL,0,0),tradeEntryPrice);
-                ObjectSetText(LinexName,desc);
+                ObjectCreate(LinexName,OBJ_TREND,0,iTime(NULL,0,150),tradeEntryPrice,iTime(NULL,0,0),tradeEntryPrice);
+                if (desc!="") ObjectSetText(LinexName,desc);
             }
             
             if (ObjectFind(LinexName)<0)
@@ -757,3 +786,39 @@ bool TrendLinexCreate(string LinexName, double tradeEntryPrice, string desc)
                Print("Unable to create TrendLinex ",LinexName);
             }
 }
+
+double CalcEntryPrice(int ordtype, int limit, double tradeEntryPrice, double wide)
+{
+    double calcPrice=tradeEntryPrice;
+    if(ordtype==OP_BUY)
+    {
+        if(limit==1) calcPrice-=wide;
+        else calcPrice+=wide;
+    }
+    else if(ordtype==OP_SELL)
+    {
+        if(limit==1) calcPrice+=wide;
+        else calcPrice-=wide;
+    }
+    return(calcPrice);
+}
+
+int EasyCountLosingTradesMagic(int mgc, int max)
+{
+   int losingTrades=0;
+
+//---- Assert determine count of all trades done with this MagicNumber
+   for(int j=0;j<max;j++)
+   {
+      OrderSelect(j,SELECT_BY_POS,MODE_TRADES);
+
+   //---- Assert MagicNumber and Symbol is same as Order
+      if (OrderMagicNumber()==mgc && OrderSymbol()==Symbol() && OrderProfit()<0)
+         losingTrades++;
+   }
+   return(losingTrades);
+}
+
+//|-----------------------------------------------------------------------------------------|
+//|                       E N D   O F   E X P E R T   A D V I S O R                         |
+//|-----------------------------------------------------------------------------------------|
