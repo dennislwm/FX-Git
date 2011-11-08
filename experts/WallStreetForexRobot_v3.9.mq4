@@ -2,8 +2,9 @@
 //|                                                           WallStreetForexRobot_v3.9.mq4 |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.31    Delete target lines after trade is closed (trade may be closed manually).       |
 //| 1.30    Added Buy or Sell Stop/Limit user setting. Stop is conservative and Limit is    |
-//|             aggressive.
+//|             aggressive.                                                                 |
 //| 1.25    Updated with Swiss target profit lines.                                         |
 //| 1.24    Once a trade has been opened, do not create trendline.                          |
 //| 1.23    Updated with Swiss Parabolic SAR.                                               |
@@ -457,13 +458,19 @@ int start() {
    {
       SwissManager(Linex1Magic,Symbol(),Pts);
    }
+   else 
+      if (ObjectFind(SwissTarget1)>=0) ObjectDelete(SwissTarget1);
    if (EasyOrdersMagic(Linex2Magic)>0)
    {
       SwissManager(Linex2Magic,Symbol(),Pts);
    }
+   else
+      if (ObjectFind(SwissTarget2)>=0) ObjectDelete(SwissTarget2);
+   
    SwissTargetLinex(Pts);
 
 //--- Assert Added PlusLinex.mqh
+   int entryPipLimit,entryTP;
    string strtmp;
    int ticket;
    int wave=Linex(Pts);
@@ -570,8 +577,8 @@ int start() {
       int countLosingTrades=EasyCountLosingTradesMagic(Magic,3);
       if (countLosingTrades>3) countLosingTrades=3;
       
-      int entryPipLimit=LinexPipLimit+countLosingTrades;
-      int entryTP=TakeProfit-entryPipLimit;
+      entryPipLimit=LinexPipLimit+countLosingTrades;
+      entryTP=TakeProfit-entryPipLimit;
       
       if (OrType==OP_SELL) 
          OrPrice=NormalizeDouble(CalcEntryPrice(OP_SELL, LinexLimit, Bid, entryPipLimit*Pts),Digits);
