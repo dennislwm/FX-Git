@@ -2,6 +2,7 @@
 //|                                                           WallStreetForexRobot_v3.9.mq4 |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.32    Fixed bug in delete target lines, i.e. after trade line is deleted.             |
 //| 1.31    Delete target lines after trade is closed (trade may be closed manually).       |
 //| 1.30    Added Buy or Sell Stop/Limit user setting. Stop is conservative and Limit is    |
 //|             aggressive.                                                                 |
@@ -459,13 +460,13 @@ int start() {
       SwissManager(Linex1Magic,Symbol(),Pts);
    }
    else 
-      if (ObjectFind(SwissTarget1)>=0) ObjectDelete(SwissTarget1);
+      if (ObjectFind(Linex1)<0 && ObjectFind(SwissTarget1)>=0) ObjectDelete(SwissTarget1);
    if (EasyOrdersMagic(Linex2Magic)>0)
    {
       SwissManager(Linex2Magic,Symbol(),Pts);
    }
    else
-      if (ObjectFind(SwissTarget2)>=0) ObjectDelete(SwissTarget2);
+      if (ObjectFind(Linex2)<0 && ObjectFind(SwissTarget2)>=0) ObjectDelete(SwissTarget2);
    
    SwissTargetLinex(Pts);
 
