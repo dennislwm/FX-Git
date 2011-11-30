@@ -2,6 +2,8 @@
 //|                                                                           pluslinex.mqh |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 2.20    Added maximum trail pips, i.e. a watching trendline will revert to a pending    |
+//|            trendline after x pips has been trailed.                                     |
 //| 2.10    Added quota for each trend line.                                                |
 //| 2.05    Fixed bug in reset status.                                                      |
 //| 2.04    Fixed bug in LinexComment().                                                    |
@@ -50,9 +52,10 @@ extern   bool     Linex2NoBuy       = false;
 extern   bool     Linex2NoSell      = false;
 extern   bool     Linex2NoMove      = false;
 extern   int      Linex2Quota       = 1;
-extern   double   LinexPipLimit     = 4;
+extern   double   LinexPipLimit     = 6;
 extern   double   LinexPipWide      = 3;
 extern   double   LinexPipMove      = 3;
+extern   double   LinexPipMax       = 6;
 extern   int      Linex1Magic       = 20090206;
 extern   int      Linex2Magic       = 20090207;
 extern   bool     LinexOneTrade     = false;
@@ -71,7 +74,7 @@ int      I_Status, II_Status;
 //-- Assert Added quota for each trend line.
 int      I_Quota, II_Quota;
 string   LinexName="PlusLinex";
-string   LinexVer="2.10";
+string   LinexVer="2.20";
 
 //|-----------------------------------------------------------------------------------------|
 //|                             I N I T I A L I Z A T I O N                                 |
@@ -111,7 +114,8 @@ int Linex(double Pts)
 //-- Assert new concept moving trendline - Stage 1 of 5: Record price of original line.
       if (I_Status==0 && !Linex1NoMove) I_LineLevelStart=I_LineLevel;
 //-- Assert new concept moving trendline - Stage 4 of 5: Move trendline to narrow the gap with closing price.
-      if (I_Status==1 && !Linex1NoMove)
+//-- Assert move trendline until it reaches PipMax.
+      if (I_Status==1 && !Linex1NoMove && MathAbs((I_LineLevel-I_LineLevelStart)/Pts)<LinexPipMax)
       {
          double I_LinePrice1=ObjectGet(Linex1,OBJPROP_PRICE1);
          double I_LinePrice2=ObjectGet(Linex1,OBJPROP_PRICE2);
@@ -153,7 +157,8 @@ int Linex(double Pts)
 //-- Assert new concept moving trendline - Stage 1 of 5: Record price of original line.
       if (II_Status==0 && !Linex2NoMove) II_LineLevelStart=II_LineLevel;
 //-- Assert new concept moving trendline - Stage 4 of 5: Move trendline to narrow the gap with closing price.
-      if (II_Status==1 && !Linex2NoMove)
+//-- Assert move trendline until it reaches PipMax.
+      if (II_Status==1 && !Linex2NoMove && MathAbs((II_LineLevel-II_LineLevelStart)/Pts)<LinexPipMax)
       {
          double II_LinePrice1=ObjectGet(Linex2,OBJPROP_PRICE1);
          double II_LinePrice2=ObjectGet(Linex2,OBJPROP_PRICE2);
@@ -349,7 +354,7 @@ string LinexComment(string cmt="")
 
    strtmp = strtmp + "\n    PipLimit=" + DoubleToStr(LinexPipLimit,0) + " PipWide=" + DoubleToStr(LinexPipWide,0);
    if (!Linex1NoMove || !Linex2NoMove) 
-      strtmp = strtmp + " PipMove=" + DoubleToStr(LinexPipMove,0);
+      strtmp = strtmp + " PipMove=" + DoubleToStr(LinexPipMove,0) + " PipMax=" + DoubleToStr(LinexPipMax,0);
    if (I_LineLevel<0 && II_LineLevel<0) 
       strtmp = strtmp + "\n    No Active Trendlines.";
    if (I_LineLevel>=0)
@@ -362,7 +367,13 @@ string LinexComment(string cmt="")
                   strtmp = strtmp + " Waiting:";
                   break;
                case 1:
-                  strtmp = strtmp + " Move " + DoubleToStr(MathAbs((I_LineLevel-I_LineLevelStart)/Pts),1) + " Pending:";
+                  strtmp = strtmp + " Move " + DoubleToStr(MathAbs((I_LineLevel-I_LineLevelStart)/Pts),1);
+                  if (MathAbs((I_LineLevel-I_LineLevelStart)/Pts)>=LinexPipMax)
+                     strtmp = strtmp + " (Moved the max pips of "+DoubleToStr(LinexPipMax,1)+")";
+                  else
+                     strtmp = strtmp + " (OK <= "+DoubleToStr(LinexPipMax,1)+")";
+
+                  strtmp = strtmp + " Pending:";
                   break;
             }
          else
@@ -396,7 +407,13 @@ string LinexComment(string cmt="")
                   strtmp = strtmp + " Waiting:";
                   break;
                case 1:
-                  strtmp = strtmp + " Move " + DoubleToStr(MathAbs((II_LineLevel-II_LineLevelStart)/Pts),1) + " Pending:";
+                  strtmp = strtmp + " Move " + DoubleToStr(MathAbs((II_LineLevel-II_LineLevelStart)/Pts),1);
+                  if (MathAbs((II_LineLevel-II_LineLevelStart)/Pts)>=LinexPipMax)
+                     strtmp = strtmp + " (Moved the max pips of "+DoubleToStr(LinexPipMax,1)+")";
+                  else
+                     strtmp = strtmp + " (OK <= "+DoubleToStr(LinexPipMax,1)+")";
+
+                  strtmp = strtmp + " Pending:";
                   break;
             }
          else
