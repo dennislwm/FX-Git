@@ -2,6 +2,7 @@
 //|                                                                            pluseasy.mqh |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.20    Added EasyTicketMagic() that returns first open ticket no.                      |
 //| 1.11    Fixed trade context busy.                                                       |
 //| 1.10    Comment has been added to show:                                                 |
 //|             Basic settings                                                              |
@@ -41,7 +42,7 @@ extern bool EasyDebug=0;
 double Pip;
 double Pts;
 string PlusName="PlusEasy";
-string PlusVer="1.11";
+string PlusVer="1.20";
 
 //|-----------------------------------------------------------------------------------------|
 //|                             I N I T I A L I Z A T I O N                                 |
@@ -138,6 +139,22 @@ double EasyProfitsMagic(int mgc)
          profit+=OrderProfit();
    }
    return(profit);
+}
+
+int EasyTicketMagic(int mgc)
+{
+   int ticket=0;
+
+//---- Assert determine count of all trades done with this MagicNumber
+   for(int j=0;j<OrdersTotal();j++)
+   {
+      OrderSelect(j,SELECT_BY_POS,MODE_TRADES);
+
+   //---- Assert MagicNumber and Symbol is same as Order
+      if (OrderMagicNumber()==mgc && OrderSymbol()==Symbol())
+         return(OrderTicket());
+   }
+   return(ticket);
 }
 
 
