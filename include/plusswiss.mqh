@@ -2,6 +2,7 @@
 //|                                                                           PlusSwiss.mqh |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.22    Fixed bug in reset status.                                                      |
 //| 1.21    Fixed bug in Trade Decision Sell Zone for Target2.                              |
 //| 1.20    Added PlusLinex.mqh for take profit lines.                                      |
 //| 1.10    Added SwissParabolicSarManager().                                               |
@@ -184,7 +185,11 @@ int SwissTargetLinex(double Pts)
    // Check for Trendline and Determine the Limits
    // ============================================
    
-   if (ObjectFind(SwissTarget1)<0) I_TargetLineLevel = -1;
+   if (ObjectFind(SwissTarget1)<0) 
+   {
+      I_TargetLineLevel = -1;
+      I_TargetStatus = 0;
+   }
    else
    {
       I_TargetLineLevel = ObjectGetValueByShift(SwissTarget1,0);
@@ -228,7 +233,11 @@ int SwissTargetLinex(double Pts)
       I_TargetLLimit  = I_TargetLineLevel - (SwissPipLimit*Pts);
       I_TargetLLimit1 = I_TargetLLimit    - (SwissPipWide *Pts);
    }
-   if (ObjectFind(SwissTarget2)<0)   II_TargetLineLevel = -1;
+   if (ObjectFind(SwissTarget2)<0)   
+   {
+      II_TargetLineLevel = -1;
+      II_TargetStatus = 0;
+   }
    else
    {
       II_TargetLineLevel = ObjectGetValueByShift(SwissTarget2,0);
@@ -438,7 +447,7 @@ string SwissComment(string cmt="")
 //---- Assert Added PlusLinex.mqh
 strtmp = strtmp + "\n    PipLimit=" + DoubleToStr(SwissPipLimit,0) + " PipWide=" + DoubleToStr(SwissPipWide,0);
    if (!SwissTarget1NoMove || !SwissTarget2NoMove) 
-      strtmp = strtmp + " PipMove=" + DoubleToStr(SwissPipMove,0);
+      strtmp = strtmp + " PipMove=" + DoubleToStr(SwissPipMove,0)+"  ";
    if (SwissOnlyTakeProfits) strtmp=strtmp+"(Only take profits)";
    if (I_TargetLineLevel<0 && II_TargetLineLevel<0) 
       strtmp = strtmp + "\n    No Active Stealthlines.";
@@ -499,3 +508,6 @@ strtmp = strtmp + "\n    PipLimit=" + DoubleToStr(SwissPipLimit,0) + " PipWide="
    return(strtmp);
 }
 
+//|-----------------------------------------------------------------------------------------|
+//|                       E N D   O F   E X P E R T   A D V I S O R                         |
+//|-----------------------------------------------------------------------------------------|
