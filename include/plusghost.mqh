@@ -7,6 +7,7 @@
 //|             0   - Broker trades (Real)                                                  |
 //|             1   - Paper trades using ExcelLink                                          |
 //|             2   - Paper trades using SQL (To be implemented)                            |
+//| 1.20    Implemented GhostOrderSend, GhostOrderModify and GhostOrderClose.               |
 //|-----------------------------------------------------------------------------------------|
 #property   copyright "Copyright © 2012, Dennis Lee"
 #include    <sqlite.mqh>
@@ -40,7 +41,7 @@ int     ExcelAutoFit(bool);
 //|                 P L U S L I N E X   E X T E R N A L   V A R I A B L E S                 |
 //|-----------------------------------------------------------------------------------------|
 extern   string GhostTerminal           = "GhostTerminal";
-extern   string g1                      = "Mode: 0-Broker(Real); 1-Excel(Paper); 2-SQL(Paper)";
+extern   string g1                      = "Mode: 0-Broker; 1-Excel; 2-SQL";
 extern   int    GhostMode               = 0;
 extern   int    GhostRows               = 10;
 extern   int	GhostPipLimit			= 10;
@@ -61,6 +62,7 @@ extern   int    GhostDebug              = 1;
 //|-----------------------------------------------------------------------------------------|
 string   GhostName="PlusGhost";
 string   GhostVer="1.10";
+string   GhostExpertName="";
 
 //---- Assert internal variables for GhostTerminal
 string   GhostFontType="Arial";
@@ -70,6 +72,7 @@ string   GhostOpenPositions[1][11];
 string   GhostPendingOrders[1][11];
 int      GhostCurOpenPositions=0;
 int      GhostCurPendingOrders=0;
+double   GhostSummProfit=0.0;
 
 //---- Assert internal variables for ExcelLink
 string   ExcelFileName;
@@ -137,6 +140,7 @@ void GhostInit(string eaName)
         default:    break;
     }
     
+    GhostExpertName=eaName;
 /*
     if(GhostMaxAccountTrades>0)
     {
@@ -224,21 +228,24 @@ int GhostOrderSend(string symbol, int type, double lots, double price, int slipp
                     double stoploss, double takeprofit, string comment="", int magic=0,
                     datetime expiration=0, color arrow_color=CLR_NONE)
 {
-/*
-    string exp= "insert into "+GhostTable+" (
-                 ticket,opentime,closetime,status,symbol,type,lots,price,slippage,stoploss,
-                 takeprofit,comment,magic,expiration,profit,swap,commission) ";
-    string val= "values ("+
-                 StringConcatenate(
-                 0,0,0,0,symbol,type,lots,price,slippage,stoploss,
-                 takeprofit,comment,magic,expiration,0,0,0)";
-*/
+    switch(GhostMode)
+    {
+        case 1:     return(ExcelOrderSend(symbol,type,lots,price,slippage,stoploss,takeprofit,comment,magic,expiration,arrow_color));
+        case 2:
+        default:    return(OrderSend(symbol,type,lots,price,slippage,stoploss,takeprofit,comment,magic,expiration,arrow_color));
+    }
     return(0);
 }
 
 bool GhostOrderModify(int ticket, double price, double stoploss, double takeprofit, 
                         datetime expiration=0, color arrow_color=CLR_NONE)
 {
+    switch(GhostMode)
+    {
+        case 1:     return(ExcelOrderModify(ticket,price,stoploss,takeprofit,expiration,arrow_color));
+        case 2:
+        default:    return(OrderModify(ticket,price,stoploss,takeprofit,expiration,arrow_color));
+    }
     return(false);
 }
 
@@ -258,12 +265,17 @@ int GhostOrderTicket()
 //|-----------------------------------------------------------------------------------------|
 //|                                  C L O S E  O R D E R S                                 |
 //|-----------------------------------------------------------------------------------------|
-bool GhostOrderClose(int ticket, double lots, double price, int slippage, color Color=CLR_NONE)
+bool GhostOrderClose(int ticket, double lots, double price, int slippage, color arrow=CLR_NONE)
 {
-    return(false);
+    switch(GhostMode)
+    {
+        case 1:     return(ExcelOrderClose(ticket,lots,price,slippage,arrow));
+        case 2:
+        default:    return(OrderClose(ticket,lots,price,slippage,arrow));
+    }
 }
 
-bool GhostOrderDelete(int ticket, color Color=CLR_NONE)
+bool GhostOrderDelete(int ticket, color arrow=CLR_NONE)
 {
     return(false);
 }
@@ -294,9 +306,15 @@ void GhostTerminalRefresh(double Pts)
 	bool    summLineOK = false;
 	double  summProfit=0.0;
 	color   tmp_MainColor, tmp_SLColor, tmp_TPColor, tmp_OPColor;
+
+//-- Assert find window for terminal.
+    GhostWin = WindowFind(GhostTerminal);
+//-- Assert NOT testing mode.
+    if(IsTesting()) GhostWin=-1;
+//-- Assert GhostTerminal exists.
+    if(GhostWin<0) return(-1);
     
 //-- Assert refresh terminal line by line.    
-	
 	for(int i=0; i<GhostRows; i++)
 	{
 		if(i<GhostCurOpenPositions)
@@ -346,24 +364,14 @@ void GhostTerminalRefresh(double Pts)
 		{
 			if(!summLineOK)
 			{
-				string tmp_margin = StringConcatenate("Margin: ",DoubleToStr(AccountMargin(),2));
-				string tmp_marginLevel = "";
-				if(AccountMargin()>0)
-				{
-					tmp_marginLevel = StringConcatenate("  MarginLevel: ",DoubleToStr(AccountEquity()/AccountMargin()*100,2),"%");
-				}
-				GhostSetText( "Ticket_" 	+ i, StringConcatenate("Balance: ",DoubleToStr(AccountBalance(),2),"  Equity: ",DoubleToStr(AccountEquity(),2)),GhostMainColor);
-				GhostSetText( "OpenTime_" 	+ i );
-				GhostSetText( "Type_" 		+ i );
-				GhostSetText( "Lots_" 		+ i, StringConcatenate(tmp_margin,"  FreeMargin: ",DoubleToStr(AccountFreeMargin(),2),tmp_marginLevel),GhostMainColor);
-				GhostSetText( "OpenPrice_" 	+ i );
-				GhostSetText( "StopLoss_" 	+ i );
-				GhostSetText( "TakeProfit_" + i );
-				GhostSetText( "CurPrice_" 	+ i );
-				GhostSetText( "Swap_" 		+ i );
-				GhostSetText( "Profit_" 	+ i, DoubleToStr(summProfit,2),GhostMainColor);
-				GhostSetText( "Comment_" 	+ i );
-				i ++;
+            switch(GhostMode)
+            {
+               case 1:     GhostSummaryDisplay(i,ExcelGetValue(AdSheet,2,AdBalance),ExcelGetValue(AdSheet,2,AdEquity),ExcelGetValue(AdSheet,2,AdMargin),0.0);
+                           break;
+               case 2:
+               default:    GhostSummaryDisplay(i,AccountBalance(),AccountEquity(),AccountMargin(),AccountFreeMargin());
+            }
+         	i ++;
 				summLineOK = true;
 			}
 
@@ -500,6 +508,28 @@ void GhostTerminalDeInit()
 	}
 }
 
+void GhostSummaryDisplay(int i, double balance, double equity, double margin, double free)
+{
+
+	string tmp_margin = StringConcatenate("Margin: ",DoubleToStr(margin,2));
+	string tmp_marginLevel = "";
+	if(margin>0)
+	{
+		tmp_marginLevel = StringConcatenate("  MarginLevel: ",DoubleToStr(equity/margin*100,2),"%");
+	}
+	GhostSetText( "Ticket_" 	+ i, StringConcatenate("Balance: ",DoubleToStr(balance,2),"  Equity: ",DoubleToStr(equity,2)),GhostMainColor);
+	GhostSetText( "OpenTime_" 	+ i );
+	GhostSetText( "Type_" 		+ i );
+	GhostSetText( "Lots_" 		+ i, StringConcatenate(tmp_margin,"  FreeMargin: ",DoubleToStr(free,2),tmp_marginLevel),GhostMainColor);
+	GhostSetText( "OpenPrice_" 	+ i );
+	GhostSetText( "StopLoss_" 	+ i );
+	GhostSetText( "TakeProfit_" + i );
+	GhostSetText( "CurPrice_" 	+ i );
+	GhostSetText( "Swap_" 		+ i );
+	GhostSetText( "Profit_" 	+ i, DoubleToStr(GhostSummProfit,2),GhostMainColor);
+	GhostSetText( "Comment_" 	+ i );
+}
+
 void GhostLabel(string labelName, int xDist, int yDist, int labelCorner=0)
 {
     int lastErr;
@@ -561,13 +591,13 @@ string GhostOrderType(int orderType)
         default:            return("UnknownOrderType");
     }
 }
+
 //|-----------------------------------------------------------------------------------------|
 //|                             T E R M I N A L   B U F F E R S                             |
 //|-----------------------------------------------------------------------------------------|
 void ExcelLoadBuffers()
 {
-	int lastErr, digits, r;
-	double summProfit = 0.0;
+   int lastErr, digits, r;
 
     GhostCurOpenPositions=0; GhostCurPendingOrders=0;
 
@@ -587,16 +617,16 @@ void ExcelLoadBuffers()
 		GhostOpenPositions[GhostCurOpenPositions][6] = DoubleToStr( ExcelGetValue(OpSheet,r,OpTakeProfit), digits );
         
         if ( ExcelGetValue(OpSheet,r,OpType) == OP_BUY )
-        { GhostOpenPositions[GhostCurOpenPositions][7] = DoubleToStr( MarketInfo( OrderSymbol(), MODE_BID ), digits ); }
+        { GhostOpenPositions[GhostCurOpenPositions][7] = DoubleToStr( MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_BID ), digits ); }
 		else
-		{ GhostOpenPositions[GhostCurOpenPositions][7] = DoubleToStr( MarketInfo( OrderSymbol(), MODE_ASK ), digits ); }
+		{ GhostOpenPositions[GhostCurOpenPositions][7] = DoubleToStr( MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_ASK ), digits ); }
 
 		GhostOpenPositions[GhostCurOpenPositions][8] = DoubleToStr( ExcelGetValue(OpSheet,r,OpSwap), 2 );
 		GhostOpenPositions[GhostCurOpenPositions][9] = DoubleToStr( ExcelGetValue(OpSheet,r,OpProfit), 2 );
 		GhostOpenPositions[GhostCurOpenPositions][10] = ExcelGetString(OpSheet,r,OpComment);
 
     //---- Increment row
-        summProfit += ExcelGetValue(OpSheet,r,OpProfit);
+        GhostSummProfit += ExcelGetValue(OpSheet,r,OpProfit);
         GhostCurOpenPositions ++;
         r ++;
         if ( GhostCurOpenPositions >= GhostRows ) { break; }
@@ -618,9 +648,9 @@ void ExcelLoadBuffers()
 		GhostPendingOrders[GhostCurPendingOrders][6] = DoubleToStr( ExcelGetValue(PoSheet,r,PoTakeProfit), digits );
 
 		if ( ExcelGetValue(PoSheet,r,PoType) == OP_SELLSTOP || ExcelGetValue(PoSheet,r,PoType) == OP_SELLLIMIT )
-		{ GhostPendingOrders[GhostCurPendingOrders][7] = DoubleToStr( MarketInfo( OrderSymbol(), MODE_BID ), digits ); }
+		{ GhostPendingOrders[GhostCurPendingOrders][7] = DoubleToStr( MarketInfo( ExcelGetString(PoSheet,r,PoSymbol), MODE_BID ), digits ); }
 		else
-		{ GhostPendingOrders[GhostCurPendingOrders][7] = DoubleToStr( MarketInfo( OrderSymbol(), MODE_ASK ), digits ); }
+		{ GhostPendingOrders[GhostCurPendingOrders][7] = DoubleToStr( MarketInfo( ExcelGetString(PoSheet,r,PoSymbol), MODE_ASK ), digits ); }
 
 		GhostPendingOrders[GhostCurPendingOrders][8] = DoubleToStr( ExcelGetValue(PoSheet,r,PoSwap), 2 );
 		GhostPendingOrders[GhostCurPendingOrders][9] = DoubleToStr( 0, 2 );
@@ -638,7 +668,6 @@ void ExcelLoadBuffers()
 void BrokerLoadBuffers()
 {
 	int lastErr, ordersTotal = OrdersTotal(), digits;
-	double summProfit = 0.0;
 
     GhostCurOpenPositions=0; GhostCurPendingOrders=0;
 	for ( int z = ordersTotal - 1; z >= 0; z -- )
@@ -671,7 +700,7 @@ void BrokerLoadBuffers()
 			GhostOpenPositions[GhostCurOpenPositions][9] = DoubleToStr( OrderProfit(), 2 );
 			GhostOpenPositions[GhostCurOpenPositions][10] = OrderComment();
 
-			summProfit += OrderProfit();
+			GhostSummProfit += OrderProfit();
 			GhostCurOpenPositions ++;
 			if ( GhostCurOpenPositions >= GhostRows ) { break; }
 		}
@@ -739,7 +768,7 @@ bool ExcelCreate(int acctNo, string symbol, string eaName)
     int handle;
     bool init;
     
-//--- Assert Check if file exists, e.g. "Acc440660-EURUSD-Growthbot-12345.xls"
+//--- Assert Check if file exists, e.g. "Acc440660-EURUSD-Growthbot.xls"
     ExcelFileName=StringConcatenate("AccNo",acctNo,"-",symbol,"-",eaName,".xls");
     
     handle=ExcelStart(ExcelFileName,1);
@@ -796,9 +825,235 @@ bool ExcelCreate(int acctNo, string symbol, string eaName)
         ExcelPutString(PoSheet, 1,  PoSymbol,       "Symbol");
         ExcelPutString(PoSheet, 1,  PoExpertName,   "ExpertName");
         ExcelPutString(PoSheet, 1,  PoMagicNo,      "MagicNo");
+        
+    //--- Assert Populate AccountDetails: AccountNo, Currency, Balance, Equity, Margin, PL
+        ExcelPutString(AdSheet, 2,  AdAccountNo,    DoubleToStr(AccountNumber(),0));
+        ExcelPutString(AdSheet, 2,  AdCurrency,     AccountCurrency());
+        ExcelPutValue(AdSheet,  2,  AdBalance,      AccountBalance());
     }
 
     return(true);
+}
+
+int ExcelOrderSend(string sym, int type, double lots, double price, int slip, double SL, double TP, string cmt="", int mgc=0, datetime exp=0, color arrow=CLR_NONE)
+{
+    int r;
+    double  openPrice;
+    int     openRow;
+    int     openTicket;
+    int     openTime;
+
+//--- Assert Create new ticket.
+    openTicket=ExcelCreateTicket();
+    if(openTicket<=0) return(-1);
+    
+//--- if new open position then create new row in Open Positions.
+    if(type==OP_BUY || type==OP_SELL)
+    {
+    //--- Assert Create new row.
+        openRow=ExcelCreateRow(OpSheet,OpTicket);
+        if(openRow<=0) return(-1);
+        
+    //--- Assert get real-time info.
+        if(type==OP_BUY)
+        { openPrice = MarketInfo( sym, MODE_ASK ); }
+        else
+        { openPrice = MarketInfo( sym, MODE_BID ); }
+        openTime=TimeCurrent(); //server
+
+        ExcelPutValue(OpSheet,openRow,OpTicket,     openTicket);
+        ExcelPutValue(OpSheet,openRow,OpOpenTime,   openTime);
+        ExcelPutValue(OpSheet,openRow,OpType,       type);
+        ExcelPutValue(OpSheet,openRow,OpLots,       lots);
+        ExcelPutValue(OpSheet,openRow,OpOpenPrice,  openPrice);
+        //ExcelPutValue(OpSheet,openRow,OpStopLoss,    0.0);
+        //ExcelPutValue(OpSheet,openRow,OpTakeProfit,  0.0);
+        //ExcelPutValue(OpSheet,openRow,OpCurPrice,    0.0);
+        //ExcelPutValue(OpSheet,openRow,OpSwap,        0.0);
+        //ExcelPutValue(OpSheet,openRow,OpProfit,      0.0);
+        ExcelPutString(OpSheet,openRow,OpComment,   cmt);
+        ExcelPutString(OpSheet,openRow,OpAccountNo, ExcelGetString(AdSheet,2,AdAccountNo));
+        ExcelPutString(OpSheet,openRow,OpSymbol,    sym);
+        ExcelPutString(OpSheet,openRow,OpExpertName,GhostExpertName);
+        ExcelPutString(OpSheet,openRow,OpMagicNo,   DoubleToStr(mgc,0));
+        
+        return(openTicket);
+    }
+}
+
+bool ExcelOrderModify(int ticket, double price, double SL, double TP, datetime exp, color arrow=CLR_NONE)
+{
+    int r;
+    
+//--- Assert ticket no exists in Open Positions.
+    r=ExcelFindTicket(OpSheet,OpTicket,ticket);
+    if(r>0)
+    {
+        ExcelPutValue(OpSheet,r,OpStopLoss,     0.0);
+        ExcelPutValue(OpSheet,r,OpTakeProfit,   0.0);
+        return(true);
+    }
+
+//--- Assert ticket no exists in Pending Orders.
+    r=ExcelFindTicket(PoSheet,PoTicket,ticket);
+    if(r>0)
+    {
+        ExcelPutValue(PoSheet,r,PoOpenPrice,    price);
+        ExcelPutValue(PoSheet,r,PoStopLoss,     0.0);
+        ExcelPutValue(PoSheet,r,PoTakeProfit,   0.0);
+        return(true);
+    }
+
+//--- Assert ticket not found.
+    return(false);
+}
+
+bool ExcelOrderClose(int ticket, double lots, double price, int slippage, color arrow=CLR_NONE)
+{
+    int r;
+    double calcLots, closePrice, orderLots;
+    double calcProfit, openPrice;
+
+//--- Assert ticket no exists in Open Positions ONLY.
+    r=ExcelFindTicket(OpSheet,OpTicket,ticket);
+    if(r<=0) return(false);
+
+//--- Assert get close price and calculate profits
+    openPrice = ExcelGetValue(OpSheet,r,OpOpenPrice);
+    if ( ExcelGetValue(OpSheet,r,OpType) == OP_BUY )
+    { 
+      closePrice = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_BID ); 
+      
+   //--- Assert calculate profits      
+      calcProfit = (closePrice-openPrice)*TurtleBigValue(Symbol())/Pts;
+    }
+    else
+    { 
+      closePrice = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_ASK ); 
+
+   //--- Assert calculate profits      
+      calcProfit = (openPrice-closePrice)*TurtleBigValue(Symbol())/Pts;
+    }
+    
+//--- Assert check if partial close or full close.
+    orderLots=ExcelGetValue(OpSheet,r,OpLots);
+    if(lots>=orderLots)
+    { calcLots = ExcelGetValue(OpSheet,r,OpLots); }
+    else
+    { calcLots = lots; }
+    
+//--- Assert adjustment to account details using BigValue.
+    ExcelPutValue(AdSheet,2,AdBalance, ExcelGetValue(AdSheet,2,AdBalance)+calcProfit);
+
+//--- Assert partial close to update Lots in row; otherwise delete entire row.
+    if(calcLots<orderLots)
+    { ExcelPutValue(OpSheet,r,OpLots,orderLots-calcLots); }
+    else
+    { ExcelDeleteRow(OpSheet,r,OpTicket); }
+    
+    return(true);
+}
+
+int ExcelFindTicket(int sheet, int keyCol, int ticket)
+{
+    int r, rowFound=0;
+
+//--- Assert ticket no exists.    
+//--- First row is header
+    r=2;
+    while (ExcelGetValue(sheet,r,keyCol)>0)
+    {
+        if(ticket==ExcelGetValue(sheet,r,keyCol))
+        {
+            rowFound=r;
+            break;
+        }
+        r ++;
+    }
+    if(0==rowFound) return(-1);
+    else return(rowFound);
+}
+
+int ExcelCreateRow(int sheet, int keyCol)
+{
+    int r;
+//--- Assert get last row.
+//--- First row is header.
+    r=2;
+    while(ExcelGetValue(sheet,r,keyCol)>0)
+    {
+        r ++;
+    }
+    return(r);
+}
+
+int ExcelCreateTicket()
+{
+    int r,maxTicket;
+//--- Assert get last ticket no.
+//--- First row is header.
+    r=2;
+    while(ExcelGetValue(OpSheet,r,OpTicket)>0)
+    {
+        if(maxTicket<ExcelGetValue(OpSheet,r,OpTicket))
+        {
+            maxTicket=ExcelGetValue(OpSheet,r,OpTicket);
+        }
+        r ++;
+    }
+    r=2;
+    while(ExcelGetValue(PoSheet,r,PoTicket)>0)
+    {
+        if(maxTicket<ExcelGetValue(PoSheet,r,PoTicket))
+        {
+            maxTicket=ExcelGetValue(PoSheet,r,PoTicket);
+        }
+        r ++;
+    }
+    
+    maxTicket ++;
+    return(maxTicket);
+}
+
+void ExcelDeleteRow(int sheet, int rowDelete, int keyCol)
+{
+//--- Move all rows, after rowFound, up by one.
+    int r=rowDelete+1;
+    while (ExcelGetValue(sheet,r,keyCol)>0)
+    {
+        ExcelPutValue(sheet,r-1,1,      ExcelGetValue(sheet,r,1));
+        ExcelPutValue(sheet,r-1,2,      ExcelGetValue(sheet,r,2));
+        ExcelPutValue(sheet,r-1,3,      ExcelGetValue(sheet,r,3));
+        ExcelPutValue(sheet,r-1,4,      ExcelGetValue(sheet,r,4));
+        ExcelPutValue(sheet,r-1,5,      ExcelGetValue(sheet,r,5));
+        ExcelPutValue(sheet,r-1,6,      ExcelGetValue(sheet,r,6));
+        ExcelPutValue(sheet,r-1,7,      ExcelGetValue(sheet,r,7));
+        ExcelPutValue(sheet,r-1,8,      ExcelGetValue(sheet,r,8));
+        ExcelPutValue(sheet,r-1,9,      ExcelGetValue(sheet,r,9));
+        ExcelPutValue(sheet,r-1,10,     ExcelGetValue(sheet,r,10));
+        ExcelPutString(sheet,r-1,11,    ExcelGetString(sheet,r,11));
+        ExcelPutString(sheet,r-1,12,    ExcelGetString(sheet,r,12));
+        ExcelPutString(sheet,r-1,13,    ExcelGetString(sheet,r,13));
+        ExcelPutString(sheet,r-1,14,    ExcelGetString(sheet,r,14));
+        ExcelPutString(sheet,r-1,15,    ExcelGetString(sheet,r,15));
+        r ++;
+    }
+//--- Clear last row, after all rows have been moved up by one.
+    ExcelPutString(sheet,r,1,   "");
+    ExcelPutString(sheet,r,2,   "");
+    ExcelPutString(sheet,r,3,   "");
+    ExcelPutString(sheet,r,4,   "");
+    ExcelPutString(sheet,r,5,   "");
+    ExcelPutString(sheet,r,6,   "");
+    ExcelPutString(sheet,r,7,   "");
+    ExcelPutString(sheet,r,8,   "");
+    ExcelPutString(sheet,r,9,   "");
+    ExcelPutString(sheet,r,10,  "");
+    ExcelPutString(sheet,r,11,  "");
+    ExcelPutString(sheet,r,12,  "");
+    ExcelPutString(sheet,r,13,  "");
+    ExcelPutString(sheet,r,14,  "");
+    ExcelPutString(sheet,r,15,  "");
 }
 
 //|-----------------------------------------------------------------------------------------|
