@@ -8,6 +8,8 @@
 //|             1   - Paper trades using ExcelLink                                          |
 //|             2   - Paper trades using SQL (To be implemented)                            |
 //| 1.20    Implemented GhostOrderSend, GhostOrderModify and GhostOrderClose.               |
+//| 1.21    Implemented ExcelManager(), enhanced ordering functions, added                  |
+//|             debugging statements, and fixed ExcelDeleteRow().                           |
 //|-----------------------------------------------------------------------------------------|
 #property   copyright "Copyright © 2012, Dennis Lee"
 #include    <sqlite.mqh>
@@ -80,6 +82,10 @@ string   ExcelFileName;
 int      AdSheet    = 1;
 int      OpSheet    = 2;
 int      PoSheet    = 3;
+//---- Excel first row for each sheet
+int      AdFirstRow = 2;
+int      OpFirstRow = 2;
+int      PoFirstRow = 2;
 //---- Excel column positions for Account Details
 int      AdAccountNo    = 1;
 int      AdCurrency     = 2;
@@ -192,8 +198,11 @@ void GhostRefresh()
 //-- Assert terminal buffers are loaded.
     switch(GhostMode)
     {
-        case 1:     ExcelLoadBuffers();     break;
-        default:    BrokerLoadBuffers();    break;
+        case 1:     ExcelManager();
+                    ExcelLoadBuffers();     
+                    break;
+        default:    BrokerLoadBuffers();    
+                    break;
     }
 
 //-- Assert GhostTerminal exists.
@@ -366,7 +375,7 @@ void GhostTerminalRefresh(double Pts)
 			{
             switch(GhostMode)
             {
-               case 1:     GhostSummaryDisplay(i,ExcelGetValue(AdSheet,2,AdBalance),ExcelGetValue(AdSheet,2,AdEquity),ExcelGetValue(AdSheet,2,AdMargin),0.0);
+               case 1:     GhostSummaryDisplay(i,ExcelGetValue(AdSheet,AdFirstRow,AdBalance),ExcelGetValue(AdSheet,AdFirstRow,AdEquity),ExcelGetValue(AdSheet,AdFirstRow,AdMargin),0.0);
                            break;
                case 2:
                default:    GhostSummaryDisplay(i,AccountBalance(),AccountEquity(),AccountMargin(),AccountFreeMargin());
@@ -603,7 +612,7 @@ void ExcelLoadBuffers()
 
 //--- Assert Load OpenPositions
 //--- First row is header
-    r=2;
+    r=OpFirstRow;
     while (ExcelGetValue(OpSheet,r,OpTicket)>0)
     {
 		digits = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_DIGITS );
@@ -634,7 +643,7 @@ void ExcelLoadBuffers()
 
 //--- Assert Load PendingOrders
 //--- First row is header
-    r=2;
+    r=PoFirstRow;
     while (ExcelGetValue(PoSheet,r,PoTicket)>0)
     {
 		digits = MarketInfo( ExcelGetString(PoSheet,r,PoSymbol), MODE_DIGITS );
@@ -827,38 +836,105 @@ bool ExcelCreate(int acctNo, string symbol, string eaName)
         ExcelPutString(PoSheet, 1,  PoMagicNo,      "MagicNo");
         
     //--- Assert Populate AccountDetails: AccountNo, Currency, Balance, Equity, Margin, PL
-        ExcelPutString(AdSheet, 2,  AdAccountNo,    DoubleToStr(AccountNumber(),0));
-        ExcelPutString(AdSheet, 2,  AdCurrency,     AccountCurrency());
-        ExcelPutValue(AdSheet,  2,  AdBalance,      AccountBalance());
+        ExcelPutString(AdSheet, AdFirstRow,  AdAccountNo,    DoubleToStr(AccountNumber(),0));
+        ExcelPutString(AdSheet, AdFirstRow,  AdCurrency,     AccountCurrency());
+        ExcelPutValue(AdSheet,  AdFirstRow,  AdBalance,      AccountBalance());
     }
 
     return(true);
+}
+
+void ExcelManager()
+{
+    int r;
+    double closePrice;
+    double calcProfit, openPrice;
+
+//--- Assert for each Open Position, check if SL or TP reached.
+//--- First row is header
+    r=OpFirstRow;
+    while (ExcelGetValue(OpSheet,r,OpTicket)>0)
+    {
+    //--- Assert get real-time info.
+        openPrice=ExcelGetValue(OpSheet,r,OpOpenPrice);
+        if(OP_BUY==ExcelGetValue(OpSheet,r,OpType))
+        {
+            closePrice = MarketInfo( Symbol(), MODE_BID ); 
+            if( (ExcelGetValue(OpSheet,r,OpStopLoss)!=0.0 && closePrice<=ExcelGetValue(OpSheet,r,OpStopLoss)) ||
+                (ExcelGetValue(OpSheet,r,OpTakeProfit)!=0.0 && closePrice>=ExcelGetValue(OpSheet,r,OpTakeProfit)) )
+            {
+            //--- Assert calculate profit/loss
+                calcProfit=(closePrice-openPrice)*TurtleBigValue(Symbol())/Pts;
+                break;
+            }
+                    
+        }
+        else if(OP_SELL==ExcelGetValue(OpSheet,r,OpType))
+        {
+            closePrice = MarketInfo( Symbol(), MODE_ASK ); 
+            if( (ExcelGetValue(OpSheet,r,OpStopLoss)!=0.0 && closePrice>=ExcelGetValue(OpSheet,r,OpStopLoss)) ||
+                (ExcelGetValue(OpSheet,r,OpTakeProfit)!=0.0 && closePrice<=ExcelGetValue(OpSheet,r,OpTakeProfit)) )
+            {
+            //--- Assert calculate profit/loss
+                calcProfit=(openPrice-closePrice)*TurtleBigValue(Symbol())/Pts;
+                break;
+            }
+        }
+
+    //---- Increment row
+        r ++;
+    }
+
+//--- Assert adjustment to account details using BigValue.
+    if(calcProfit!=0.0) 
+    {
+        ExcelPutValue(AdSheet,AdFirstRow,AdBalance,  ExcelGetValue(AdSheet,AdFirstRow,AdBalance)+calcProfit);
+        if(r>=OpFirstRow) ExcelDeleteRow(OpSheet,OpTicket,OpFirstRow,r);
+    }
+
+//--- Debug    
+    if(GhostDebug>=2)   Print(GhostDebug,":ExcelManager(): r=",r,";openPrice=",openPrice,";closePrice=",closePrice,";calcProfit=",calcProfit);
 }
 
 int ExcelOrderSend(string sym, int type, double lots, double price, int slip, double SL, double TP, string cmt="", int mgc=0, datetime exp=0, color arrow=CLR_NONE)
 {
     int r;
     double  openPrice;
+    double  openSL;
+    double  openTP;
     int     openRow;
     int     openTicket;
     int     openTime;
 
 //--- Assert Create new ticket.
     openTicket=ExcelCreateTicket();
-    if(openTicket<=0) return(-1);
+    if(openTicket<=0) 
+    {
+    //--- Debug    
+        if(GhostDebug>=2)   Print(GhostDebug,":ExcelOrderSend(",sym,",",type,",",lots,",",price,",",slip,",",SL,",",TP,",",cmt,",",mgc,",",exp,",",arrow,"): return=-1");
+        return(-1);
+    }
     
 //--- if new open position then create new row in Open Positions.
     if(type==OP_BUY || type==OP_SELL)
     {
     //--- Assert Create new row.
-        openRow=ExcelCreateRow(OpSheet,OpTicket);
+        openRow=ExcelCreateRow(OpSheet,OpTicket,OpFirstRow);
         if(openRow<=0) return(-1);
         
     //--- Assert get real-time info.
         if(type==OP_BUY)
-        { openPrice = MarketInfo( sym, MODE_ASK ); }
+        {
+            openPrice = MarketInfo( sym, MODE_ASK ); 
+            if(SL!=0.0) openSL=NormalizeDouble(openPrice-SL*Pts,Digits);
+            if(TP!=0.0) openTP=NormalizeDouble(openPrice+TP*Pts,Digits);
+        }
         else
-        { openPrice = MarketInfo( sym, MODE_BID ); }
+        {
+            openPrice = MarketInfo( sym, MODE_BID ); 
+            if(SL!=0.0) openSL=NormalizeDouble(openPrice+SL*Pts,Digits);
+            if(TP!=0.0) openTP=NormalizeDouble(openPrice-TP*Pts,Digits);
+        }
         openTime=TimeCurrent(); //server
 
         ExcelPutValue(OpSheet,openRow,OpTicket,     openTicket);
@@ -866,8 +942,8 @@ int ExcelOrderSend(string sym, int type, double lots, double price, int slip, do
         ExcelPutValue(OpSheet,openRow,OpType,       type);
         ExcelPutValue(OpSheet,openRow,OpLots,       lots);
         ExcelPutValue(OpSheet,openRow,OpOpenPrice,  openPrice);
-        //ExcelPutValue(OpSheet,openRow,OpStopLoss,    0.0);
-        //ExcelPutValue(OpSheet,openRow,OpTakeProfit,  0.0);
+        ExcelPutValue(OpSheet,openRow,OpStopLoss,   openSL);
+        ExcelPutValue(OpSheet,openRow,OpTakeProfit, openTP);
         //ExcelPutValue(OpSheet,openRow,OpCurPrice,    0.0);
         //ExcelPutValue(OpSheet,openRow,OpSwap,        0.0);
         //ExcelPutValue(OpSheet,openRow,OpProfit,      0.0);
@@ -877,6 +953,8 @@ int ExcelOrderSend(string sym, int type, double lots, double price, int slip, do
         ExcelPutString(OpSheet,openRow,OpExpertName,GhostExpertName);
         ExcelPutString(OpSheet,openRow,OpMagicNo,   DoubleToStr(mgc,0));
         
+    //--- Debug    
+        if(GhostDebug>=2)   Print(GhostDebug,":ExcelOrderSend(",sym,",",type,",",lots,",",price,",",slip,",",SL,",",TP,",",cmt,",",mgc,",",exp,",",arrow,"): return=",openTicket);
         return(openTicket);
     }
 }
@@ -884,27 +962,69 @@ int ExcelOrderSend(string sym, int type, double lots, double price, int slip, do
 bool ExcelOrderModify(int ticket, double price, double SL, double TP, datetime exp, color arrow=CLR_NONE)
 {
     int r;
+    double curPrice;
+    double modifyPrice;
+    double modifySL;
+    double modifyTP;
     
 //--- Assert ticket no exists in Open Positions.
-    r=ExcelFindTicket(OpSheet,OpTicket,ticket);
+    r=ExcelFindTicket(OpSheet,OpTicket,OpFirstRow,ticket);
     if(r>0)
     {
-        ExcelPutValue(OpSheet,r,OpStopLoss,     0.0);
-        ExcelPutValue(OpSheet,r,OpTakeProfit,   0.0);
+    //--- Assert get open position info.
+        if(OP_BUY==ExcelGetValue(OpSheet,r,OpType))
+        {
+            curPrice = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_ASK ); 
+            if(SL!=0.0) modifySL=NormalizeDouble(curPrice-SL*Pts,Digits);
+            if(TP!=0.0) modifyTP=NormalizeDouble(curPrice+TP*Pts,Digits);
+        }
+        else if(OP_SELL==ExcelGetValue(OpSheet,r,OpType))
+        {
+            curPrice = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_BID ); 
+            if(SL!=0.0) modifySL=NormalizeDouble(curPrice+SL*Pts,Digits);
+            if(TP!=0.0) modifyTP=NormalizeDouble(curPrice-TP*Pts,Digits);
+        }
+        ExcelPutValue(OpSheet,r,OpStopLoss,     modifySL);
+        ExcelPutValue(OpSheet,r,OpTakeProfit,   modifyTP);
+    //--- Debug    
+        if(GhostDebug>=2)   Print(GhostDebug,":ExcelOrderModify(",ticket,",",price,",",SL,",",TP,",",exp,",",arrow,"): return=true");
         return(true);
     }
 
 //--- Assert ticket no exists in Pending Orders.
-    r=ExcelFindTicket(PoSheet,PoTicket,ticket);
+    r=ExcelFindTicket(PoSheet,PoTicket,PoFirstRow,ticket);
     if(r>0)
     {
-        ExcelPutValue(PoSheet,r,PoOpenPrice,    price);
-        ExcelPutValue(PoSheet,r,PoStopLoss,     0.0);
-        ExcelPutValue(PoSheet,r,PoTakeProfit,   0.0);
+    //--- Assert get pending order info.
+        if(OP_BUY==ExcelGetValue(PoSheet,r,PoType))
+        {
+            if(price==0.0) 
+            {   modifyPrice=ExcelGetValue(PoSheet,r,PoOpenPrice); }
+            else
+            {   modifyPrice=price; }
+            if(SL!=0.0) modifySL=NormalizeDouble(modifyPrice-SL*Pts,Digits);
+            if(TP!=0.0) modifyTP=NormalizeDouble(modifyPrice+TP*Pts,Digits);
+        }
+        else if(OP_SELL==ExcelGetValue(PoSheet,r,PoType))
+        {
+            if(price==0.0)
+            {   modifyPrice=ExcelGetValue(PoSheet,r,PoOpenPrice); }
+            else
+            {   modifyPrice=price; }
+            if(SL!=0.0) modifySL=NormalizeDouble(modifyPrice+SL*Pts,Digits);
+            if(TP!=0.0) modifyTP=NormalizeDouble(modifyPrice-TP*Pts,Digits);
+        }
+        ExcelPutValue(PoSheet,r,PoOpenPrice,    modifyPrice);
+        ExcelPutValue(PoSheet,r,PoStopLoss,     modifySL);
+        ExcelPutValue(PoSheet,r,PoTakeProfit,   modifyTP);
+    //--- Debug    
+        if(GhostDebug>=2)   Print(GhostDebug,":ExcelOrderModify(",ticket,",",price,",",SL,",",TP,",",exp,",",arrow,"): return=true");
         return(true);
     }
 
 //--- Assert ticket not found.
+//--- Debug    
+    if(GhostDebug>=2)   Print(GhostDebug,":ExcelOrderModify(",ticket,",",price,",",SL,",",TP,",",exp,",",arrow,"): return=false");
     return(false);
 }
 
@@ -915,8 +1035,13 @@ bool ExcelOrderClose(int ticket, double lots, double price, int slippage, color 
     double calcProfit, openPrice;
 
 //--- Assert ticket no exists in Open Positions ONLY.
-    r=ExcelFindTicket(OpSheet,OpTicket,ticket);
-    if(r<=0) return(false);
+    r=ExcelFindTicket(OpSheet,OpTicket,OpFirstRow,ticket);
+    if(r<=0) 
+    {
+    //--- Debug    
+        if(GhostDebug>=2)   Print(GhostDebug,":ExcelOrderClose(",ticket,",",lots,",",price,",",slippage,",",arrow,"): return=false");
+        return(false);        
+    }
 
 //--- Assert get close price and calculate profits
     openPrice = ExcelGetValue(OpSheet,r,OpOpenPrice);
@@ -943,24 +1068,26 @@ bool ExcelOrderClose(int ticket, double lots, double price, int slippage, color 
     { calcLots = lots; }
     
 //--- Assert adjustment to account details using BigValue.
-    ExcelPutValue(AdSheet,2,AdBalance, ExcelGetValue(AdSheet,2,AdBalance)+calcProfit);
+    ExcelPutValue(AdSheet,AdFirstRow,AdBalance, ExcelGetValue(AdSheet,AdFirstRow,AdBalance)+calcProfit);
 
 //--- Assert partial close to update Lots in row; otherwise delete entire row.
     if(calcLots<orderLots)
     { ExcelPutValue(OpSheet,r,OpLots,orderLots-calcLots); }
     else
-    { ExcelDeleteRow(OpSheet,r,OpTicket); }
+    { if(r>=OpFirstRow) ExcelDeleteRow(OpSheet,OpTicket,OpFirstRow,r); }
     
+//--- Debug    
+    if(GhostDebug>=2)   Print(GhostDebug,":ExcelOrderClose(",ticket,",",lots,",",price,",",slippage,",",arrow,"): return=true");
     return(true);
 }
 
-int ExcelFindTicket(int sheet, int keyCol, int ticket)
+int ExcelFindTicket(int sheet, int keyCol, int firstRow, int ticket)
 {
     int r, rowFound=0;
 
 //--- Assert ticket no exists.    
 //--- First row is header
-    r=2;
+    r=firstRow;
     while (ExcelGetValue(sheet,r,keyCol)>0)
     {
         if(ticket==ExcelGetValue(sheet,r,keyCol))
@@ -970,20 +1097,32 @@ int ExcelFindTicket(int sheet, int keyCol, int ticket)
         }
         r ++;
     }
-    if(0==rowFound) return(-1);
-    else return(rowFound);
+    if(0==rowFound) 
+    {
+    //--- Debug    
+        if(GhostDebug>=2)   Print(GhostDebug,":ExcelFindTicket(",sheet,",",keyCol,",",firstRow,",",ticket,"): return=-1");
+        return(-1);
+    }
+    else 
+    {
+    //--- Debug    
+        if(GhostDebug>=2)   Print(GhostDebug,":ExcelFindTicket(",sheet,",",keyCol,",",firstRow,",",ticket,"): return=",rowFound);
+        return(rowFound);
+    }
 }
 
-int ExcelCreateRow(int sheet, int keyCol)
+int ExcelCreateRow(int sheet, int keyCol, int firstRow)
 {
     int r;
 //--- Assert get last row.
 //--- First row is header.
-    r=2;
+    r=firstRow;
     while(ExcelGetValue(sheet,r,keyCol)>0)
     {
         r ++;
     }
+//--- Debug
+    if(GhostDebug>=2)   Print(GhostDebug,":ExcelCreateRow(",sheet,",",keyCol,",",firstRow,"): return=",r);
     return(r);
 }
 
@@ -992,7 +1131,7 @@ int ExcelCreateTicket()
     int r,maxTicket;
 //--- Assert get last ticket no.
 //--- First row is header.
-    r=2;
+    r=OpFirstRow;
     while(ExcelGetValue(OpSheet,r,OpTicket)>0)
     {
         if(maxTicket<ExcelGetValue(OpSheet,r,OpTicket))
@@ -1001,7 +1140,7 @@ int ExcelCreateTicket()
         }
         r ++;
     }
-    r=2;
+    r=PoFirstRow;
     while(ExcelGetValue(PoSheet,r,PoTicket)>0)
     {
         if(maxTicket<ExcelGetValue(PoSheet,r,PoTicket))
@@ -1012,14 +1151,20 @@ int ExcelCreateTicket()
     }
     
     maxTicket ++;
+//--- Debug
+    if(GhostDebug>=2)   Print(GhostDebug,":ExcelCreateTicket(): return=",maxTicket);
     return(maxTicket);
 }
 
-void ExcelDeleteRow(int sheet, int rowDelete, int keyCol)
+void ExcelDeleteRow(int sheet, int keyCol, int firstRow, int deleteRow)
 {
+    int r, lastRow;
+    
 //--- Move all rows, after rowFound, up by one.
-    int r=rowDelete+1;
-    while (ExcelGetValue(sheet,r,keyCol)>0)
+    lastRow=ExcelCreateRow(sheet,keyCol,firstRow);
+    lastRow --;
+
+    for(r=lastRow;r>deleteRow;r--)
     {
         ExcelPutValue(sheet,r-1,1,      ExcelGetValue(sheet,r,1));
         ExcelPutValue(sheet,r-1,2,      ExcelGetValue(sheet,r,2));
@@ -1036,24 +1181,26 @@ void ExcelDeleteRow(int sheet, int rowDelete, int keyCol)
         ExcelPutString(sheet,r-1,13,    ExcelGetString(sheet,r,13));
         ExcelPutString(sheet,r-1,14,    ExcelGetString(sheet,r,14));
         ExcelPutString(sheet,r-1,15,    ExcelGetString(sheet,r,15));
-        r ++;
     }
+//--- Debug
+    if(GhostDebug>=2)   Print(GhostDebug,":ExcelDeleteRow(): lastRow=",lastRow,";deleteRow=",deleteRow);
+    
 //--- Clear last row, after all rows have been moved up by one.
-    ExcelPutString(sheet,r,1,   "");
-    ExcelPutString(sheet,r,2,   "");
-    ExcelPutString(sheet,r,3,   "");
-    ExcelPutString(sheet,r,4,   "");
-    ExcelPutString(sheet,r,5,   "");
-    ExcelPutString(sheet,r,6,   "");
-    ExcelPutString(sheet,r,7,   "");
-    ExcelPutString(sheet,r,8,   "");
-    ExcelPutString(sheet,r,9,   "");
-    ExcelPutString(sheet,r,10,  "");
-    ExcelPutString(sheet,r,11,  "");
-    ExcelPutString(sheet,r,12,  "");
-    ExcelPutString(sheet,r,13,  "");
-    ExcelPutString(sheet,r,14,  "");
-    ExcelPutString(sheet,r,15,  "");
+    ExcelPutValue(sheet,lastRow,1,    0);
+    ExcelPutValue(sheet,lastRow,2,    0);
+    ExcelPutValue(sheet,lastRow,3,    0);
+    ExcelPutValue(sheet,lastRow,4,    0);
+    ExcelPutValue(sheet,lastRow,5,    0);
+    ExcelPutValue(sheet,lastRow,6,    0);
+    ExcelPutValue(sheet,lastRow,7,    0);
+    ExcelPutValue(sheet,lastRow,8,    0);
+    ExcelPutValue(sheet,lastRow,9,    0);
+    ExcelPutValue(sheet,lastRow,10,   0);
+    ExcelPutString(sheet,lastRow,11,  "");
+    ExcelPutString(sheet,lastRow,12,  "");
+    ExcelPutString(sheet,lastRow,13,  "");
+    ExcelPutString(sheet,lastRow,14,  "");
+    ExcelPutString(sheet,lastRow,15,  "");
 }
 
 //|-----------------------------------------------------------------------------------------|
