@@ -12,6 +12,7 @@
 //|             debugging statements, and fixed ExcelDeleteRow().                           |
 //| 1.22    Implemented GhostOrderSelect(), ExcelOrderSelect, and associated order select   |
 //|             functions, and fixed ExcelOrderModify().                                    |
+//| 1.23    Fixed ExcelOrderSelect() and GhostOrderTicket().                                |
 //|-----------------------------------------------------------------------------------------|
 #property   copyright "Copyright © 2012, Dennis Lee"
 #include    <sqlite.mqh>
@@ -496,6 +497,15 @@ int GhostOrderMagicNumber()
 
 int GhostOrderTicket()
 {
+    int ret;
+    
+    switch(GhostMode)
+    {
+        case 1:     ret=ExcelOrderTicket();
+                    return(ret);
+        case 2:
+        default:    return(OrderTicket());
+    }
     return(0);
 }
 
@@ -1360,14 +1370,18 @@ int ExcelOrdersTotal()
 
 bool ExcelOrderSelect(int index, int select, int pool=MODE_TRADES)
 {
+    bool ret;
     int r;
 //--- Assert SELECT_BY_TICKET index is order ticket.
     if(select==SELECT_BY_TICKET)
     {
     //--- Find order by ticket
         ExcelSelectRow=ExcelFindTicket(OpSheet,OpTicket,OpFirstRow,index);
+    //--- Assert ExcelSelectRow>0
+        if(ExcelSelectRow>0) ret=true;
+
     //--- Debug    
-        if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderSelect(",index,",",select,",",pool,"): return=",ExcelSelectRow>0);
+        if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderSelect(",index,",",select,",",pool,"): row=",ExcelSelectRow,";return=",ret);
 
         return(ExcelSelectRow>0);
     }
@@ -1378,10 +1392,17 @@ bool ExcelOrderSelect(int index, int select, int pool=MODE_TRADES)
         {
         //--- Find total orders
             ExcelSelectRow=index+OpFirstRow;
+        //--- Assert OrdersTotal>0
+            if(ExcelOrdersTotal()>0)
+            {
+            //--- Assert index is within range
+                if(index>=0 && index<ExcelOrdersTotal()) ret=true;
+            }
+            
         //--- Debug    
-            if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderSelect(",index,",",select,",",pool,"): return=",index<ExcelOrdersTotal());
+            if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderSelect(",index,",",select,",",pool,"): total=",ExcelOrdersTotal(),";return=",ret);
 
-            return(index<ExcelOrdersTotal());
+            return(ret);
         }
         else
         {
