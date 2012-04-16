@@ -14,6 +14,7 @@
 //|             functions, and fixed ExcelOrderModify().                                    |
 //| 1.23    Fixed ExcelOrderSelect() and GhostOrderTicket().                                |
 //| 1.24    Implemented ExcelOrderProfit().                                                 |
+//| 1.25    Fixed calculation of profit.                                                    |
 //|-----------------------------------------------------------------------------------------|
 #property   copyright "Copyright © 2012, Dennis Lee"
 #include    <sqlite.mqh>
@@ -67,7 +68,7 @@ extern   int    GhostDebug              = 1;
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string   GhostName="PlusGhost";
-string   GhostVer="1.24";
+string   GhostVer="1.25";
 string   GhostExpertName="";
 
 //---- Assert internal variables for GhostTerminal
@@ -857,6 +858,7 @@ void ExcelLoadBuffers()
     double closePrice;
     double lots;
     double openPrice;
+    double pts;
 
     GhostCurOpenPositions=0; GhostCurPendingOrders=0; GhostSummProfit=0.0;
 
@@ -866,6 +868,7 @@ void ExcelLoadBuffers()
     while (ExcelGetValue(OpSheet,r,OpTicket)>0)
     {
 		digits = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_DIGITS );
+		pts = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_POINT );
 
       GhostOpenPositions[GhostCurOpenPositions][TwTicket]     = DoubleToStr( ExcelGetValue(OpSheet,r,OpTicket), 0 );
 		GhostOpenPositions[GhostCurOpenPositions][TwOpenTime]   = TimeToStr( ExcelGetValue(OpSheet,r,OpOpenTime) );
@@ -883,13 +886,13 @@ void ExcelLoadBuffers()
       {   
          closePrice = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_BID ); 
       //--- Assert calculate profits      
-         calcProfit = (closePrice-openPrice)*lots*TurtleBigValue(Symbol())/Pts;
+         calcProfit = (closePrice-openPrice)*lots*TurtleBigValue(Symbol())/pts;
       }
 		else if ( ExcelGetValue(OpSheet,r,OpType) == OP_SELL )
 		{ 
          closePrice = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_ASK ); 
       //--- Assert calculate profits      
-         calcProfit = (openPrice-closePrice)*lots*TurtleBigValue(Symbol())/Pts;
+         calcProfit = (openPrice-closePrice)*lots*TurtleBigValue(Symbol())/pts;
       }
       GhostOpenPositions[GhostCurOpenPositions][TwCurPrice]   = DoubleToStr( closePrice, digits ); 
 		GhostOpenPositions[GhostCurOpenPositions][TwSwap]       = DoubleToStr( ExcelGetValue(OpSheet,r,OpSwap), 2 );
@@ -1297,7 +1300,7 @@ bool ExcelOrderClose(int ticket, double lots, double price, int slippage, color 
 {
     int r;
     double calcLots, closePrice, orderLots;
-    double calcProfit, openPrice;
+    double calcProfit, openPrice, pts;
 
 //--- Assert ticket no exists in Open Positions ONLY.
     r=ExcelFindTicket(OpSheet,OpTicket,OpFirstRow,ticket);
@@ -1317,19 +1320,20 @@ bool ExcelOrderClose(int ticket, double lots, double price, int slippage, color 
 
 //--- Assert get close price and calculate profits
     openPrice = ExcelGetValue(OpSheet,r,OpOpenPrice);
+    pts = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_POINT );
     if ( ExcelGetValue(OpSheet,r,OpType) == OP_BUY )
     { 
       closePrice = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_BID ); 
       
    //--- Assert calculate profits      
-      calcProfit = (closePrice-openPrice)*calcLots*TurtleBigValue(Symbol())/Pts;
+      calcProfit = (closePrice-openPrice)*calcLots*TurtleBigValue(Symbol())/pts;
     }
     else if (ExcelGetValue(OpSheet,r,OpType) == OP_SELL )
     { 
       closePrice = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_ASK ); 
 
    //--- Assert calculate profits      
-      calcProfit = (openPrice-closePrice)*calcLots*TurtleBigValue(Symbol())/Pts;
+      calcProfit = (openPrice-closePrice)*calcLots*TurtleBigValue(Symbol())/pts;
     }
     
 //--- Assert adjustment to account details using BigValue.
@@ -1398,7 +1402,7 @@ bool ExcelOrderSelect(int index, int select, int pool=MODE_TRADES)
         if(ExcelSelectRow>0) ret=true;
 
     //--- Debug    
-        if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderSelect(",index,",",select,",",pool,"): row=",ExcelSelectRow,";return=",ret);
+        if(GhostDebug>=2)   Print(GhostDebug,":ExcelOrderSelect(",index,",",select,",",pool,"): row=",ExcelSelectRow,";return=",ret);
 
         return(ExcelSelectRow>0);
     }
@@ -1417,7 +1421,7 @@ bool ExcelOrderSelect(int index, int select, int pool=MODE_TRADES)
             }
             
         //--- Debug    
-            if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderSelect(",index,",",select,",",pool,"): total=",ExcelOrdersTotal(),";return=",ret);
+            if(GhostDebug>=2)   Print(GhostDebug,":ExcelOrderSelect(",index,",",select,",",pool,"): total=",ExcelOrdersTotal(),";return=",ret);
 
             return(ret);
         }
@@ -1425,7 +1429,7 @@ bool ExcelOrderSelect(int index, int select, int pool=MODE_TRADES)
         {
         //--- Find total history (to be implemented)
         //--- Debug    
-            if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderSelect(",index,",",select,",",pool,"): return=false");
+            if(GhostDebug>=2)   Print(GhostDebug,":ExcelOrderSelect(",index,",",select,",",pool,"): return=false");
 
             return(false);
         }
@@ -1473,23 +1477,25 @@ double ExcelOrderProfit()
     double closePrice;
     double lots;
     double openPrice;
+    double pts;
     
 //--- Assert get close price and calculate profits
     lots = ExcelGetValue(OpSheet,ExcelSelectRow,OpLots);
     openPrice = ExcelGetValue(OpSheet,ExcelSelectRow,OpOpenPrice);
+    pts = MarketInfo( ExcelGetString(OpSheet,ExcelSelectRow,OpSymbol), MODE_POINT );
     if ( ExcelGetValue(OpSheet,ExcelSelectRow,OpType) == OP_BUY )
     { 
       closePrice = MarketInfo( ExcelGetString(OpSheet,ExcelSelectRow,OpSymbol), MODE_BID ); 
       
    //--- Assert calculate profits      
-      calcProfit = (closePrice-openPrice)*lots*TurtleBigValue(Symbol())/Pts;
+      calcProfit = (closePrice-openPrice)*lots*TurtleBigValue(Symbol())/pts;
     }
     else if (ExcelGetValue(OpSheet,ExcelSelectRow,OpType) == OP_SELL )
     { 
       closePrice = MarketInfo( ExcelGetString(OpSheet,ExcelSelectRow,OpSymbol), MODE_ASK ); 
 
    //--- Assert calculate profits      
-      calcProfit = (openPrice-closePrice)*lots*TurtleBigValue(Symbol())/Pts;
+      calcProfit = (openPrice-closePrice)*lots*TurtleBigValue(Symbol())/pts;
     }
     return(calcProfit);
 }
