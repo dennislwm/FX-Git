@@ -13,6 +13,7 @@
 //| 1.22    Implemented GhostOrderSelect(), ExcelOrderSelect, and associated order select   |
 //|             functions, and fixed ExcelOrderModify().                                    |
 //| 1.23    Fixed ExcelOrderSelect() and GhostOrderTicket().                                |
+//| 1.24    Implemented ExcelOrderProfit().                                                 |
 //|-----------------------------------------------------------------------------------------|
 #property   copyright "Copyright © 2012, Dennis Lee"
 #include    <sqlite.mqh>
@@ -66,7 +67,7 @@ extern   int    GhostDebug              = 1;
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string   GhostName="PlusGhost";
-string   GhostVer="1.22";
+string   GhostVer="1.24";
 string   GhostExpertName="";
 
 //---- Assert internal variables for GhostTerminal
@@ -389,7 +390,7 @@ double GhostOrderProfit()
     
     switch(GhostMode)
     {
-        case 1:     ret=0.0;                //ExcelOrderProfit() to be implemented
+        case 1:     ret=ExcelOrderProfit();
                     return(ret);
         case 2:
         default:    return(OrderProfit());
@@ -851,9 +852,13 @@ string OrderTypeToStr(int orderType)
 //|-----------------------------------------------------------------------------------------|
 void ExcelLoadBuffers()
 {
-   int lastErr, digits, r;
+    int lastErr, digits, r;
+    double calcProfit;
+    double closePrice;
+    double lots;
+    double openPrice;
 
-    GhostCurOpenPositions=0; GhostCurPendingOrders=0;
+    GhostCurOpenPositions=0; GhostCurPendingOrders=0; GhostSummProfit=0.0;
 
 //--- Assert Load OpenPositions
 //--- First row is header
@@ -862,28 +867,40 @@ void ExcelLoadBuffers()
     {
 		digits = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_DIGITS );
 
-        GhostOpenPositions[GhostCurOpenPositions][0] = DoubleToStr( ExcelGetValue(OpSheet,r,OpTicket), 0 );
-		GhostOpenPositions[GhostCurOpenPositions][1] = TimeToStr( ExcelGetValue(OpSheet,r,OpOpenTime) );
-		GhostOpenPositions[GhostCurOpenPositions][2] = OrderTypeToStr( ExcelGetValue(OpSheet,r,OpType) );
-		GhostOpenPositions[GhostCurOpenPositions][3] = DoubleToStr( ExcelGetValue(OpSheet,r,OpLots), 1 );
-		GhostOpenPositions[GhostCurOpenPositions][4] = DoubleToStr( ExcelGetValue(OpSheet,r,OpOpenPrice), digits );
-		GhostOpenPositions[GhostCurOpenPositions][5] = DoubleToStr( ExcelGetValue(OpSheet,r,OpStopLoss), digits );
-		GhostOpenPositions[GhostCurOpenPositions][6] = DoubleToStr( ExcelGetValue(OpSheet,r,OpTakeProfit), digits );
+      GhostOpenPositions[GhostCurOpenPositions][TwTicket]     = DoubleToStr( ExcelGetValue(OpSheet,r,OpTicket), 0 );
+		GhostOpenPositions[GhostCurOpenPositions][TwOpenTime]   = TimeToStr( ExcelGetValue(OpSheet,r,OpOpenTime) );
+		GhostOpenPositions[GhostCurOpenPositions][TwType]       = OrderTypeToStr( ExcelGetValue(OpSheet,r,OpType) );
+		GhostOpenPositions[GhostCurOpenPositions][TwLots]       = DoubleToStr( ExcelGetValue(OpSheet,r,OpLots), 1 );
+		GhostOpenPositions[GhostCurOpenPositions][TwOpenPrice]  = DoubleToStr( ExcelGetValue(OpSheet,r,OpOpenPrice), digits );
+		GhostOpenPositions[GhostCurOpenPositions][TwStopLoss]   = DoubleToStr( ExcelGetValue(OpSheet,r,OpStopLoss), digits );
+		GhostOpenPositions[GhostCurOpenPositions][TwTakeProfit] = DoubleToStr( ExcelGetValue(OpSheet,r,OpTakeProfit), digits );
         
-        if ( ExcelGetValue(OpSheet,r,OpType) == OP_BUY )
-        { GhostOpenPositions[GhostCurOpenPositions][7] = DoubleToStr( MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_BID ), digits ); }
-		else
-		{ GhostOpenPositions[GhostCurOpenPositions][7] = DoubleToStr( MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_ASK ), digits ); }
-
-		GhostOpenPositions[GhostCurOpenPositions][8] = DoubleToStr( ExcelGetValue(OpSheet,r,OpSwap), 2 );
-		GhostOpenPositions[GhostCurOpenPositions][9] = DoubleToStr( ExcelGetValue(OpSheet,r,OpProfit), 2 );
-		GhostOpenPositions[GhostCurOpenPositions][10] = ExcelGetString(OpSheet,r,OpComment);
+    //--- Assert get close price and calculate profits
+      lots = ExcelGetValue(OpSheet,r,OpLots);
+      openPrice = ExcelGetValue(OpSheet,r,OpOpenPrice);
+      calcProfit = 0.0;
+      if ( ExcelGetValue(OpSheet,r,OpType) == OP_BUY )
+      {   
+         closePrice = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_BID ); 
+      //--- Assert calculate profits      
+         calcProfit = (closePrice-openPrice)*lots*TurtleBigValue(Symbol())/Pts;
+      }
+		else if ( ExcelGetValue(OpSheet,r,OpType) == OP_SELL )
+		{ 
+         closePrice = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_ASK ); 
+      //--- Assert calculate profits      
+         calcProfit = (openPrice-closePrice)*lots*TurtleBigValue(Symbol())/Pts;
+      }
+      GhostOpenPositions[GhostCurOpenPositions][TwCurPrice]   = DoubleToStr( closePrice, digits ); 
+		GhostOpenPositions[GhostCurOpenPositions][TwSwap]       = DoubleToStr( ExcelGetValue(OpSheet,r,OpSwap), 2 );
+		GhostOpenPositions[GhostCurOpenPositions][TwProfit]     = DoubleToStr( calcProfit, 2 );
+		GhostOpenPositions[GhostCurOpenPositions][TwComment]    = ExcelGetString(OpSheet,r,OpComment);
 
     //---- Increment row
-        GhostSummProfit += ExcelGetValue(OpSheet,r,OpProfit);
-        GhostCurOpenPositions ++;
-        r ++;
-        if ( GhostCurOpenPositions >= GhostRows ) { break; }
+      GhostSummProfit += calcProfit;
+      GhostCurOpenPositions ++;
+      r ++;
+      if ( GhostCurOpenPositions >= GhostRows ) { break; }
     }
 
 //--- Assert Load PendingOrders
@@ -893,30 +910,30 @@ void ExcelLoadBuffers()
     {
 		digits = MarketInfo( ExcelGetString(PoSheet,r,PoSymbol), MODE_DIGITS );
 
-		GhostPendingOrders[GhostCurPendingOrders][0] = DoubleToStr( ExcelGetValue(PoSheet,r,PoTicket), 0 );
-		GhostPendingOrders[GhostCurPendingOrders][1] = TimeToStr( ExcelGetValue(PoSheet,r,PoOpenTime) );
-		GhostPendingOrders[GhostCurPendingOrders][2] = OrderTypeToStr( ExcelGetValue(PoSheet,r,PoType) );
-		GhostPendingOrders[GhostCurPendingOrders][3] = DoubleToStr( ExcelGetValue(PoSheet,r,PoLots), 1 );
-		GhostPendingOrders[GhostCurPendingOrders][4] = DoubleToStr( ExcelGetValue(PoSheet,r,PoOpenPrice), digits );
-		GhostPendingOrders[GhostCurPendingOrders][5] = DoubleToStr( ExcelGetValue(PoSheet,r,PoStopLoss), digits );
-		GhostPendingOrders[GhostCurPendingOrders][6] = DoubleToStr( ExcelGetValue(PoSheet,r,PoTakeProfit), digits );
+		GhostPendingOrders[GhostCurPendingOrders][TwTicket]     = DoubleToStr( ExcelGetValue(PoSheet,r,PoTicket), 0 );
+		GhostPendingOrders[GhostCurPendingOrders][TwOpenTime]   = TimeToStr( ExcelGetValue(PoSheet,r,PoOpenTime) );
+		GhostPendingOrders[GhostCurPendingOrders][TwType]       = OrderTypeToStr( ExcelGetValue(PoSheet,r,PoType) );
+		GhostPendingOrders[GhostCurPendingOrders][TwLots]       = DoubleToStr( ExcelGetValue(PoSheet,r,PoLots), 1 );
+		GhostPendingOrders[GhostCurPendingOrders][TwOpenPrice]  = DoubleToStr( ExcelGetValue(PoSheet,r,PoOpenPrice), digits );
+		GhostPendingOrders[GhostCurPendingOrders][TwStopLoss]   = DoubleToStr( ExcelGetValue(PoSheet,r,PoStopLoss), digits );
+		GhostPendingOrders[GhostCurPendingOrders][TwTakeProfit] = DoubleToStr( ExcelGetValue(PoSheet,r,PoTakeProfit), digits );
 
 		if ( ExcelGetValue(PoSheet,r,PoType) == OP_SELLSTOP || ExcelGetValue(PoSheet,r,PoType) == OP_SELLLIMIT )
-		{ GhostPendingOrders[GhostCurPendingOrders][7] = DoubleToStr( MarketInfo( ExcelGetString(PoSheet,r,PoSymbol), MODE_BID ), digits ); }
+		{ GhostPendingOrders[GhostCurPendingOrders][TwCurPrice] = DoubleToStr( MarketInfo( ExcelGetString(PoSheet,r,PoSymbol), MODE_BID ), digits ); }
 		else
-		{ GhostPendingOrders[GhostCurPendingOrders][7] = DoubleToStr( MarketInfo( ExcelGetString(PoSheet,r,PoSymbol), MODE_ASK ), digits ); }
+		{ GhostPendingOrders[GhostCurPendingOrders][TwCurPrice] = DoubleToStr( MarketInfo( ExcelGetString(PoSheet,r,PoSymbol), MODE_ASK ), digits ); }
 
-		GhostPendingOrders[GhostCurPendingOrders][8] = DoubleToStr( ExcelGetValue(PoSheet,r,PoSwap), 2 );
-		GhostPendingOrders[GhostCurPendingOrders][9] = DoubleToStr( 0, 2 );
-		GhostPendingOrders[GhostCurPendingOrders][10] = ExcelGetString(PoSheet,r,PoComment);
+		GhostPendingOrders[GhostCurPendingOrders][TwSwap]       = DoubleToStr( ExcelGetValue(PoSheet,r,PoSwap), 2 );
+		GhostPendingOrders[GhostCurPendingOrders][TwProfit]     = DoubleToStr( 0, 2 );
+		GhostPendingOrders[GhostCurPendingOrders][TwComment]    = ExcelGetString(PoSheet,r,PoComment);
 
     //---- Increment row
-        GhostCurPendingOrders ++;
-        r ++;
-        if ( GhostCurOpenPositions + GhostCurPendingOrders >= GhostRows ) { break; }
+      GhostCurPendingOrders ++;
+      r ++;
+      if ( GhostCurOpenPositions + GhostCurPendingOrders >= GhostRows ) { break; }
 	}
 
-    GhostReorderBuffers();
+   GhostReorderBuffers();
 }
 
 void BrokerLoadBuffers()
@@ -937,22 +954,22 @@ void BrokerLoadBuffers()
 
 		if ( OrderType() < 2 )
 		{
-			GhostOpenPositions[GhostCurOpenPositions][0] = OrderTicket();
-			GhostOpenPositions[GhostCurOpenPositions][1] = TimeToStr( OrderOpenTime() );
-			GhostOpenPositions[GhostCurOpenPositions][2] = OrderTypeToStr( OrderType() );
-			GhostOpenPositions[GhostCurOpenPositions][3] = DoubleToStr( OrderLots(), 1 );
-			GhostOpenPositions[GhostCurOpenPositions][4] = DoubleToStr( OrderOpenPrice(), digits );
-			GhostOpenPositions[GhostCurOpenPositions][5] = DoubleToStr( OrderStopLoss(), digits );
-			GhostOpenPositions[GhostCurOpenPositions][6] = DoubleToStr( OrderTakeProfit(), digits );
+			GhostOpenPositions[GhostCurOpenPositions][TwTicket]     = OrderTicket();
+			GhostOpenPositions[GhostCurOpenPositions][TwOpenTime]   = TimeToStr( OrderOpenTime() );
+			GhostOpenPositions[GhostCurOpenPositions][TwType]       = OrderTypeToStr( OrderType() );
+			GhostOpenPositions[GhostCurOpenPositions][TwLots]       = DoubleToStr( OrderLots(), 1 );
+			GhostOpenPositions[GhostCurOpenPositions][TwOpenPrice]  = DoubleToStr( OrderOpenPrice(), digits );
+			GhostOpenPositions[GhostCurOpenPositions][TwStopLoss]   = DoubleToStr( OrderStopLoss(), digits );
+			GhostOpenPositions[GhostCurOpenPositions][TwTakeProfit] = DoubleToStr( OrderTakeProfit(), digits );
 
 			if ( OrderType() == OP_BUY )
-			{ GhostOpenPositions[GhostCurOpenPositions][7] = DoubleToStr( MarketInfo( OrderSymbol(), MODE_BID ), digits ); }
+			{ GhostOpenPositions[GhostCurOpenPositions][TwCurPrice] = DoubleToStr( MarketInfo( OrderSymbol(), MODE_BID ), digits ); }
 			else
-			{ GhostOpenPositions[GhostCurOpenPositions][7] = DoubleToStr( MarketInfo( OrderSymbol(), MODE_ASK ), digits ); }
+			{ GhostOpenPositions[GhostCurOpenPositions][TwCurPrice] = DoubleToStr( MarketInfo( OrderSymbol(), MODE_ASK ), digits ); }
 
-			GhostOpenPositions[GhostCurOpenPositions][8] = DoubleToStr( OrderSwap(), 2 );
-			GhostOpenPositions[GhostCurOpenPositions][9] = DoubleToStr( OrderProfit(), 2 );
-			GhostOpenPositions[GhostCurOpenPositions][10] = OrderComment();
+			GhostOpenPositions[GhostCurOpenPositions][TwSwap]       = DoubleToStr( OrderSwap(), 2 );
+			GhostOpenPositions[GhostCurOpenPositions][TwProfit]     = DoubleToStr( OrderProfit(), 2 );
+			GhostOpenPositions[GhostCurOpenPositions][TwComment]    = OrderComment();
 
 			GhostSummProfit += OrderProfit();
 			GhostCurOpenPositions ++;
@@ -960,22 +977,22 @@ void BrokerLoadBuffers()
 		}
 		else
 		{
-			GhostPendingOrders[GhostCurPendingOrders][0] = OrderTicket();
-			GhostPendingOrders[GhostCurPendingOrders][1] = TimeToStr( OrderOpenTime() );
-			GhostPendingOrders[GhostCurPendingOrders][2] = OrderTypeToStr( OrderType() );
-			GhostPendingOrders[GhostCurPendingOrders][3] = DoubleToStr( OrderLots(), 1 );
-			GhostPendingOrders[GhostCurPendingOrders][4] = DoubleToStr( OrderOpenPrice(), digits );
-			GhostPendingOrders[GhostCurPendingOrders][5] = DoubleToStr( OrderStopLoss(), digits );
-			GhostPendingOrders[GhostCurPendingOrders][6] = DoubleToStr( OrderTakeProfit(), digits );
+			GhostPendingOrders[GhostCurPendingOrders][TwTicket]     = OrderTicket();
+			GhostPendingOrders[GhostCurPendingOrders][TwOpenTime]   = TimeToStr( OrderOpenTime() );
+			GhostPendingOrders[GhostCurPendingOrders][TwType]       = OrderTypeToStr( OrderType() );
+			GhostPendingOrders[GhostCurPendingOrders][TwLots]       = DoubleToStr( OrderLots(), 1 );
+			GhostPendingOrders[GhostCurPendingOrders][TwOpenPrice]  = DoubleToStr( OrderOpenPrice(), digits );
+			GhostPendingOrders[GhostCurPendingOrders][TwStopLoss]   = DoubleToStr( OrderStopLoss(), digits );
+			GhostPendingOrders[GhostCurPendingOrders][TwTakeProfit] = DoubleToStr( OrderTakeProfit(), digits );
 
 			if ( OrderType() == OP_SELLSTOP || OrderType() == OP_SELLLIMIT )
-			{ GhostPendingOrders[GhostCurPendingOrders][7] = DoubleToStr( MarketInfo( OrderSymbol(), MODE_BID ), digits ); }
+			{ GhostPendingOrders[GhostCurPendingOrders][TwCurPrice] = DoubleToStr( MarketInfo( OrderSymbol(), MODE_BID ), digits ); }
 			else
-			{ GhostPendingOrders[GhostCurPendingOrders][7] = DoubleToStr( MarketInfo( OrderSymbol(), MODE_ASK ), digits ); }
+			{ GhostPendingOrders[GhostCurPendingOrders][TwCurPrice] = DoubleToStr( MarketInfo( OrderSymbol(), MODE_ASK ), digits ); }
 
-			GhostPendingOrders[GhostCurPendingOrders][8] = DoubleToStr( OrderSwap(), 2 );
-			GhostPendingOrders[GhostCurPendingOrders][9] = DoubleToStr( OrderProfit(), 2 );
-			GhostPendingOrders[GhostCurPendingOrders][10] = OrderComment();
+			GhostPendingOrders[GhostCurPendingOrders][TwSwap]       = DoubleToStr( OrderSwap(), 2 );
+			GhostPendingOrders[GhostCurPendingOrders][TwProfit]     = DoubleToStr( OrderProfit(), 2 );
+			GhostPendingOrders[GhostCurPendingOrders][TwComment]    = OrderComment();
 
 			GhostCurPendingOrders ++;
 			if ( GhostCurOpenPositions + GhostCurPendingOrders >= GhostRows ) { break; }
@@ -1290,6 +1307,13 @@ bool ExcelOrderClose(int ticket, double lots, double price, int slippage, color 
         if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderClose(",ticket,",",lots,",",price,",",slippage,",",arrow,"): return=false");
         return(false);        
     }
+    
+//--- Assert check if partial close or full close.
+    orderLots=ExcelGetValue(OpSheet,r,OpLots);
+    if(lots>=orderLots)
+    { calcLots = ExcelGetValue(OpSheet,r,OpLots); }
+    else
+    { calcLots = lots; }
 
 //--- Assert get close price and calculate profits
     openPrice = ExcelGetValue(OpSheet,r,OpOpenPrice);
@@ -1298,22 +1322,15 @@ bool ExcelOrderClose(int ticket, double lots, double price, int slippage, color 
       closePrice = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_BID ); 
       
    //--- Assert calculate profits      
-      calcProfit = (closePrice-openPrice)*TurtleBigValue(Symbol())/Pts;
+      calcProfit = (closePrice-openPrice)*calcLots*TurtleBigValue(Symbol())/Pts;
     }
-    else
+    else if (ExcelGetValue(OpSheet,r,OpType) == OP_SELL )
     { 
       closePrice = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_ASK ); 
 
    //--- Assert calculate profits      
-      calcProfit = (openPrice-closePrice)*TurtleBigValue(Symbol())/Pts;
+      calcProfit = (openPrice-closePrice)*calcLots*TurtleBigValue(Symbol())/Pts;
     }
-    
-//--- Assert check if partial close or full close.
-    orderLots=ExcelGetValue(OpSheet,r,OpLots);
-    if(lots>=orderLots)
-    { calcLots = ExcelGetValue(OpSheet,r,OpLots); }
-    else
-    { calcLots = lots; }
     
 //--- Assert adjustment to account details using BigValue.
     ExcelPutValue(AdSheet,AdFirstRow,AdBalance, ExcelGetValue(AdSheet,AdFirstRow,AdBalance)+calcProfit);
@@ -1448,6 +1465,33 @@ double ExcelOrderOpenPrice()
 datetime ExcelOrderOpenTime()
 {
     return(ExcelGetValue(OpSheet,ExcelSelectRow,OpOpenTime));
+}
+
+double ExcelOrderProfit()
+{
+    double calcProfit;
+    double closePrice;
+    double lots;
+    double openPrice;
+    
+//--- Assert get close price and calculate profits
+    lots = ExcelGetValue(OpSheet,ExcelSelectRow,OpLots);
+    openPrice = ExcelGetValue(OpSheet,ExcelSelectRow,OpOpenPrice);
+    if ( ExcelGetValue(OpSheet,ExcelSelectRow,OpType) == OP_BUY )
+    { 
+      closePrice = MarketInfo( ExcelGetString(OpSheet,ExcelSelectRow,OpSymbol), MODE_BID ); 
+      
+   //--- Assert calculate profits      
+      calcProfit = (closePrice-openPrice)*lots*TurtleBigValue(Symbol())/Pts;
+    }
+    else if (ExcelGetValue(OpSheet,ExcelSelectRow,OpType) == OP_SELL )
+    { 
+      closePrice = MarketInfo( ExcelGetString(OpSheet,ExcelSelectRow,OpSymbol), MODE_ASK ); 
+
+   //--- Assert calculate profits      
+      calcProfit = (openPrice-closePrice)*lots*TurtleBigValue(Symbol())/Pts;
+    }
+    return(calcProfit);
 }
 
 double ExcelOrderStopLoss()
