@@ -15,6 +15,7 @@
 //| 1.23    Fixed ExcelOrderSelect() and GhostOrderTicket().                                |
 //| 1.24    Implemented ExcelOrderProfit().                                                 |
 //| 1.25    Fixed calculation of profit.                                                    |
+//| 1.30    Record statistics of opened trades when in paper trading mode.                  |
 //|-----------------------------------------------------------------------------------------|
 #property   copyright "Copyright © 2012, Dennis Lee"
 #include    <sqlite.mqh>
@@ -68,7 +69,7 @@ extern   int    GhostDebug              = 1;
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string   GhostName="PlusGhost";
-string   GhostVer="1.25";
+string   GhostVer="1.30";
 string   GhostExpertName="";
 
 //---- Assert internal variables for GhostTerminal
@@ -86,10 +87,12 @@ string   ExcelFileName;
 int      ExcelSelectRow;
 //---- Excel sheet positions
 int      AdSheet    = 1;
+int      StSheet    = 1;
 int      OpSheet    = 2;
 int      PoSheet    = 3;
 //---- Excel first row for each sheet
 int      AdFirstRow = 2;
+int      StFirstRow = 6;
 int      OpFirstRow = 2;
 int      PoFirstRow = 2;
 //---- Excel column positions for Account Details
@@ -99,6 +102,20 @@ int      AdBalance      = 3;
 int      AdEquity       = 4;
 int      AdMargin       = 5;
 int      AdProfit       = 6;
+//---- Excel column positions for Statistics Trades
+int      StTotalTrades      = 1;
+int      StTotalLots        = 2;
+int      StTotalProfit      = 3;
+int      StTotalProfitPip   = 4;
+int      StTotalDrawdown    = 5;
+int      StTotalDrawdownPip = 6;
+int      StTotalMargin      = 7;
+int      StMaxLots          = 8;
+int      StMaxProfit        = 9;
+int      StMaxProfitPip     = 10;
+int      StMaxDrawdown      = 11;
+int      StMaxDrawdownPip   = 12;
+int      StMaxMargin        = 13;
 //---- Excel column positions for Open Positions
 int      OpTicket       = 1;
 int      OpOpenTime     = 2;
@@ -855,11 +872,20 @@ void ExcelLoadBuffers()
 {
     int lastErr, digits, r;
     double calcProfit;
+    double calcProfitPip;
     double closePrice;
     double lots;
+    double mgn;
     double openPrice;
     double pts;
 
+//--- Assert statistics gathering
+    int totalTrades;
+    double totalLots;
+    double totalProfitPip;
+    double totalMargin;
+    
+    
     GhostCurOpenPositions=0; GhostCurPendingOrders=0; GhostSummProfit=0.0;
 
 //--- Assert Load OpenPositions
@@ -878,34 +904,96 @@ void ExcelLoadBuffers()
 		GhostOpenPositions[GhostCurOpenPositions][TwStopLoss]   = DoubleToStr( ExcelGetValue(OpSheet,r,OpStopLoss), digits );
 		GhostOpenPositions[GhostCurOpenPositions][TwTakeProfit] = DoubleToStr( ExcelGetValue(OpSheet,r,OpTakeProfit), digits );
         
-    //--- Assert get close price and calculate profits
-      lots = ExcelGetValue(OpSheet,r,OpLots);
+    //--- Assert get close price and calculate margin and profit
+      lots = ExcelGetValue(OpSheet,r,OpLots); 
+      mgn = MarketInfo(ExcelGetString(OpSheet,r,OpSymbol),MODE_MARGINREQUIRED)*lots;
       openPrice = ExcelGetValue(OpSheet,r,OpOpenPrice);
-      calcProfit = 0.0;
+      calcProfit = 0.0; calcProfitPip = 0.0;
       if ( ExcelGetValue(OpSheet,r,OpType) == OP_BUY )
       {   
          closePrice = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_BID ); 
       //--- Assert calculate profits      
-         calcProfit = (closePrice-openPrice)*lots*TurtleBigValue(Symbol())/pts;
+         calcProfit     = (closePrice-openPrice)*lots*TurtleBigValue(Symbol())/pts;
+         calcProfitPip  = (closePrice-openPrice)/Pts;
       }
 		else if ( ExcelGetValue(OpSheet,r,OpType) == OP_SELL )
 		{ 
          closePrice = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_ASK ); 
       //--- Assert calculate profits      
-         calcProfit = (openPrice-closePrice)*lots*TurtleBigValue(Symbol())/pts;
+         calcProfit     = (openPrice-closePrice)*lots*TurtleBigValue(Symbol())/pts;
+         calcProfitPip  = (openPrice-closePrice)/Pts;
       }
       GhostOpenPositions[GhostCurOpenPositions][TwCurPrice]   = DoubleToStr( closePrice, digits ); 
 		GhostOpenPositions[GhostCurOpenPositions][TwSwap]       = DoubleToStr( ExcelGetValue(OpSheet,r,OpSwap), 2 );
 		GhostOpenPositions[GhostCurOpenPositions][TwProfit]     = DoubleToStr( calcProfit, 2 );
 		GhostOpenPositions[GhostCurOpenPositions][TwComment]    = ExcelGetString(OpSheet,r,OpComment);
+        
+    //--- Assert record statistics for SINGLE trade
+      if(lots>0)            { if(lots           >
+        ExcelGetValue(StSheet,StFirstRow,   StMaxLots)) 
+        ExcelPutValue(StSheet,StFirstRow,   StMaxLots,          lots); 
+      }
+      if(calcProfit>0)      { if(calcProfit     >
+        ExcelGetValue(StSheet,StFirstRow,   StMaxProfit))
+        ExcelPutValue(StSheet,StFirstRow,   StMaxProfit,        calcProfit);
+      }
+      if(calcProfitPip>0)   { if(calcProfitPip  >
+        ExcelGetValue(StSheet,StFirstRow,   StMaxProfitPip))
+        ExcelPutValue(StSheet,StFirstRow,   StMaxProfitPip,     calcProfitPip);
+      }
+      if(calcProfit<0)      { if(calcProfit     <
+        ExcelGetValue(StSheet,StFirstRow,   StMaxDrawdown))
+        ExcelPutValue(StSheet,StFirstRow,   StMaxDrawdown,      calcProfit);
+      }
+      if(calcProfitPip<0)   { if(calcProfitPip  <
+        ExcelGetValue(StSheet,StFirstRow,   StMaxDrawdownPip))
+        ExcelPutValue(StSheet,StFirstRow,   StMaxDrawdownPip,   calcProfitPip);
+      }
+      if(mgn>0)             { if(mgn            >
+        ExcelGetValue(StSheet,StFirstRow,   StMaxMargin))
+        ExcelPutValue(StSheet,StFirstRow,   StMaxMargin,        mgn);
+      }
 
     //---- Increment row
-      GhostSummProfit += calcProfit;
+      totalLots         += lots;
+      totalMargin       += mgn;
+      GhostSummProfit   += calcProfit;
+      totalProfitPip    += calcProfitPip;
       GhostCurOpenPositions ++;
       r ++;
       if ( GhostCurOpenPositions >= GhostRows ) { break; }
     }
 
+//--- Assert record AGGREGATE statistics
+    if(GhostCurOpenPositions>0) { if(GhostCurOpenPositions  >
+        ExcelGetValue(StSheet,StFirstRow,   StTotalTrades)) 
+        ExcelPutValue(StSheet,StFirstRow,   StTotalTrades,      GhostCurOpenPositions); 
+    }
+    if(totalLots>0)             { if(totalLots              >
+        ExcelGetValue(StSheet,StFirstRow,   StTotalLots)) 
+        ExcelPutValue(StSheet,StFirstRow,   StTotalLots,        totalLots); 
+    }
+    if(GhostSummProfit>0)       { if(GhostSummProfit        >
+        ExcelGetValue(StSheet,StFirstRow,   StTotalProfit))
+        ExcelPutValue(StSheet,StFirstRow,   StTotalProfit,      GhostSummProfit);
+    }
+    if(totalProfitPip>0)        { if(totalProfitPip         >
+        ExcelGetValue(StSheet,StFirstRow,   StTotalProfitPip))
+        ExcelPutValue(StSheet,StFirstRow,   StTotalProfitPip,   totalProfitPip);
+    }
+    if(GhostSummProfit<0)       { if(GhostSummProfit        <
+        ExcelGetValue(StSheet,StFirstRow,   StTotalDrawdown))
+        ExcelPutValue(StSheet,StFirstRow,   StTotalDrawdown,    GhostSummProfit);
+    }
+    if(totalProfitPip<0)        { if(totalProfitPip         <
+        ExcelGetValue(StSheet,StFirstRow,   StTotalDrawdownPip))
+        ExcelPutValue(StSheet,StFirstRow,   StTotalDrawdownPip, totalProfitPip);
+    }
+    if(totalMargin>0)           { if(totalMargin            >
+        ExcelGetValue(StSheet,StFirstRow,   StTotalMargin))
+        ExcelPutValue(StSheet,StFirstRow,   StTotalMargin,      totalMargin);
+    }
+    
 //--- Assert Load PendingOrders
 //--- First row is header
     r=PoFirstRow;
@@ -1049,7 +1137,7 @@ bool ExcelCreate(int acctNo, string symbol, string eaName)
     if(handle<0) return(false);
     
 //--- Assert File is opened for the FIRST time.
-    if("AccountNo"!=ExcelGetString(AdSheet,1,AdAccountNo)) init=true;
+    if("AccountNo"!=ExcelGetString(AdSheet,AdFirstRow-1,AdAccountNo)) init=true;
     
     if(init)
     {
@@ -1059,46 +1147,61 @@ bool ExcelCreate(int acctNo, string symbol, string eaName)
         ExcelSheetRename(PoSheet,"PendingOrders");
         
     //--- Assert add headers to AccountDetails: BrokerName, AccountNo, Currency, Balance, Equity, Margin, PL
-        ExcelPutString(AdSheet, 1,  AdAccountNo,    "AccountNo");
-        ExcelPutString(AdSheet, 1,  AdCurrency,     "Currency");
-        ExcelPutString(AdSheet, 1,  AdBalance,      "Balance");
-        ExcelPutString(AdSheet, 1,  AdEquity,       "Equity");
-        ExcelPutString(AdSheet, 1,  AdMargin,       "Margin");
-        ExcelPutString(AdSheet, 1,  AdProfit,       "Profit");
+        ExcelPutString(AdSheet, AdFirstRow-1, AdAccountNo,  "AccountNo");
+        ExcelPutString(AdSheet, AdFirstRow-1, AdCurrency,   "Currency");
+        ExcelPutString(AdSheet, AdFirstRow-1, AdBalance,    "Balance");
+        ExcelPutString(AdSheet, AdFirstRow-1, AdEquity,     "Equity");
+        ExcelPutString(AdSheet, AdFirstRow-1, AdMargin,     "Margin");
+        ExcelPutString(AdSheet, AdFirstRow-1, AdProfit,     "Profit");
+
+    //--- Assert add headers to Statistics:
+        ExcelPutString(StSheet, StFirstRow-1, StTotalTrades,        "TotalTrades");
+        ExcelPutString(StSheet, StFirstRow-1, StTotalLots,          "TotalLots");
+        ExcelPutString(StSheet, StFirstRow-1, StTotalProfit,        "TotalProfit");
+        ExcelPutString(StSheet, StFirstRow-1, StTotalProfitPip,     "TotalProfitPip");
+        ExcelPutString(StSheet, StFirstRow-1, StTotalDrawdown,      "TotalDrawdown");
+        ExcelPutString(StSheet, StFirstRow-1, StTotalDrawdownPip,   "TotalDrawdownPip");
+        ExcelPutString(StSheet, StFirstRow-1, StTotalMargin,        "TotalMargin");
+        ExcelPutString(StSheet, StFirstRow-1, StMaxLots,            "MaxLots");
+        ExcelPutString(StSheet, StFirstRow-1, StMaxProfit,          "MaxProfit");
+        ExcelPutString(StSheet, StFirstRow-1, StMaxProfitPip,       "MaxProfitPip");
+        ExcelPutString(StSheet, StFirstRow-1, StMaxDrawdown,        "MaxDrawdown");
+        ExcelPutString(StSheet, StFirstRow-1, StMaxDrawdownPip,     "MaxDrawdownPip");
+        ExcelPutString(StSheet, StFirstRow-1, StMaxMargin,          "MaxMargin");
         
     //--- Assert add headers to OpenPositions: Ticket, OpenTime, Type, Lots, OpenPrice, StopLoss, TakeProfit, CurPrice, Profit, Comment, AccountNo, ExpertName, Symbol, MagicNo
-        ExcelPutString(OpSheet, 1,  OpTicket,       "Ticket");
-        ExcelPutString(OpSheet, 1,  OpOpenTime,     "OpenTime");
-        ExcelPutString(OpSheet, 1,  OpType,         "Type");
-        ExcelPutString(OpSheet, 1,  OpLots,         "Lots");
-        ExcelPutString(OpSheet, 1,  OpOpenPrice,    "OpenPrice");
-        ExcelPutString(OpSheet, 1,  OpStopLoss,     "StopLoss");
-        ExcelPutString(OpSheet, 1,  OpTakeProfit,   "TakeProfit");
-        ExcelPutString(OpSheet, 1,  OpCurPrice,     "CurPrice");
-        ExcelPutString(OpSheet, 1,  OpSwap,         "Swap");
-        ExcelPutString(OpSheet, 1,  OpProfit,       "Profit");
-        ExcelPutString(OpSheet, 1,  OpMagicNo,      "MagicNo");
-        ExcelPutString(OpSheet, 1,  OpAccountNo,    "AccountNo");
-        ExcelPutString(OpSheet, 1,  OpSymbol,       "Symbol");
-        ExcelPutString(OpSheet, 1,  OpComment,      "Comment");
-        ExcelPutString(OpSheet, 1,  OpExpertName,   "ExpertName");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpTicket,       "Ticket");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpOpenTime,     "OpenTime");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpType,         "Type");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpLots,         "Lots");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpOpenPrice,    "OpenPrice");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpStopLoss,     "StopLoss");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpTakeProfit,   "TakeProfit");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpCurPrice,     "CurPrice");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpSwap,         "Swap");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpProfit,       "Profit");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpMagicNo,      "MagicNo");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpAccountNo,    "AccountNo");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpSymbol,       "Symbol");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpComment,      "Comment");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpExpertName,   "ExpertName");
     
     //--- Assert add headers to Pending Orders: Ticket, OpenTime, Type, Lots, OpenPrice, StopLoss, TakeProfit, Comment, AccountNo, ExpertName, Symbol, MagicNo
-        ExcelPutString(PoSheet, 1,  PoTicket,       "Ticket");
-        ExcelPutString(PoSheet, 1,  PoOpenTime,     "OpenTime");
-        ExcelPutString(PoSheet, 1,  PoType,         "Type");
-        ExcelPutString(PoSheet, 1,  PoLots,         "Lots");
-        ExcelPutString(PoSheet, 1,  PoOpenPrice,    "OpenPrice");
-        ExcelPutString(PoSheet, 1,  PoStopLoss,     "StopLoss");
-        ExcelPutString(PoSheet, 1,  PoTakeProfit,   "TakeProfit");
-        ExcelPutString(PoSheet, 1,  PoClosePrice,   "ClosePrice");
-        ExcelPutString(PoSheet, 1,  PoSwap,         "Swap");
-        ExcelPutString(PoSheet, 1,  PoCloseTime,    "CloseTime");
-        ExcelPutString(PoSheet, 1,  PoMagicNo,      "MagicNo");
-        ExcelPutString(PoSheet, 1,  PoAccountNo,    "AccountNo");
-        ExcelPutString(PoSheet, 1,  PoSymbol,       "Symbol");
-        ExcelPutString(PoSheet, 1,  PoComment,      "Comment");
-        ExcelPutString(PoSheet, 1,  PoExpertName,   "ExpertName");
+        ExcelPutString(PoSheet, PoFirstRow-1,  PoTicket,       "Ticket");
+        ExcelPutString(PoSheet, PoFirstRow-1,  PoOpenTime,     "OpenTime");
+        ExcelPutString(PoSheet, PoFirstRow-1,  PoType,         "Type");
+        ExcelPutString(PoSheet, PoFirstRow-1,  PoLots,         "Lots");
+        ExcelPutString(PoSheet, PoFirstRow-1,  PoOpenPrice,    "OpenPrice");
+        ExcelPutString(PoSheet, PoFirstRow-1,  PoStopLoss,     "StopLoss");
+        ExcelPutString(PoSheet, PoFirstRow-1,  PoTakeProfit,   "TakeProfit");
+        ExcelPutString(PoSheet, PoFirstRow-1,  PoClosePrice,   "ClosePrice");
+        ExcelPutString(PoSheet, PoFirstRow-1,  PoSwap,         "Swap");
+        ExcelPutString(PoSheet, PoFirstRow-1,  PoCloseTime,    "CloseTime");
+        ExcelPutString(PoSheet, PoFirstRow-1,  PoMagicNo,      "MagicNo");
+        ExcelPutString(PoSheet, PoFirstRow-1,  PoAccountNo,    "AccountNo");
+        ExcelPutString(PoSheet, PoFirstRow-1,  PoSymbol,       "Symbol");
+        ExcelPutString(PoSheet, PoFirstRow-1,  PoComment,      "Comment");
+        ExcelPutString(PoSheet, PoFirstRow-1,  PoExpertName,   "ExpertName");
         
     //--- Assert Populate AccountDetails: AccountNo, Currency, Balance, Equity, Margin, PL
         ExcelPutValue(AdSheet,  AdFirstRow,  AdAccountNo,    AccountNumber());
