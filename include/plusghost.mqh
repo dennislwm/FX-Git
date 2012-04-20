@@ -19,6 +19,10 @@
 //| 1.40    Keep a paper trail of all trades (can be set to false).                         |
 //| 1.50    Implemented Pending Orders, GhostOrderDelete(), GhostOrderPrint() and related   |
 //|            Excel functions. Added MODE_HISTORY in ExcelOrderSelect().                   |
+//| 1.51    Added GhostOrderClosePrice(),GhostOrderCloseTime(),GhostAccountBalance(),       |
+//|            GhostAccountEquity(),GhostAccountFreeMargin(),GhostAccountMargin().          |
+//|            Fixed Excel headers - accidentally replaced with Trade History.              |
+//|            Fixed bug in while loops - continue statement did not increment r.           |
 //|-----------------------------------------------------------------------------------------|
 #property   copyright "Copyright © 2012, Dennis Lee"
 #include    <sqlite.mqh>
@@ -73,7 +77,7 @@ extern   int    GhostDebug              = 1;
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string   GhostName="PlusGhost";
-string   GhostVer="1.50";
+string   GhostVer="1.51";
 string   GhostExpertName="";
 
 //---- Assert internal variables for GhostTerminal
@@ -356,6 +360,34 @@ int GhostOrdersHistoryTotal()
     return(0);
 }
 
+double GhostOrderClosePrice()
+{
+    double ret;
+    
+    switch(GhostMode)
+    {
+        case 1:     ret=ExcelOrderClosePrice();
+                    return(ret);
+        case 2:
+        default:    return(OrderClosePrice());
+    }
+    return(0.0);
+}
+
+datetime GhostOrderCloseTime()
+{
+    datetime ret;
+    
+    switch(GhostMode)
+    {
+        case 1:     ret=ExcelOrderCloseTime();
+                    return(ret);
+        case 2:
+        default:    return(OrderCloseTime());
+    }
+    return(0);
+}
+
 string GhostOrderComment()
 {
     string ret;
@@ -577,6 +609,62 @@ int GhostOrderTicket()
         default:    return(OrderTicket());
     }
     return(0);
+}
+
+double GhostAccountBalance()
+{
+    double ret;
+    
+    switch(GhostMode)
+    {
+        case 1:     ret=ExcelAccountBalance();
+                    return(ret);
+        case 2:
+        default:    return(AccountBalance());
+    }
+    return(0.0);
+}
+
+double GhostAccountEquity()
+{
+    double ret;
+    
+    switch(GhostMode)
+    {
+        case 1:     ret=ExcelAccountEquity();
+                    return(ret);
+        case 2:
+        default:    return(AccountEquity());
+    }
+    return(0.0);
+}
+
+double GhostAccountFreeMargin()
+{
+    double ret;
+    
+    switch(GhostMode)
+    {
+        case 1:     ret=ExcelAccountFreeMargin();
+                    return(ret);
+        case 2:
+        default:    return(AccountFreeMargin());
+    }
+    return(0.0);
+}
+
+double GhostAccountMargin()
+{
+    double ret;
+    
+    switch(GhostMode)
+    {
+        case 1:     ret=ExcelAccountMargin();
+                    return(ret);
+        case 2:
+        default:    return(AccountMargin());
+    }
+    return(0.0);
 }
 
 //|-----------------------------------------------------------------------------------------|
@@ -962,7 +1050,7 @@ void ExcelLoadBuffers()
     while (ExcelGetValue(OpSheet,r,OpTicket)>0)
     {
     //--- Exclude ALL pending orders
-      if ( ExcelGetValue(OpSheet,r,OpType) > OP_SELL ) { continue; }
+        if ( ExcelGetValue(OpSheet,r,OpType) > OP_SELL ) { r ++; continue; }
 
 		digits = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_DIGITS );
 		pts = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_POINT );
@@ -1071,7 +1159,7 @@ void ExcelLoadBuffers()
     while (ExcelGetValue(PoSheet,r,PoTicket)>0)
     {
     //--- Exclude ALL opened positions
-      if ( ExcelGetValue(OpSheet,r,OpType) <= OP_SELL ) { continue; }
+        if ( ExcelGetValue(PoSheet,r,PoType) <= OP_SELL ) { r ++; continue; }
 
 		digits = MarketInfo( ExcelGetString(PoSheet,r,PoSymbol), MODE_DIGITS );
 
@@ -1093,10 +1181,10 @@ void ExcelLoadBuffers()
 		GhostPendingOrders[GhostCurPendingOrders][TwComment]    = ExcelGetString(PoSheet,r,PoComment);
 
     //---- Increment row
-      GhostCurPendingOrders ++;
-      r ++;
-      if ( GhostCurOpenPositions + GhostCurPendingOrders >= GhostRows ) { break; }
-	}
+        GhostCurPendingOrders ++;
+        r ++;
+        if ( GhostCurOpenPositions + GhostCurPendingOrders >= GhostRows ) { break; }
+    }
 
 //--- Assert record ACCOUNT details
    ExcelPutValue(AdSheet,AdFirstRow,   AdEquity,      GhostSummProfit+ExcelAccountBalance());
@@ -1248,7 +1336,24 @@ bool ExcelCreate(int acctNo, string symbol, string eaName)
         ExcelPutString(StSheet, StFirstRow-1, StMaxDrawdownPip,     "MaxDrawdownPip");
         ExcelPutString(StSheet, StFirstRow-1, StMaxMargin,          "MaxMargin");
     
-    //--- Assert add headers to Pending Orders: Ticket, OpenTime, Type, Lots, OpenPrice, StopLoss, TakeProfit, Comment, AccountNo, ExpertName, Symbol, MagicNo
+    //--- Assert add headers to Opened Positions: Ticket, OpenTime, Type, Lots, OpenPrice, StopLoss, TakeProfit, Comment, AccountNo, ExpertName, Symbol, MagicNo
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpTicket,       "Ticket");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpOpenTime,     "OpenTime");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpType,         "Type");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpLots,         "Lots");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpOpenPrice,    "OpenPrice");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpStopLoss,     "StopLoss");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpTakeProfit,   "TakeProfit");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpCurPrice,     "CurPrice/ClosePrice");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpSwap,         "Swap");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpProfit,       "Profit/CloseTime");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpMagicNo,      "MagicNo");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpAccountNo,    "AccountNo");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpSymbol,       "Symbol");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpComment,      "Comment");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpExpertName,   "ExpertName");
+    
+    //--- Assert add headers to Trade History: Ticket, OpenTime, Type, Lots, OpenPrice, StopLoss, TakeProfit, Comment, AccountNo, ExpertName, Symbol, MagicNo
         ExcelPutString(ThSheet, ThFirstRow-1,  ThTicket,       "Ticket");
         ExcelPutString(ThSheet, ThFirstRow-1,  ThOpenTime,     "OpenTime");
         ExcelPutString(ThSheet, ThFirstRow-1,  ThType,         "Type");
@@ -1291,7 +1396,7 @@ void ExcelManager()
         type = ExcelGetValue(OpSheet,r,OpType);
         sym  = ExcelGetString(OpSheet,r,OpSymbol);
     //--- Exclude ALL pending orders
-      if ( type > OP_SELL ) { continue; }
+      if ( type > OP_SELL ) { r ++; continue; }
     
     //--- Assert get real-time info.
         openPrice=ExcelGetValue(OpSheet,r,OpOpenPrice);
@@ -1356,7 +1461,7 @@ void ExcelManager()
         type = ExcelGetValue(PoSheet,r,PoType);
         sym  = ExcelGetString(PoSheet,r,PoSymbol);
     //--- Exclude ALL opened positions
-        if ( type <= OP_SELL ) { continue; }
+        if ( type <= OP_SELL ) { r ++; continue; }
     
     //--- Assert get real-time info.
         openPrice=ExcelGetValue(PoSheet,r,PoOpenPrice);
