@@ -17,6 +17,12 @@
 //| 1.25    Fixed calculation of profit.                                                    |
 //| 1.30    Record statistics of opened trades when in paper trading mode.                  |
 //| 1.40    Keep a paper trail of all trades (can be set to false).                         |
+//| 1.50    Implemented Pending Orders, GhostOrderDelete(), GhostOrderPrint() and related   |
+//|            Excel functions. Added MODE_HISTORY in ExcelOrderSelect().                   |
+//| 1.51    Added GhostOrderClosePrice(),GhostOrderCloseTime(),GhostAccountBalance(),       |
+//|            GhostAccountEquity(),GhostAccountFreeMargin(),GhostAccountMargin().          |
+//|            Fixed Excel headers - accidentally replaced with Trade History.              |
+//|            Fixed bug in while loops - continue statement did not increment r.           |
 //|-----------------------------------------------------------------------------------------|
 #property   copyright "Copyright © 2012, Dennis Lee"
 #include    <sqlite.mqh>
@@ -71,7 +77,7 @@ extern   int    GhostDebug              = 1;
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string   GhostName="PlusGhost";
-string   GhostVer="1.40";
+string   GhostVer="1.51";
 string   GhostExpertName="";
 
 //---- Assert internal variables for GhostTerminal
@@ -87,12 +93,13 @@ double   GhostSummProfit=0.0;
 //---- Assert internal variables for ExcelLink
 string   ExcelFileName;
 int      ExcelSelectRow;
+int      ExcelSelectMode;
 int      ExcelNextTicket;
 //---- Excel sheet positions
 int      AdSheet    = 1;
 int      StSheet    = 1;
 int      OpSheet    = 2;
-int      PoSheet    = 3;
+int      PoSheet    = 2;
 int      ThSheet    = 3;
 //---- Excel first row for each sheet
 int      AdFirstRow = 2;
@@ -339,6 +346,48 @@ int GhostOrdersTotal()
     return(0);
 }
 
+int GhostOrdersHistoryTotal()
+{
+    int ret;
+    
+    switch(GhostMode)
+    {
+        case 1:     ret=ExcelOrdersHistoryTotal();
+                    return(ret);
+        case 2:
+        default:    return(OrdersHistoryTotal());
+    }
+    return(0);
+}
+
+double GhostOrderClosePrice()
+{
+    double ret;
+    
+    switch(GhostMode)
+    {
+        case 1:     ret=ExcelOrderClosePrice();
+                    return(ret);
+        case 2:
+        default:    return(OrderClosePrice());
+    }
+    return(0.0);
+}
+
+datetime GhostOrderCloseTime()
+{
+    datetime ret;
+    
+    switch(GhostMode)
+    {
+        case 1:     ret=ExcelOrderCloseTime();
+                    return(ret);
+        case 2:
+        default:    return(OrderCloseTime());
+    }
+    return(0);
+}
+
 string GhostOrderComment()
 {
     string ret;
@@ -421,6 +470,19 @@ datetime GhostOrderOpenTime()
         default:    return(OrderOpenTime());
     }
     return(0);
+}
+
+void GhostOrderPrint()
+{
+    double ret;
+    
+    switch(GhostMode)
+    {
+        case 1:     return(ret);
+        case 2:
+        default:    OrderPrint();
+    }
+    return(0.0);
 }
 
 double GhostOrderProfit()
@@ -549,6 +611,62 @@ int GhostOrderTicket()
     return(0);
 }
 
+double GhostAccountBalance()
+{
+    double ret;
+    
+    switch(GhostMode)
+    {
+        case 1:     ret=ExcelAccountBalance();
+                    return(ret);
+        case 2:
+        default:    return(AccountBalance());
+    }
+    return(0.0);
+}
+
+double GhostAccountEquity()
+{
+    double ret;
+    
+    switch(GhostMode)
+    {
+        case 1:     ret=ExcelAccountEquity();
+                    return(ret);
+        case 2:
+        default:    return(AccountEquity());
+    }
+    return(0.0);
+}
+
+double GhostAccountFreeMargin()
+{
+    double ret;
+    
+    switch(GhostMode)
+    {
+        case 1:     ret=ExcelAccountFreeMargin();
+                    return(ret);
+        case 2:
+        default:    return(AccountFreeMargin());
+    }
+    return(0.0);
+}
+
+double GhostAccountMargin()
+{
+    double ret;
+    
+    switch(GhostMode)
+    {
+        case 1:     ret=ExcelAccountMargin();
+                    return(ret);
+        case 2:
+        default:    return(AccountMargin());
+    }
+    return(0.0);
+}
+
 //|-----------------------------------------------------------------------------------------|
 //|                                  C L O S E  O R D E R S                                 |
 //|-----------------------------------------------------------------------------------------|
@@ -568,6 +686,16 @@ bool GhostOrderClose(int ticket, double lots, double price, int slippage, color 
 
 bool GhostOrderDelete(int ticket, color arrow=CLR_NONE)
 {
+    int ret;
+    
+    switch(GhostMode)
+    {
+        case 1:     ret=ExcelOrderDelete(ticket,arrow);
+                    ExcelSaveFile(ExcelFileName);
+                    return(ret);
+        case 2:
+        default:    return(OrderDelete(ticket,arrow));
+    }
     return(false);
 }
 
@@ -921,6 +1049,9 @@ void ExcelLoadBuffers()
     r=OpFirstRow;
     while (ExcelGetValue(OpSheet,r,OpTicket)>0)
     {
+    //--- Exclude ALL pending orders
+        if ( ExcelGetValue(OpSheet,r,OpType) > OP_SELL ) { r ++; continue; }
+
 		digits = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_DIGITS );
 		pts = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_POINT );
 
@@ -1027,6 +1158,9 @@ void ExcelLoadBuffers()
     r=PoFirstRow;
     while (ExcelGetValue(PoSheet,r,PoTicket)>0)
     {
+    //--- Exclude ALL opened positions
+        if ( ExcelGetValue(PoSheet,r,PoType) <= OP_SELL ) { r ++; continue; }
+
 		digits = MarketInfo( ExcelGetString(PoSheet,r,PoSymbol), MODE_DIGITS );
 
 		GhostPendingOrders[GhostCurPendingOrders][TwTicket]     = DoubleToStr( ExcelGetValue(PoSheet,r,PoTicket), 0 );
@@ -1047,10 +1181,10 @@ void ExcelLoadBuffers()
 		GhostPendingOrders[GhostCurPendingOrders][TwComment]    = ExcelGetString(PoSheet,r,PoComment);
 
     //---- Increment row
-      GhostCurPendingOrders ++;
-      r ++;
-      if ( GhostCurOpenPositions + GhostCurPendingOrders >= GhostRows ) { break; }
-	}
+        GhostCurPendingOrders ++;
+        r ++;
+        if ( GhostCurOpenPositions + GhostCurPendingOrders >= GhostRows ) { break; }
+    }
 
 //--- Assert record ACCOUNT details
    ExcelPutValue(AdSheet,AdFirstRow,   AdEquity,      GhostSummProfit+ExcelAccountBalance());
@@ -1202,7 +1336,24 @@ bool ExcelCreate(int acctNo, string symbol, string eaName)
         ExcelPutString(StSheet, StFirstRow-1, StMaxDrawdownPip,     "MaxDrawdownPip");
         ExcelPutString(StSheet, StFirstRow-1, StMaxMargin,          "MaxMargin");
     
-    //--- Assert add headers to Pending Orders: Ticket, OpenTime, Type, Lots, OpenPrice, StopLoss, TakeProfit, Comment, AccountNo, ExpertName, Symbol, MagicNo
+    //--- Assert add headers to Opened Positions: Ticket, OpenTime, Type, Lots, OpenPrice, StopLoss, TakeProfit, Comment, AccountNo, ExpertName, Symbol, MagicNo
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpTicket,       "Ticket");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpOpenTime,     "OpenTime");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpType,         "Type");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpLots,         "Lots");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpOpenPrice,    "OpenPrice");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpStopLoss,     "StopLoss");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpTakeProfit,   "TakeProfit");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpCurPrice,     "CurPrice/ClosePrice");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpSwap,         "Swap");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpProfit,       "Profit/CloseTime");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpMagicNo,      "MagicNo");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpAccountNo,    "AccountNo");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpSymbol,       "Symbol");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpComment,      "Comment");
+        ExcelPutString(OpSheet, OpFirstRow-1,  OpExpertName,   "ExpertName");
+    
+    //--- Assert add headers to Trade History: Ticket, OpenTime, Type, Lots, OpenPrice, StopLoss, TakeProfit, Comment, AccountNo, ExpertName, Symbol, MagicNo
         ExcelPutString(ThSheet, ThFirstRow-1,  ThTicket,       "Ticket");
         ExcelPutString(ThSheet, ThFirstRow-1,  ThOpenTime,     "OpenTime");
         ExcelPutString(ThSheet, ThFirstRow-1,  ThType,         "Type");
@@ -1230,40 +1381,47 @@ bool ExcelCreate(int acctNo, string symbol, string eaName)
 
 void ExcelManager()
 {
-    int r, histRow;
-    double closePrice;
+    int r, histRow, type, calcType=-1;
+    double closePrice, curPrice;
     double calcProfit, openPrice;
     double openSL, openTP;
+    double calcSL, calcTP;
+    string sym;
 
 //--- Assert for each Open Position, check if SL or TP reached.
 //--- First row is header
     r=OpFirstRow;
     while (ExcelGetValue(OpSheet,r,OpTicket)>0)
     {
+        type = ExcelGetValue(OpSheet,r,OpType);
+        sym  = ExcelGetString(OpSheet,r,OpSymbol);
+    //--- Exclude ALL pending orders
+      if ( type > OP_SELL ) { r ++; continue; }
+    
     //--- Assert get real-time info.
         openPrice=ExcelGetValue(OpSheet,r,OpOpenPrice);
         openSL=ExcelGetValue(OpSheet,r,OpStopLoss);
         openTP=ExcelGetValue(OpSheet,r,OpTakeProfit);
-        if(OP_BUY==ExcelGetValue(OpSheet,r,OpType))
+        if(type==OP_BUY)
         {
-            closePrice = MarketInfo( Symbol(), MODE_BID ); 
+            closePrice = MarketInfo( sym, MODE_BID ); 
             if( (openSL!=0.0 && closePrice<=openSL) ||
                 (openTP!=0.0 && closePrice>=openTP) )
             {
             //--- Assert calculate profit/loss
-                calcProfit=(closePrice-openPrice)*TurtleBigValue(Symbol())/Pts;
+                calcProfit=(closePrice-openPrice)*TurtleBigValue(sym)/Pts;
                 break;
             }
                     
         }
-        else if(OP_SELL==ExcelGetValue(OpSheet,r,OpType))
+        else if(type==OP_SELL)
         {
-            closePrice = MarketInfo( Symbol(), MODE_ASK ); 
+            closePrice = MarketInfo( sym, MODE_ASK ); 
             if( (openSL!=0.0 && closePrice>=openSL) ||
                 (openTP!=0.0 && closePrice<=openTP) )
             {
             //--- Assert calculate profit/loss
-                calcProfit=(openPrice-closePrice)*TurtleBigValue(Symbol())/Pts;
+                calcProfit=(openPrice-closePrice)*TurtleBigValue(sym)/Pts;
                 break;
             }
         }
@@ -1294,6 +1452,57 @@ void ExcelManager()
     //--- Debug    
         if(GhostDebug>=1)   Print(GhostDebug,":ExcelManager(): r=",r,";openPrice=",NormalizeDouble(openPrice,5),";closePrice=",NormalizeDouble(closePrice,5),";openSL=",NormalizeDouble(openSL,5),";openTP=",NormalizeDouble(openTP,5),";calcProfit=",calcProfit);
     }
+
+//--- Assert for each Pending Order, check if STOP or LIMIT is reached.
+//--- First row is header
+    r=PoFirstRow;
+    while (ExcelGetValue(PoSheet,r,PoTicket)>0)
+    {
+        type = ExcelGetValue(PoSheet,r,PoType);
+        sym  = ExcelGetString(PoSheet,r,PoSymbol);
+    //--- Exclude ALL opened positions
+        if ( type <= OP_SELL ) { r ++; continue; }
+    
+    //--- Assert get real-time info.
+        openPrice=ExcelGetValue(PoSheet,r,PoOpenPrice);
+        if(type==OP_BUYSTOP)
+        {
+        //--- Assert breakout of range will trigger a STOP.
+            curPrice = MarketInfo( sym, MODE_ASK ); 
+            if(curPrice>=openPrice) { calcType=    OP_BUY;  break; }
+        }
+        else if(type==OP_SELLSTOP)
+        {
+        //--- Assert breakout of range will trigger a STOP.
+            curPrice = MarketInfo( sym, MODE_BID ); 
+            if(curPrice<=openPrice) { calcType=    OP_SELL; break; }
+        }
+        else if(type==OP_BUYLIMIT)
+        {
+        //--- Assert reversal at the range limits will trigger a LIMIT.
+            curPrice = MarketInfo( sym, MODE_ASK ); 
+            if(curPrice<=openPrice) { calcType=     OP_BUY;  break; }
+        }
+        else if(type==OP_SELLLIMIT)
+        {
+        //--- Assert reversal at the range limits will trigger a LIMIT.
+            curPrice = MarketInfo( sym, MODE_BID ); 
+            if(curPrice>=openPrice) { calcType=     OP_SELL; break; }
+        }
+
+    //---- Increment row
+        r ++;
+    }
+
+//--- Assert convert pending order to opened position.
+    if(calcType>=0)
+    {
+        ExcelPutValue(PoSheet,r,PoType,      calcType);
+        if(curPrice>0.0)  ExcelPutValue(PoSheet,r,PoOpenPrice, curPrice);
+        
+    //--- Debug    
+        if(GhostDebug>=1)   Print(GhostDebug,":ExcelManager(): r=",r,";openPrice=",NormalizeDouble(openPrice,5),";curPrice=",NormalizeDouble(curPrice,5),";type=",type,";calcType=",calcType);
+    }
 }
 
 int ExcelOrderSend(string sym, int type, double lots, double price, int slip, double SL, double TP, string cmt="", int mgc=0, datetime exp=0, color arrow=CLR_NONE)
@@ -1305,6 +1514,8 @@ int ExcelOrderSend(string sym, int type, double lots, double price, int slip, do
     int     openRow;
     int     openTicket;
     int     openTime;
+    double  curPrice;
+    double  pipLimit;
 
 //--- Assert Create new ticket.
     openTicket=ExcelCreateTicket();
@@ -1314,7 +1525,6 @@ int ExcelOrderSend(string sym, int type, double lots, double price, int slip, do
         if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderSend(",sym,",",type,",",lots,",",price,",",slip,",",SL,",",TP,",",cmt,",",mgc,",",exp,",",arrow,"): return=-1");
         return(-1);
     }
-    
 //--- if new open position then create new row in Open Positions.
     if(type==OP_BUY || type==OP_SELL)
     {
@@ -1357,69 +1567,209 @@ int ExcelOrderSend(string sym, int type, double lots, double price, int slip, do
         if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderSend(",sym,",",type,",",lots,",",price,",",slip,",",SL,",",TP,",",cmt,",",mgc,",",exp,",",arrow,"): return=",openTicket);
         return(openTicket);
     }
+//--- if new pending order then create new row in Pending Orders.
+    else if(type>OP_SELL)
+    {
+    //--- Assert Create new row.
+        openRow=ExcelCreateRow(PoSheet,PoTicket,PoFirstRow);
+        if(openRow<=0) return(-1);
+
+        openPrice=price; 
+        //pipLimit=MarketInfo( sym, MODE_STOPLEVEL );    //to be implemented
+    //--- Assert get real-time info.
+        if(type==OP_BUYSTOP)
+        {
+        //--- Assert breakout of range will trigger a STOP.
+        //---    openPrice has to be ABOVE the current Ask price (increased by pipLimit)
+            curPrice = MarketInfo( sym, MODE_ASK ); 
+            if(openPrice<=curPrice+(pipLimit*Pts)) { return(-1); }
+            if(SL!=0.0) openSL=NormalizeDouble(openPrice-SL*Pts,Digits);
+            if(TP!=0.0) openTP=NormalizeDouble(openPrice+TP*Pts,Digits);
+        }
+        else if(type==OP_SELLSTOP)
+        {
+        //--- Assert breakout of range will trigger a STOP.
+        //---    openPrice has to be BELOW the current Bid price (decreased by pipLimit)
+            curPrice = MarketInfo( sym, MODE_BID ); 
+            if(openPrice>=curPrice-(pipLimit*Pts)) { return(-1); }
+            if(SL!=0.0) openSL=NormalizeDouble(openPrice+SL*Pts,Digits);
+            if(TP!=0.0) openTP=NormalizeDouble(openPrice-TP*Pts,Digits);
+        }
+        else if(type==OP_BUYLIMIT)
+        {
+        //--- Assert reversal at the range limits will trigger a LIMIT.
+        //---    openPrice has to be BELOW the current Ask price (decreased by pipLimit)
+            curPrice = MarketInfo( sym, MODE_ASK ); 
+            if(openPrice>=curPrice-(pipLimit*Pts)) { return(-1); }
+            if(SL!=0.0) openSL=NormalizeDouble(openPrice-SL*Pts,Digits);
+            if(TP!=0.0) openTP=NormalizeDouble(openPrice+TP*Pts,Digits);
+        }
+        else if(type==OP_SELLLIMIT)
+        {
+        //--- Assert reversal at the range limits will trigger a LIMIT.
+        //---    openPrice has to be ABOVE the current Bid price (increased by pipLimit)
+            curPrice = MarketInfo( sym, MODE_BID ); 
+            if(openPrice<=curPrice+(pipLimit*Pts)) { return(-1); }
+            if(SL!=0.0) openSL=NormalizeDouble(openPrice+SL*Pts,Digits);
+            if(TP!=0.0) openTP=NormalizeDouble(openPrice-TP*Pts,Digits);
+        }
+        openTime=TimeCurrent(); //server
+
+        ExcelPutValue(PoSheet,openRow,PoTicket,     openTicket);
+        ExcelPutValue(PoSheet,openRow,PoOpenTime,   openTime);
+        ExcelPutValue(PoSheet,openRow,PoType,       type);
+        ExcelPutValue(PoSheet,openRow,PoLots,       lots);
+        ExcelPutValue(PoSheet,openRow,PoOpenPrice,  openPrice);
+        ExcelPutValue(PoSheet,openRow,OpStopLoss,   openSL);
+        ExcelPutValue(PoSheet,openRow,OpTakeProfit, openTP);
+        //ExcelPutValue(PoSheet,openRow,OpCurPrice,    0.0);
+        //ExcelPutValue(PoSheet,openRow,OpSwap,        0.0);
+        //ExcelPutValue(PoSheet,openRow,OpProfit,      0.0);
+        ExcelPutValue(PoSheet,openRow,OpMagicNo,    mgc);
+        ExcelPutValue(PoSheet,openRow,OpAccountNo,  ExcelGetValue(AdSheet,AdFirstRow,AdAccountNo));
+        ExcelPutString(PoSheet,openRow,OpSymbol,    sym);
+        ExcelPutString(PoSheet,openRow,OpComment,   cmt);
+        ExcelPutString(PoSheet,openRow,OpExpertName,GhostExpertName);
+        
+    //--- Debug    
+        if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderSend(",sym,",",type,",",lots,",",price,",",slip,",",SL,",",TP,",",cmt,",",mgc,",",exp,",",arrow,"): return=",openTicket);
+        return(openTicket);
+    }
 }
 
 bool ExcelOrderModify(int ticket, double price, double SL, double TP, datetime exp, color arrow=CLR_NONE)
 {
     int r;
+    int type;
     double curPrice;
     double modifyPrice;
     double modifySL;
     double modifyTP;
+    double pipLimit;
+    string sym;
     
 //--- Assert ticket no exists in Open Positions.
     r=ExcelFindTicket(OpSheet,OpTicket,OpFirstRow,ticket);
     if(r>0)
     {
-    //--- Assert get open position info.
-        if(OP_BUY==ExcelGetValue(OpSheet,r,OpType))
+        type=ExcelGetValue(OpSheet,r,OpType);
+        sym=ExcelGetString(OpSheet,r,OpSymbol);
+        if ( type <= OP_SELL ) 
         {
-            curPrice = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_ASK ); 
-            if(SL!=0.0) modifySL=NormalizeDouble(curPrice-SL*Pts,Digits);
-            if(TP!=0.0) modifyTP=NormalizeDouble(curPrice+TP*Pts,Digits);
+        //--- Assert get open position info.
+            if(type==OP_BUY)
+            {
+               curPrice = MarketInfo( sym, MODE_ASK ); 
+               if(SL!=0.0) modifySL=NormalizeDouble(curPrice-SL*Pts,Digits);
+               if(TP!=0.0) modifyTP=NormalizeDouble(curPrice+TP*Pts,Digits);
+            }
+            else if(type==OP_SELL)
+            {
+               curPrice = MarketInfo( sym, MODE_BID ); 
+               if(SL!=0.0) modifySL=NormalizeDouble(curPrice+SL*Pts,Digits);
+               if(TP!=0.0) modifyTP=NormalizeDouble(curPrice-TP*Pts,Digits);
+            }
+            ExcelPutValue(OpSheet,r,OpStopLoss,     SL);
+            ExcelPutValue(OpSheet,r,OpTakeProfit,   TP);
+        //--- Debug    
+            if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderModify(",ticket,",",price,",",SL,",",TP,",",exp,",",arrow,"): return=true");
+            return(true);
         }
-        else if(OP_SELL==ExcelGetValue(OpSheet,r,OpType))
-        {
-            curPrice = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_BID ); 
-            if(SL!=0.0) modifySL=NormalizeDouble(curPrice+SL*Pts,Digits);
-            if(TP!=0.0) modifyTP=NormalizeDouble(curPrice-TP*Pts,Digits);
-        }
-        ExcelPutValue(OpSheet,r,OpStopLoss,     SL);
-        ExcelPutValue(OpSheet,r,OpTakeProfit,   TP);
-    //--- Debug    
-        if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderModify(",ticket,",",price,",",SL,",",TP,",",exp,",",arrow,"): return=true");
-        return(true);
     }
 
 //--- Assert ticket no exists in Pending Orders.
     r=ExcelFindTicket(PoSheet,PoTicket,PoFirstRow,ticket);
     if(r>0)
     {
-    //--- Assert get pending order info.
-        if(OP_BUY==ExcelGetValue(PoSheet,r,PoType))
+        type=ExcelGetValue(PoSheet,r,PoType);
+        sym=ExcelGetString(PoSheet,r,PoSymbol);
+        //pipLimit=MarketInfo( sym, MODE_STOPLEVEL );    //to be implemented
+        if ( type > OP_SELL ) 
         {
-            if(price==0.0) 
-            {   modifyPrice=ExcelGetValue(PoSheet,r,PoOpenPrice); }
-            else
-            {   modifyPrice=price; }
-            if(SL!=0.0) modifySL=NormalizeDouble(modifyPrice-SL*Pts,Digits);
-            if(TP!=0.0) modifyTP=NormalizeDouble(modifyPrice+TP*Pts,Digits);
+        //--- Assert get pending order info.
+            if(type==OP_BUYSTOP)
+            {
+               if(price==0.0) 
+               {  modifyPrice=ExcelGetValue(PoSheet,r,PoOpenPrice); }
+               else
+               {   
+               //--- modifyPrice has to be ABOVE the current Ask price (increased by pipLimit)
+                  curPrice = MarketInfo( sym, MODE_ASK ); 
+                  modifyPrice=price; 
+                  if(modifyPrice<=curPrice+(pipLimit*Pts)) 
+                  { 
+                  //--- Debug    
+                     if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderModify(",ticket,",",price,",",SL,",",TP,",",exp,",",arrow,"): return=false");
+                     return(false); 
+                  }
+               }
+               if(SL!=0.0) modifySL=NormalizeDouble(modifyPrice-SL*Pts,Digits);
+               if(TP!=0.0) modifyTP=NormalizeDouble(modifyPrice+TP*Pts,Digits);
+            }
+            else if(type==OP_SELLSTOP)
+            {
+               if(price==0.0)
+               {  modifyPrice=ExcelGetValue(PoSheet,r,PoOpenPrice); }
+               else
+               {   
+               //--- modifyPrice has to be BELOW the current Bid price (decreased by pipLimit)
+                  curPrice = MarketInfo( sym, MODE_BID );
+                  modifyPrice=price; 
+                  if(modifyPrice>=curPrice+(pipLimit*Pts)) 
+                  { 
+                  //--- Debug    
+                     if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderModify(",ticket,",",price,",",SL,",",TP,",",exp,",",arrow,"): return=false");
+                     return(false); 
+                  }
+               }
+               if(SL!=0.0) modifySL=NormalizeDouble(modifyPrice+SL*Pts,Digits);
+               if(TP!=0.0) modifyTP=NormalizeDouble(modifyPrice-TP*Pts,Digits);
+            }
+            else if(type==OP_BUYLIMIT)
+            {
+               if(price==0.0) 
+               {  modifyPrice=ExcelGetValue(PoSheet,r,PoOpenPrice); }
+               else
+               {   
+               //--- modifyPrice has to be BELOW the current Ask price (decreased by pipLimit)
+                  curPrice = MarketInfo( sym, MODE_ASK ); 
+                  modifyPrice=price; 
+                  if(modifyPrice>=curPrice-(pipLimit*Pts)) 
+                  { 
+                  //--- Debug    
+                     if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderModify(",ticket,",",price,",",SL,",",TP,",",exp,",",arrow,"): return=false");
+                     return(false); 
+                  }
+               }
+               if(SL!=0.0) modifySL=NormalizeDouble(modifyPrice-SL*Pts,Digits);
+               if(TP!=0.0) modifyTP=NormalizeDouble(modifyPrice+TP*Pts,Digits);
+            }
+            else if(type==OP_SELLLIMIT)
+            {
+               if(price==0.0)
+               {  modifyPrice=ExcelGetValue(PoSheet,r,PoOpenPrice); }
+               else
+               {   
+               //--- modifyPrice has to be ABOVE the current Bid price (increased by pipLimit)
+                  curPrice = MarketInfo( sym, MODE_BID );
+                  modifyPrice=price; 
+                  if(modifyPrice<=curPrice+(pipLimit*Pts)) 
+                  { 
+                  //--- Debug    
+                     if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderModify(",ticket,",",price,",",SL,",",TP,",",exp,",",arrow,"): return=false");
+                     return(false); 
+                  }
+               }
+               if(SL!=0.0) modifySL=NormalizeDouble(modifyPrice+SL*Pts,Digits);
+               if(TP!=0.0) modifyTP=NormalizeDouble(modifyPrice-TP*Pts,Digits);
+            }
+            ExcelPutValue(PoSheet,r,PoOpenPrice,    modifyPrice);
+            ExcelPutValue(PoSheet,r,PoStopLoss,     modifySL);
+            ExcelPutValue(PoSheet,r,PoTakeProfit,   modifyTP);
+        //--- Debug    
+            if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderModify(",ticket,",",price,",",SL,",",TP,",",exp,",",arrow,"): return=true");
+            return(true);
         }
-        else if(OP_SELL==ExcelGetValue(PoSheet,r,PoType))
-        {
-            if(price==0.0)
-            {   modifyPrice=ExcelGetValue(PoSheet,r,PoOpenPrice); }
-            else
-            {   modifyPrice=price; }
-            if(SL!=0.0) modifySL=NormalizeDouble(modifyPrice+SL*Pts,Digits);
-            if(TP!=0.0) modifyTP=NormalizeDouble(modifyPrice-TP*Pts,Digits);
-        }
-        ExcelPutValue(PoSheet,r,PoOpenPrice,    modifyPrice);
-        ExcelPutValue(PoSheet,r,PoStopLoss,     modifySL);
-        ExcelPutValue(PoSheet,r,PoTakeProfit,   modifyTP);
-    //--- Debug    
-        if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderModify(",ticket,",",price,",",SL,",",TP,",",exp,",",arrow,"): return=true");
-        return(true);
     }
 
 //--- Assert ticket not found.
@@ -1442,6 +1792,13 @@ bool ExcelOrderClose(int ticket, double lots, double price, int slippage, color 
         if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderClose(",ticket,",",lots,",",price,",",slippage,",",arrow,"): return=false");
         return(false);        
     }
+//--- Exclude ALL pending orders
+   if ( ExcelGetValue(OpSheet,r,OpType) > OP_SELL ) 
+   { 
+    //--- Debug    
+        if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderClose(",ticket,",",lots,",",price,",",slippage,",",arrow,"): return=false");
+        return(false);        
+   }
     
 //--- Assert check if partial close or full close.
     orderLots=ExcelGetValue(OpSheet,r,OpLots);
@@ -1511,6 +1868,34 @@ bool ExcelOrderClose(int ticket, double lots, double price, int slippage, color 
     return(true);
 }
 
+bool ExcelOrderDelete(int ticket, color arrow=CLR_NONE)
+{
+    int r;
+
+//--- Assert ticket no exists in Pending Orders.
+    r=ExcelFindTicket(PoSheet,PoTicket,PoFirstRow,ticket);
+    if(r<=0) 
+    {
+    //--- Debug    
+        if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderDelete(",ticket,",",arrow,"): return=false");
+        return(false);        
+    }
+//--- Exclude ALL opened positions
+   if ( ExcelGetValue(PoSheet,r,PoType) <= OP_SELL ) 
+   { 
+    //--- Debug    
+        if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderDelete(",ticket,",",arrow,"): return=false");
+        return(false);        
+   }
+
+//--- Assert delete pending order; DO NOT transfer to trade history as CANCELLED
+   if(r>=PoFirstRow) ExcelDeleteRow(PoSheet,PoTicket,PoFirstRow,r); 
+    
+//--- Debug    
+    if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderDelete(",ticket,",",arrow,"): return=true");
+    return(true);
+}
+
 int ExcelFindTicket(int sheet, int keyCol, int firstRow, int ticket)
 {
     int r, rowFound=0;
@@ -1550,10 +1935,22 @@ int ExcelOrdersTotal()
     else return(r-OpFirstRow);
 }
 
+int ExcelOrdersHistoryTotal()
+{
+    int r;
+    
+    r=ExcelCreateRow(ThSheet,ThTicket,ThFirstRow);
+    if(r==ThFirstRow) return(0);
+    else return(r-ThFirstRow);
+}
+
 bool ExcelOrderSelect(int index, int select, int pool=MODE_TRADES)
 {
     bool ret;
     int r;
+    
+    ExcelSelectMode=pool;
+    
 //--- Assert SELECT_BY_TICKET index is order ticket.
     if(select==SELECT_BY_TICKET)
     {
@@ -1586,11 +1983,19 @@ bool ExcelOrderSelect(int index, int select, int pool=MODE_TRADES)
 
             return(ret);
         }
-        else
+        else if(pool==MODE_HISTORY)
         {
-        //--- Find total history (to be implemented)
+        //--- Find total history
+            ExcelSelectRow=index+ThFirstRow;
+        //--- Assert OrdersHistoryTotal>0
+            if(ExcelOrdersHistoryTotal()>0)
+            {
+            //--- Assert index is within range
+                if(index>=0 && index<ExcelOrdersHistoryTotal()) ret=true;
+            }
+
         //--- Debug    
-            if(GhostDebug>=2)   Print(GhostDebug,":ExcelOrderSelect(",index,",",select,",",pool,"): return=false");
+            if(GhostDebug>=2)   Print(GhostDebug,":ExcelOrderSelect(",index,",",select,",",pool,"): historyTotal=",ExcelOrdersHistoryTotal(),";return=false");
 
             return(false);
         }
@@ -1599,37 +2004,79 @@ bool ExcelOrderSelect(int index, int select, int pool=MODE_TRADES)
 
 double ExcelOrderClosePrice()
 {
-    return(ExcelGetValue(PoSheet,ExcelSelectRow,PoClosePrice));
+    switch(ExcelSelectMode)
+    {
+        case MODE_HISTORY: return(ExcelGetValue(ThSheet,ExcelSelectRow,ThClosePrice));
+        case MODE_TRADES:
+        default:           return(ExcelGetValue(PoSheet,ExcelSelectRow,PoClosePrice));
+    }
+    return(0.0);
 }
 
 datetime ExcelOrderCloseTime()
 {
-    return(ExcelGetValue(PoSheet,ExcelSelectRow,PoCloseTime));
+    switch(ExcelSelectMode)
+    {
+        case MODE_HISTORY: return(ExcelGetValue(ThSheet,ExcelSelectRow,ThCloseTime));
+        case MODE_TRADES:
+        default:           return(ExcelGetValue(PoSheet,ExcelSelectRow,PoCloseTime));
+    }
+    return(0);
 }
 
 string ExcelOrderComment()
 {
-    return(ExcelGetString(OpSheet,ExcelSelectRow,OpComment));
+    switch(ExcelSelectMode)
+    {
+        case MODE_HISTORY: return(ExcelGetString(ThSheet,ExcelSelectRow,ThComment));
+        case MODE_TRADES:
+        default:           return(ExcelGetString(OpSheet,ExcelSelectRow,OpComment));
+    }
+    return("");
 }
 
 double ExcelOrderLots()
 {
-    return(ExcelGetValue(OpSheet,ExcelSelectRow,OpLots));
+    switch(ExcelSelectMode)
+    {
+        case MODE_HISTORY: return(ExcelGetValue(ThSheet,ExcelSelectRow,ThLots));
+        case MODE_TRADES:
+        default:           return(ExcelGetValue(OpSheet,ExcelSelectRow,OpLots));
+    }
+    return(0.0);
 }
 
 int ExcelOrderMagicNumber()
 {
-    return(ExcelGetValue(OpSheet,ExcelSelectRow,OpMagicNo));
+    switch(ExcelSelectMode)
+    {
+        case MODE_HISTORY: return(ExcelGetValue(ThSheet,ExcelSelectRow,ThMagicNo));
+        case MODE_TRADES:
+        default:           return(ExcelGetValue(OpSheet,ExcelSelectRow,OpMagicNo));
+    }
+    return(0);
 }
 
 double ExcelOrderOpenPrice()
 {
-    return(ExcelGetValue(OpSheet,ExcelSelectRow,OpOpenPrice));
+    switch(ExcelSelectMode)
+    {
+        case MODE_HISTORY: return(ExcelGetValue(ThSheet,ExcelSelectRow,ThOpenPrice));
+        case MODE_TRADES:
+        default:           return(ExcelGetValue(OpSheet,ExcelSelectRow,OpOpenPrice));
+    }
+    return(0.0);
 }
 
 datetime ExcelOrderOpenTime()
 {
-    return(ExcelGetValue(OpSheet,ExcelSelectRow,OpOpenTime));
+    switch(ExcelSelectMode)
+    {
+        case MODE_HISTORY: return(ExcelGetValue(ThSheet,ExcelSelectRow,ThOpenTime));
+        case MODE_TRADES:
+        default:           return(ExcelGetValue(OpSheet,ExcelSelectRow,OpOpenTime));
+    }
+    return(0);
 }
 
 double ExcelOrderProfit()
@@ -1639,51 +2086,109 @@ double ExcelOrderProfit()
     double lots;
     double openPrice;
     double pts;
+    string sym;
     
-//--- Assert get close price and calculate profits
-    lots = ExcelGetValue(OpSheet,ExcelSelectRow,OpLots);
-    openPrice = ExcelGetValue(OpSheet,ExcelSelectRow,OpOpenPrice);
-    pts = MarketInfo( ExcelGetString(OpSheet,ExcelSelectRow,OpSymbol), MODE_POINT );
-    if ( ExcelGetValue(OpSheet,ExcelSelectRow,OpType) == OP_BUY )
-    { 
-      closePrice = MarketInfo( ExcelGetString(OpSheet,ExcelSelectRow,OpSymbol), MODE_BID ); 
-      
-   //--- Assert calculate profits      
-      calcProfit = (closePrice-openPrice)*lots*TurtleBigValue(Symbol())/pts;
-    }
-    else if (ExcelGetValue(OpSheet,ExcelSelectRow,OpType) == OP_SELL )
-    { 
-      closePrice = MarketInfo( ExcelGetString(OpSheet,ExcelSelectRow,OpSymbol), MODE_ASK ); 
+    switch(ExcelSelectMode)
+    {
+        case MODE_HISTORY:
+        //--- Assert get lots, open and close prices
+            lots        = ExcelGetValue(ThSheet,ExcelSelectRow,   ThLots);
+            openPrice   = ExcelGetValue(ThSheet,ExcelSelectRow,   ThOpenPrice);
+            closePrice  = ExcelGetValue(ThSheet,ExcelSelectRow,   ThClosePrice);
+        //--- Assert calculate profits
+            sym         = ExcelGetString(ThSheet,ExcelSelectRow,  ThSymbol);
+            pts = MarketInfo( sym, MODE_POINT );
+            if ( ExcelGetValue(ThSheet,ExcelSelectRow,ThType) == OP_BUY )
+            { 
+               calcProfit = (closePrice-openPrice)*lots*TurtleBigValue(sym)/pts;
+            }
+            else if (ExcelGetValue(ThSheet,ExcelSelectRow,ThType) == OP_SELL )
+            { 
+               calcProfit = (openPrice-closePrice)*lots*TurtleBigValue(sym)/pts;
+            }
+            return(calcProfit);
+        case MODE_TRADES:
+        default:           
+        //--- Exclude ALL pending orders
+            if ( ExcelGetValue(OpSheet,ExcelSelectRow,OpType) > OP_SELL )   { return(0.0); }
 
-   //--- Assert calculate profits      
-      calcProfit = (openPrice-closePrice)*lots*TurtleBigValue(Symbol())/pts;
+        //--- Assert get lots, open and close prices
+            lots        = ExcelGetValue(OpSheet,ExcelSelectRow,   OpLots);
+            openPrice   = ExcelGetValue(OpSheet,ExcelSelectRow,   OpOpenPrice);
+            sym         = ExcelGetString(OpSheet,ExcelSelectRow,  OpSymbol);
+            pts = MarketInfo( sym, MODE_POINT );
+            if ( ExcelGetValue(OpSheet,ExcelSelectRow,OpType) == OP_BUY )
+            { 
+               closePrice = MarketInfo( sym, MODE_BID ); 
+      
+            //--- Assert calculate profits      
+               calcProfit = (closePrice-openPrice)*lots*TurtleBigValue(sym)/pts;
+            }
+            else if (ExcelGetValue(OpSheet,ExcelSelectRow,OpType) == OP_SELL )
+            { 
+               closePrice = MarketInfo( sym, MODE_ASK ); 
+
+            //--- Assert calculate profits      
+               calcProfit = (openPrice-closePrice)*lots*TurtleBigValue(sym)/pts;
+            }
+            return(calcProfit);
     }
-    return(calcProfit);
+    return(0.0);
 }
 
 double ExcelOrderStopLoss()
 {
-    return(ExcelGetValue(OpSheet,ExcelSelectRow,OpStopLoss));
+    switch(ExcelSelectMode)
+    {
+        case MODE_HISTORY: return(ExcelGetValue(ThSheet,ExcelSelectRow,ThStopLoss));
+        case MODE_TRADES:
+        default:           return(ExcelGetValue(OpSheet,ExcelSelectRow,OpStopLoss));
+    }
+    return(0.0);
 }
 
 string ExcelOrderSymbol()
 {
-    return(ExcelGetString(OpSheet,ExcelSelectRow,OpSymbol));
+    switch(ExcelSelectMode)
+    {
+        case MODE_HISTORY: return(ExcelGetString(ThSheet,ExcelSelectRow,ThSymbol));
+        case MODE_TRADES:
+        default:           return(ExcelGetString(OpSheet,ExcelSelectRow,OpSymbol));
+    }
+    return("");
 }
 
 double ExcelOrderTakeProfit()
 {
-    return(ExcelGetValue(OpSheet,ExcelSelectRow,OpTakeProfit));
+    switch(ExcelSelectMode)
+    {
+        case MODE_HISTORY: return(ExcelGetValue(ThSheet,ExcelSelectRow,ThTakeProfit));
+        case MODE_TRADES:
+        default:           return(ExcelGetValue(OpSheet,ExcelSelectRow,OpTakeProfit));
+    }
+    return(0.0);
 }
 
 int ExcelOrderTicket()
 {
-    return(ExcelGetValue(OpSheet,ExcelSelectRow,OpTicket));
+    switch(ExcelSelectMode)
+    {
+        case MODE_HISTORY: return(ExcelGetValue(ThSheet,ExcelSelectRow,ThTicket));
+        case MODE_TRADES:
+        default:           return(ExcelGetValue(OpSheet,ExcelSelectRow,OpTicket));
+    }
+    return(0);
 }
 
 int ExcelOrderType()
 {
-    return(ExcelGetValue(OpSheet,ExcelSelectRow,OpType));
+    switch(ExcelSelectMode)
+    {
+        case MODE_HISTORY: return(ExcelGetValue(ThSheet,ExcelSelectRow,ThType));
+        case MODE_TRADES:
+        default:           return(ExcelGetValue(OpSheet,ExcelSelectRow,OpType));
+    }
+    return(0);
 }
 
 double ExcelAccountBalance()
