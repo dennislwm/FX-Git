@@ -4,6 +4,8 @@
 //| Assert History                                                                          |
 //| 2.00    Originated from Pruitt, G. & Hill, J. R., 2003, Building Winning Trading        |
 //|            Systems with TradeStation, pp144-5.                                          |
+//| 2.01    Manage existing positions: (a) One BUY and One SELL stop ONLY; (b) One OPENED   |
+//|            position ONLY. Fixed code to check for new bar.                              |
 //|-----------------------------------------------------------------------------------------|
 #property   copyright "Copyright © 2012, Dennis Lee"
 #import "WinUser32.mqh"
@@ -45,6 +47,8 @@ double   DbsExitPrice;
 //---- Assert variables for limits of Bollinger Band
 double   DbsUpBand;
 double   DbsDnBand;
+//---- Assert variables to detect new bar
+int      nextBarTime;
 
 // ------------------------------------------------------------------------------------------|
 //                             I N I T I A L I S A T I O N                                   |
@@ -58,6 +62,14 @@ int init()
    return(0);    
 }
 
+bool isNewBar()
+{
+   if ( nextBarTime == Time[0] )
+      return(false);
+   else
+      nextBarTime = Time[0];
+   return(true);
+}
 
 //|------------------------------------------------------------------------------------------|
 //|                            D E - I N I T I A L I S A T I O N                             |
@@ -81,6 +93,7 @@ double   volatility0;      // Current bar
 double   volatility1;      // Previous bar
 double   volatilityDelta;  // Change in volatility
 //---- Assert variables for signal
+double   closePrice;
 int      wave;
 int      ticket;
 
@@ -89,10 +102,13 @@ int      ticket;
    volatility1=iStdDev(NULL,0,30,0,MODE_SMA,PRICE_CLOSE,1);
 //--- Assert Calculate the delta volatility
    volatilityDelta      =  (volatility0 - volatility1) / volatility0;
-   
-//--- Assert Calculate Dynamic Lookback period
-   DbsLookBackBar       =  DbsLookBackBar * (1 + volatilityDelta);
-   DbsLookBackBar       =  MathRound(DbsLookBackBar);
+
+//--- Assert Calculate Dynamic Lookback period once per bar
+   if(isNewBar())
+   {
+      DbsLookBackBar       =  DbsLookBackBar * (1 + volatilityDelta);
+      DbsLookBackBar       =  MathRound(DbsLookBackBar);
+   }
 //--- Assert Lookback period is within the range of ceiling and floor
    DbsLookBackBar       =  MathMin(DbsCeiling,DbsLookBackBar);
    DbsLookBackBar       =  MathMax(DbsFloor,DbsLookBackBar);
@@ -110,6 +126,35 @@ int      ticket;
    if (Close[0] > DbsUpBand)  {  wave = -2; }   // open buy stop
    if (Close[0] < DbsDnBand)  {  wave = 2; }    // open sell stop
 
+//--- Comments   
+   Comment(DbsComment());
+
+//--- Assert Manage existing pending orders
+   if (wave==2    && DbsTotalSellStops()>0) return(0);
+   if (wave==-2   && DbsTotalBuyStops()>0) return(0);
+
+//--- Assert Manage existing opened positions, i.e. only ONE trade permitted at a time
+   if (DbsGetBuyTicket()>0) 
+   {
+   //--- Check if BID is <= Exit Price
+      closePrice = MarketInfo( Symbol(), MODE_BID ); 
+      if (closePrice <= DbsExitPrice) 
+      {
+         GhostOrderClose(GhostOrderTicket(),GhostOrderLots(),closePrice,EasySlipPage,EasyColorSell);
+      }
+      else return(0);
+   }
+   if (DbsGetSellTicket()>0) 
+   {
+   //--- Check if ASK is >= Exit Price
+      closePrice = MarketInfo( Symbol(), MODE_ASK ); 
+      if (closePrice >= DbsExitPrice) 
+      {
+         GhostOrderClose(GhostOrderTicket(),GhostOrderLots(),closePrice,EasySlipPage,EasyColorBuy);
+      }
+      else return(0);
+   }
+   
 //--- Assert Open Buy or Sell STOP order at hiPrice or loPrice respectively
    switch(wave)
    {
@@ -124,9 +169,71 @@ int      ticket;
                            ",",DoubleToStr(DbsHiPrice,5),",",EasySlipPage,",0,0,..) failed at Close=",DoubleToStr(Close[0],5));
          break;
    }
-
-   Comment(DbsComment());
    return(0);
+}
+
+int DbsGetBuyTicket()
+{
+   int count=0;
+
+//---- Assert determine count of all trades done with this MagicNumber
+   for(int j=0;j<GhostOrdersTotal();j++)
+   {
+      GhostOrderSelect(j,SELECT_BY_POS,MODE_TRADES);
+
+   //---- Assert MagicNumber and Symbol is same as Order
+      if (GhostOrderType()==OP_BUY && GhostOrderMagicNumber()==DbsMagic && GhostOrderSymbol()==Symbol())
+         return(GhostOrderTicket());
+   }
+   return(0);
+}
+
+int DbsGetSellTicket()
+{
+   int count=0;
+
+//---- Assert determine count of all trades done with this MagicNumber
+   for(int j=0;j<GhostOrdersTotal();j++)
+   {
+      GhostOrderSelect(j,SELECT_BY_POS,MODE_TRADES);
+
+   //---- Assert MagicNumber and Symbol is same as Order
+      if (GhostOrderType()==OP_SELL && GhostOrderMagicNumber()==DbsMagic && GhostOrderSymbol()==Symbol())
+         return(GhostOrderTicket());
+   }
+   return(0);
+}
+
+int DbsTotalBuyStops()
+{
+   int count=0;
+
+//---- Assert determine count of all trades done with this MagicNumber
+   for(int j=0;j<GhostOrdersTotal();j++)
+   {
+      GhostOrderSelect(j,SELECT_BY_POS,MODE_TRADES);
+
+   //---- Assert MagicNumber and Symbol is same as Order
+      if (GhostOrderType()==OP_BUYSTOP && GhostOrderMagicNumber()==DbsMagic && GhostOrderSymbol()==Symbol())
+         count++;
+   }
+   return(count);
+}
+
+int DbsTotalSellStops()
+{
+   int count=0;
+
+//---- Assert determine count of all trades done with this MagicNumber
+   for(int j=0;j<GhostOrdersTotal();j++)
+   {
+      GhostOrderSelect(j,SELECT_BY_POS,MODE_TRADES);
+
+   //---- Assert MagicNumber and Symbol is same as Order
+      if (GhostOrderType()==OP_SELLSTOP && GhostOrderMagicNumber()==DbsMagic && GhostOrderSymbol()==Symbol())
+         count++;
+   }
+   return(count);
 }
 
 //|-----------------------------------------------------------------------------------------|
