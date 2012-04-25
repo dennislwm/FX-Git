@@ -6,6 +6,7 @@
 //|            Systems with TradeStation, pp144-5.                                          |
 //| 2.01    Manage existing positions: (a) One BUY and One SELL stop ONLY; (b) One OPENED   |
 //|            position ONLY. Fixed code to check for new bar.                              |
+//| 2.02    Added expiration for opened stops.                                              |
 //|-----------------------------------------------------------------------------------------|
 #property   copyright "Copyright © 2012, Dennis Lee"
 #import "WinUser32.mqh"
@@ -36,7 +37,7 @@ extern   string   s7="-->PlusGhost Settings<--";
 //|                           I N T E R N A L   V A R I A B L E S                            |
 //|------------------------------------------------------------------------------------------|
 string   EaName               =  "DynamicBreakoutStrategy";
-string   EaVer                =  "2.00";
+string   EaVer                =  "2.02";
 //---- Assert internal variables for Lookback Period
 int      DbsLookBackBar       =  20;
 //---- Assert variables for trigger limits to open
@@ -159,12 +160,12 @@ int      ticket;
    switch(wave)
    {
       case 2:  // open sell stop
-         ticket = GhostOrderSend(Symbol(),OP_SELLSTOP,NormalizeDouble(DbsLot,2),DbsLoPrice,EasySlipPage,0,0,EaName,DbsMagic,0,EasyColorSell);
+         ticket = GhostOrderSend(Symbol(),OP_SELLSTOP,NormalizeDouble(DbsLot,2),DbsLoPrice,EasySlipPage,0,0,EaName,DbsMagic,TimeCurrent() + (DbsCeiling-DbsLookBackBar)*60*60*24,EasyColorSell);
          if(ticket<0)   Print(EaName,": Error: ", GetLastError(),": OrderSend(",Symbol(),",OP_SELLSTOP,",DoubleToStr(DbsLot,2),
                            ",",DoubleToStr(DbsLoPrice,5),",",EasySlipPage,",0,0,..) failed at Close=",DoubleToStr(Close[0],5));
          break;
       case -2:  
-         ticket = GhostOrderSend(Symbol(),OP_BUYSTOP,NormalizeDouble(DbsLot,2),DbsHiPrice,EasySlipPage,0,0,EaName,DbsMagic,0,EasyColorBuy);
+         ticket = GhostOrderSend(Symbol(),OP_BUYSTOP,NormalizeDouble(DbsLot,2),DbsHiPrice,EasySlipPage,0,0,EaName,DbsMagic,TimeCurrent() + (DbsCeiling-DbsLookBackBar)*60*60*24,EasyColorBuy);
          if(ticket<0)   Print(EaName,": Error: ", GetLastError(),": OrderSend(",Symbol(),",OP_BUYSTOP,",DoubleToStr(DbsLot,2),
                            ",",DoubleToStr(DbsHiPrice,5),",",EasySlipPage,",0,0,..) failed at Close=",DoubleToStr(Close[0],5));
          break;
