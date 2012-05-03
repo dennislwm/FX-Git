@@ -8,6 +8,9 @@
 //|             some minor fixes in SqLiteCreate() and SqLiteLoadBuffers().                 |
 //| 1.02    Populate Statistics table in SqLiteCreate() and fixed type of StMaxLots and     |
 //|             SqLiteAccountNumber().                                                      |
+//| 1.03    Fixed logic of Statistics drawdowns.                                            |
+//|         Error "function 'sqlite_get_col' call from dll 'sqlite3_wrapper.dll' critical   |
+//|            error means that an OrderFunction() was called after SqLiteFreeSelect().     |
 //|-----------------------------------------------------------------------------------------|
 
 //|-----------------------------------------------------------------------------------------|
@@ -20,7 +23,7 @@
 //|-----------------------------------------------------------------------------------------|
 //---- Assert internal variables for SQLite
 string   SqLiteName        = "";
-string   SqLiteVer         = "1.02";
+string   SqLiteVer         = "1.03";
 int      SqLiteSelectIndex;
 int      SqLiteSelectMode;
 bool     SqLiteSelectAsc;
@@ -434,14 +437,14 @@ void SqLiteLoadBuffers()
       bTotalLots =         totalLots > SqLiteGetReal(handle,                                 StTotalLots);
       bTotalProfit =       GhostSummProfit>0.0 && GhostSummProfit > SqLiteGetReal(handle,    StTotalProfit);
       bTotalProfitPip =    totalProfitPip>0.0 && totalProfitPip > SqLiteGetReal(handle,      StTotalProfitPip);
-      bTotalDrawdown =     GhostSummProfit<0.0 && GhostSummProfit > SqLiteGetReal(handle,    StTotalDrawdown);
-      bTotalDrawdownPip =  totalProfitPip<0.0 && totalProfitPip > SqLiteGetReal(handle,      StTotalDrawdownPip);
+      bTotalDrawdown =     GhostSummProfit<0.0 && GhostSummProfit < SqLiteGetReal(handle,    StTotalDrawdown);
+      bTotalDrawdownPip =  totalProfitPip<0.0 && totalProfitPip < SqLiteGetReal(handle,      StTotalDrawdownPip);
       bTotalMargin =       totalMargin > SqLiteGetReal(handle,                               StTotalMargin);
       bMaxLots =        maxLots > SqLiteGetReal(handle,        StMaxLots);
       bMaxProfit =      maxProfit > SqLiteGetReal(handle,      StMaxProfit);
       bMaxProfitPip =   maxProfitPip > SqLiteGetReal(handle,   StMaxProfitPip);
-      bMaxDrawdown =    maxDrawdown > SqLiteGetReal(handle,    StMaxDrawdown);
-      bMaxDrawdownPip = maxDrawdownPip > SqLiteGetReal(handle, StMaxDrawdownPip);
+      bMaxDrawdown =    maxDrawdown < SqLiteGetReal(handle,    StMaxDrawdown);
+      bMaxDrawdownPip = maxDrawdownPip < SqLiteGetReal(handle, StMaxDrawdownPip);
       bMaxMargin =      maxMargin > SqLiteGetReal(handle,      StMaxMargin);
    }
 //--- Assert unlock database
