@@ -3,6 +3,9 @@
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
 //| 1.00    Originated from PlusGhost 1.50.                                                 |
+//| 1.01    Fixed OrderSend() return incorrect Id. Fixed OrdersTotal() and                  |
+//|             OrdersHistoryTotal() return incorrect total. Added print debug info and     |
+//|             some minor fixes in SqLiteCreate() and SqLiteLoadBuffers().                 |
 //|-----------------------------------------------------------------------------------------|
 
 //|-----------------------------------------------------------------------------------------|
@@ -15,7 +18,8 @@
 //|-----------------------------------------------------------------------------------------|
 //---- Assert internal variables for SQLite
 string   SqLiteName        = "";
-int      SqLiteSelectRow;
+string   SqLiteVer         = "1.01";
+int      SqLiteSelectIndex;
 int      SqLiteSelectMode;
 bool     SqLiteSelectAsc;
 int      SqLiteSelectHandle;
@@ -126,6 +130,8 @@ bool SqLiteCreate(int acctNo, string symbol, int period, string eaName)
          isOk=isOk && DbAlterTableText(SqLiteName,    AdTable, AdCurrencyStr);
          isOk=isOk && DbAlterTableReal(SqLiteName,    AdTable, AdBalanceStr);
          isOk=isOk && DbAlterTableReal(SqLiteName,    AdTable, AdEquityStr);
+         isOk=isOk && DbAlterTableReal(SqLiteName,    AdTable, AdMarginStr);
+         isOk=isOk && DbAlterTableReal(SqLiteName,    AdTable, AdProfitStr);
       if(!isOk) 
          Print("0:SqLiteCreate(",NormalizeDouble(acctNo,0),",",symbol,",",period,",",eaName,"): Assert failed create table AccountDetails.");
    //--- Assert OK table created successfully
@@ -210,12 +216,15 @@ bool SqLiteCreate(int acctNo, string symbol, int period, string eaName)
          isOk=isOk && SqLitePutText(AdTable,r,        AdCurrencyStr,    AccountCurrency());
          isOk=isOk && SqLitePutReal(AdTable,r,        AdBalanceStr,     AccountBalance());
          isOk=isOk && SqLitePutReal(AdTable,r,        AdEquityStr,      AccountEquity());
-      if(!isOk) 
+      if(!isOk)
+      {
          Print("0:SqLiteCreate(",NormalizeDouble(acctNo,0),",",symbol,",",period,",",eaName,"): Assert failed populate AccountDetails.");
+         return(false);
+      }
       else
          if(GhostDebug>=1) Print(GhostDebug,":SqLiteCreate(",NormalizeDouble(acctNo,0),",",symbol,",",period,",",eaName,"): r=",r,";SqLiteName=",SqLiteName," created successfully.");
    }
-   return(false);    // should be true
+   return(true);    
 }
 
 //|-----------------------------------------------------------------------------------------|
@@ -429,13 +438,13 @@ void SqLiteLoadBuffers()
    DbFreeQuery(handle);
    
 //--- Assert record AGGREGATE statistics
-   if( bTotalTrades ) SqLitePutInteger(StTable,1,StTotalTradesStr,      GhostCurOpenPositions);
-   if( bTotalLots ) SqLitePutReal(StTable,1,StTotalLotsStr,             totalLots);
-   if( bTotalProfit ) SqLitePutReal(StTable,1,StTotalProfitStr,         GhostSummProfit);
-   if( bTotalProfitPip ) SqLitePutReal(StTable,1,StTotalProfitPipStr,   totalProfitPip);
-   if( bTotalDrawdown ) SqLitePutReal(StTable,1,StTotalDrawdownStr,     GhostSummProfit);
-   if( bTotalDrawdownPip ) SqLitePutReal(StTable,1,StTotalDrawdownPip,  totalProfitPip);
-   if( bTotalMargin ) SqLitePutReal(StTable,1,StTotalMargin,            totalMargin);
+   if( bTotalTrades ) SqLitePutInteger(StTable,1,StTotalTradesStr,          GhostCurOpenPositions);
+   if( bTotalLots ) SqLitePutReal(StTable,1,StTotalLotsStr,                 totalLots);
+   if( bTotalProfit ) SqLitePutReal(StTable,1,StTotalProfitStr,             GhostSummProfit);
+   if( bTotalProfitPip ) SqLitePutReal(StTable,1,StTotalProfitPipStr,       totalProfitPip);
+   if( bTotalDrawdown ) SqLitePutReal(StTable,1,StTotalDrawdownStr,         GhostSummProfit);
+   if( bTotalDrawdownPip ) SqLitePutReal(StTable,1,StTotalDrawdownPipStr,   totalProfitPip);
+   if( bTotalMargin ) SqLitePutReal(StTable,1,StTotalMarginStr,             totalMargin);
 //--- Assert record statistics for SINGLE trade
    if( bMaxLots ) SqLitePutReal(StTable,1,StMaxLotsStr,                 maxLots);
    if( bMaxProfit ) SqLitePutReal(StTable,1,StMaxProfitStr,             maxProfit);
@@ -508,7 +517,6 @@ int SqLiteOrderSend(string sym, int type, double lots, double price, int slip, d
    double openPrice;
    double openSL;
    double openTP;
-   int    openTicket;
    int    openTime;
 
 //--- Assert Create new ticket in OpenedPositions
@@ -545,15 +553,16 @@ int SqLiteOrderSend(string sym, int type, double lots, double price, int slip, d
          //isOk=isOk && SqLitePutReal(OpTable,id,OpProfitStr,       0.0);
          //isOk=isOk && SqLitePutDT(OpTable,id,OpExpirationStr,     0);
          //isOk=isOk && SqLitePutDT(OpTable,id,OpCloseTimeStr,      closeTime);
-         isOk=isOk && SqLitePutInteger(OpTable,id,OpMagicNo,      mgc);
-         isOk=isOk && SqLitePutInteger(OpTable,id,OpAccountNo,    SqLiteAccountNumber());
-         isOk=isOk && SqLitePutText(OpTable,id,OpSymbol,          sym);
-         isOk=isOk && SqLitePutText(OpTable,id,OpComment,         cmt);
-         isOk=isOk && SqLitePutText(OpTable,id,OpExpertName,      GhostExpertName);
+         isOk=isOk && SqLitePutInteger(OpTable,id,OpMagicNoStr,   mgc);
+         isOk=isOk && SqLitePutInteger(OpTable,id,OpAccountNoStr, SqLiteAccountNumber());
+         isOk=isOk && SqLitePutText(OpTable,id,OpSymbolStr,       sym);
+         isOk=isOk && SqLitePutText(OpTable,id,OpCommentStr,      cmt);
+         isOk=isOk && SqLitePutText(OpTable,id,OpExpertNameStr,   GhostExpertName);
       if(!isOk) 
-         Print("0:SqLiteOrderSend(",sym,",",type,",",lots,",",price,",",slip,",",SL,",",TP,",",cmt,",",mgc,",",exp,",",arrow,"): Assert failed to open order return=",openTicket);
-      
-      return(openTicket);
+         Print("0:SqLiteOrderSend(",sym,",",type,",",lots,",",price,",",slip,",",SL,",",TP,",",cmt,",",mgc,",",exp,",",arrow,"): Assert failed to open order return=",id);
+      else
+         Print("0:SqLiteOrderSend(",sym,",",type,",",lots,",",price,",",slip,",",SL,",",TP,",",cmt,",",mgc,",",exp,",",arrow,"): OK opened order return=",id);
+      return(id);
    }
 }
 
@@ -594,6 +603,8 @@ bool SqLiteOrderModify(int ticket, double price, double SL, double TP, datetime 
             isOk=isOk && SqLitePutDT(OpTable,id,OpExpirationStr,     exp);
          if(!isOk) 
             Print("0:SqLiteOrderModify(",ticket,",",price,",",SL,",",TP,",",exp,",",arrow,"): Assert failed to modify order ticket=",ticket);
+         else
+            Print("0:SqLiteOrderModify(",ticket,",",price,",",SL,",",TP,",",exp,",",arrow,"): return=true; isOk=true; id=",id);
          return(true);
       }
    }
@@ -627,11 +638,11 @@ int SqLiteFindTicket(int ticket)
 //--- Debug    
    if(id<=0) 
    {
-      if(GhostDebug>=2)   Print(GhostDebug,":SqLiteFindTicket(",ticket,"): return=-1");
+      if(GhostDebug>=3)   Print(GhostDebug,":SqLiteFindTicket(",ticket,"): return=-1");
       return(-1);
    }
 
-   if(GhostDebug>=2)   Print(GhostDebug,":SqLiteFindTicket(",ticket,"): return=",id);
+   if(GhostDebug>=3)   Print(GhostDebug,":SqLiteFindTicket(",ticket,"): return=",id);
    return(id);
 }
 
@@ -646,7 +657,8 @@ int SqLiteOrdersTotal()
 //--- Assert query will lock database
    lastCol=DbLockQuery(SqLiteName, handle, exp);
    {
-      if(lastCol>0) { while(DbNextRow(handle)) count++; }
+      if(lastCol>0) DbNextRow(handle);
+      count=SqLiteGetInteger(handle,0);
    }
 //--- Assert unlock database
    DbFreeQuery(handle);
@@ -665,7 +677,8 @@ int SqLiteOrdersHistoryTotal()
 //--- Assert query will lock database
    lastCol=DbLockQuery(SqLiteName, handle, exp);
    {
-      if(lastCol>0) { while(DbNextRow(handle)) count++; }
+      if(lastCol>0) DbNextRow(handle);
+      count=SqLiteGetInteger(handle,0);
    }
 //--- Assert unlock database
    DbFreeQuery(handle);
@@ -695,10 +708,10 @@ bool SqLiteInitTradesSelect(bool asc)
    
 //--- Assert order by ascending or descending
    if(asc) 
-      SqLiteSelectRow=-1;
+      SqLiteSelectIndex=-1;
    else
    {
-      SqLiteSelectRow=SqLiteSelectTotal;
+      SqLiteSelectIndex=SqLiteSelectTotal;
       ord=" ORDER BY id DESC"; 
    }
    SqLiteSelectAsc=asc;
@@ -708,6 +721,8 @@ bool SqLiteInitTradesSelect(bool asc)
     
 //--- Assert query will lock database
    lastCol=DbLockQuery(SqLiteName, SqLiteSelectHandle, exp);
+//--- Debug    
+   if(GhostDebug>=2) if(SqLiteSelectTotal>0) Print(SqLiteSelectHandle,":SqLiteInitTradesSelect(",asc,"): exp=",exp,"; SqLiteSelectIndex=",SqLiteSelectIndex,"; SqLiteSelectTotal=",SqLiteSelectTotal);
    return(lastCol>0);
 }
 
@@ -721,10 +736,10 @@ bool SqLiteInitHistorySelect(bool asc)
    
 //--- Assert order by ascending or descending
    if(asc) 
-      SqLiteSelectRow=-1;
+      SqLiteSelectIndex=-1;
    else
    {
-      SqLiteSelectRow=SqLiteSelectTotal;
+      SqLiteSelectIndex=SqLiteSelectTotal;
       ord=" ORDER BY id DESC"; 
    }
    SqLiteSelectAsc=asc;
@@ -734,6 +749,8 @@ bool SqLiteInitHistorySelect(bool asc)
     
 //--- Assert query will lock database
    lastCol=DbLockQuery(SqLiteName, SqLiteSelectHandle, exp);
+//--- Debug    
+   if(GhostDebug>=2) if(SqLiteSelectTotal>0) Print(SqLiteSelectHandle,":SqLiteInitHistorySelect(",asc,"): exp=",exp,"; SqLiteSelectIndex=",SqLiteSelectIndex,"; SqLiteSelectTotal=",SqLiteSelectTotal);
    return(lastCol>0);
 }
 
@@ -765,12 +782,12 @@ bool SqLiteOrderSelect(int index, int select, int pool=MODE_TRADES)
       if(id<=0) 
       {
          if(GhostDebug>=2)   Print(GhostDebug,":SqLiteOrderSelect(",index,",",select,",",pool,"): id=-1");
-         return(-1);
+         return(false);
       }
       else
       {
          if(GhostDebug>=2)   Print(GhostDebug,":SqLiteOrderSelect(",index,",",select,",",pool,"): id=",id);
-         return(ret);
+         return(true);
       }
    }
 //--- Assert SELECT_BY_POS where index=0 is first row.
@@ -786,31 +803,65 @@ bool SqLiteOrderSelect(int index, int select, int pool=MODE_TRADES)
 
 bool SqLiteOrderTradesSelect(int index)
 {
+   string dbg;
+   bool ret;
+   
+//--- Debug    
+   dbg=SqLiteSelectHandle+":SqLiteOrderTradesSelect("+index+")";
+   
 //--- Assert increment if ascending 
    if(SqLiteSelectAsc) 
-      if(index>SqLiteSelectRow && index<SqLiteSelectTotal) 
+   {
+      
+   //--- Debug    
+      dbg=dbg+": Asc";
+
+      if(index>SqLiteSelectIndex && index<SqLiteSelectTotal) 
       {
-         while( SqLiteSelectRow < index - 1 ) 
+      //--- Debug    
+         dbg=dbg+"; "+index+">"+SqLiteSelectIndex+" && "+index+"<"+SqLiteSelectTotal;
+         
+         while( SqLiteSelectIndex < index - 1 ) 
          { 
             if( !DbNextRow(SqLiteSelectHandle) ) return(false);
-            SqLiteSelectRow ++;
+            SqLiteSelectIndex ++;
          }
-         SqLiteSelectRow = index;
-         return(DbNextRow(SqLiteSelectHandle));
+         SqLiteSelectIndex = index;
+         ret=DbNextRow(SqLiteSelectHandle);
+
+      //--- Debug    
+         dbg=dbg+"; SqLiteSelectIndex="+index+"; id="+SqLiteGetId(SqLiteSelectHandle)+"; ret="+ret;
+         if(GhostDebug>=2) if(SqLiteSelectTotal>0) Print(dbg);
+
+         return(ret);
       }
+   }
 //--- Assert decrement if descending
    else
-      if(index<SqLiteSelectRow && index>=0)
+   {
+      
+   //--- Debug    
+      dbg=dbg+": Dsc";
+      if(index<SqLiteSelectIndex && index>=0)
       {
-         while( SqLiteSelectRow > index + 1 ) 
+      //--- Debug    
+         dbg=dbg+"; "+index+"<"+SqLiteSelectIndex+" && "+index+">=0";
+         
+         while( SqLiteSelectIndex > index + 1 ) 
          { 
             if( !DbNextRow(SqLiteSelectHandle) ) return(false);
-            SqLiteSelectRow --;
+            SqLiteSelectIndex --;
          }
-         SqLiteSelectRow = index;
-         return(DbNextRow(SqLiteSelectHandle));
+         SqLiteSelectIndex = index;
+         ret=DbNextRow(SqLiteSelectHandle);
+      
+      //--- Debug    
+         dbg=dbg+"; SqLiteSelectIndex="+index+"; id="+SqLiteGetId(SqLiteSelectHandle)+"; ret="+ret;
+         if(GhostDebug>=2) if(SqLiteSelectTotal>0) Print(dbg);
+         
+         return(ret);
       }
-
+   }
    return(false);
 }
 
@@ -821,13 +872,15 @@ bool SqLiteOrderHistorySelect(int index)
 
 void SqLiteFreeSelect()
 {
+//--- Debug    
+   if(GhostDebug>=2) if(SqLiteSelectTotal>0) Print(SqLiteSelectHandle,":SqLiteFreeSelect(): SqLiteSelectIndex=",SqLiteSelectIndex);
+   
 //--- Assert clear global select variables
-   SqLiteSelectRow=-1;
+   SqLiteSelectIndex=-1;
    SqLiteSelectTotal=0;
    
 //--- Assert unlock database using SqLiteFreeSelect(); called after OrderSelect().
    sqlite_free_query(SqLiteSelectHandle);
-   
 }
 
 double SqLiteOrderClosePrice()
@@ -1175,6 +1228,8 @@ bool SqLiteOrderClose(int ticket, double lots, double price, int slippage, color
          }
          if(!isOk) 
             Print("0:SqLiteOrderClose(",ticket,",",lots,",",price,",",slippage,",",arrow,"): Assert failed to close order ticket=",ticket);
+         else
+            Print("0:SqLiteOrderClose(",ticket,",",lots,",",price,",",slippage,",",arrow,"): Ok closed trade calcProfit=",calcProfit);
          return(true);
       }
    }
@@ -1193,7 +1248,7 @@ bool IsTableExists(string db, string table)
     int err=sqlite_table_exists(db,table);
     if(err<0)
     {
-        Print("Check for table "+table+" existence. Error Code: "+err);
+        Print("0:Check for table "+table+" existence. Error Code: "+err);
         return(false);
     }
     return(err>0);
@@ -1352,7 +1407,7 @@ bool DbExec(string db, string exp)
     int err=sqlite_exec(db,exp);
     if (err!=0)
     {
-        Print("Check expression '"+exp+"'. Error Code: "+err);
+        Print("0:Check expression '"+exp+"'. Error Code: "+err);
         return(false);
     }
     else return(true);
