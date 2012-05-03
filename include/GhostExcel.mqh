@@ -3,6 +3,9 @@
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
 //| 1.00    Originated from PlusGhost 1.50.                                                 |
+//| 1.01    Adjusted trade history profit in ExcelManager(), OrderClose() and OrderProfit().|
+//|             Split OrderSelect() into OrderTradeSelect() and OrderHistorySelect().       |
+//|             Added OrderExpiration(), AccountNumber(), Expiration and CloseTime.         |
 //|-----------------------------------------------------------------------------------------|
 
 //|-----------------------------------------------------------------------------------------|
@@ -35,6 +38,7 @@ int     ExcelAutoFit(bool);
 //|-----------------------------------------------------------------------------------------|
 //---- Assert internal variables for ExcelLink
 string   ExcelFileName;
+string   ExcelVer   = "1.01";
 int      ExcelSelectRow;
 int      ExcelSelectMode;
 int      ExcelNextTicket;
@@ -283,6 +287,7 @@ void ExcelManager()
             {
             //--- Adjust trade history values.
                ExcelPutValue(ThSheet,histRow,ThClosePrice,  closePrice);
+               ExcelPutValue(ThSheet,histRow,ThProfit,      calcProfit);
                ExcelPutValue(ThSheet,histRow,ThCloseTime,   TimeCurrent());
             }
         }
@@ -734,39 +739,47 @@ bool ExcelOrderSelect(int index, int select, int pool=MODE_TRADES)
 //--- Assert SELECT_BY_POS where index=0 is FirstRow.
     else
     {
-        if(pool==MODE_TRADES)
-        {
-        //--- Find total orders
-            ExcelSelectRow=index+OpFirstRow;
-        //--- Assert OrdersTotal>0
-            if(ExcelOrdersTotal()>0)
-            {
-            //--- Assert index is within range
-                if(index>=0 && index<ExcelOrdersTotal()) ret=true;
-            }
-            
-        //--- Debug    
-            if(GhostDebug>=2)   Print(GhostDebug,":ExcelOrderSelect(",index,",",select,",",pool,"): total=",ExcelOrdersTotal(),";return=",ret);
-
-            return(ret);
-        }
-        else if(pool==MODE_HISTORY)
-        {
-        //--- Find total history
-            ExcelSelectRow=index+ThFirstRow;
-        //--- Assert OrdersHistoryTotal>0
-            if(ExcelOrdersHistoryTotal()>0)
-            {
-            //--- Assert index is within range
-                if(index>=0 && index<ExcelOrdersHistoryTotal()) ret=true;
-            }
-
-        //--- Debug    
-            if(GhostDebug>=2)   Print(GhostDebug,":ExcelOrderSelect(",index,",",select,",",pool,"): historyTotal=",ExcelOrdersHistoryTotal(),";return=false");
-
-            return(false);
-        }
+        if(pool==MODE_TRADES)       { return( ExcelOrderTradesSelect(index) ); }
+        else if(pool==MODE_HISTORY) { return( ExcelOrderHistorySelect(index) ); }
     }
+}
+
+bool ExcelOrderTradesSelect(int index)
+{
+    bool ret;
+    
+//--- Find total orders 
+    ExcelSelectRow=index+OpFirstRow;
+//--- Assert OrdersTotal>0
+    if(ExcelOrdersTotal()>0)
+    {
+    //--- Assert index is within range
+        if(index>=0 && index<ExcelOrdersTotal()) ret=true;
+    }    
+            
+//--- Debug    
+    if(GhostDebug>=2)   Print(GhostDebug,":ExcelOrderTradesSelect(",index,"): total=",ExcelOrdersTotal(),";return=",ret);
+
+    return(ret);
+}
+
+bool ExcelOrderHistorySelect(int index)
+{
+    bool ret;
+
+//--- Find total history
+    ExcelSelectRow=index+ThFirstRow;
+//--- Assert OrdersHistoryTotal>0
+    if(ExcelOrdersHistoryTotal()>0)
+    {
+    //--- Assert index is within range
+       if(index>=0 && index<ExcelOrdersHistoryTotal()) ret=true;
+    }
+
+//--- Debug    
+    if(GhostDebug>=2)   Print(GhostDebug,":ExcelOrderHistorySelect(",index,"): historyTotal=",ExcelOrdersHistoryTotal(),";return=",ret);
+
+    return(ret);
 }
 
 double ExcelOrderClosePrice()
@@ -779,7 +792,6 @@ double ExcelOrderClosePrice()
     }
     return(0.0);
 }
-
 datetime ExcelOrderCloseTime()
 {
     switch(ExcelSelectMode)
@@ -790,7 +802,6 @@ datetime ExcelOrderCloseTime()
     }
     return(0);
 }
-
 string ExcelOrderComment()
 {
     switch(ExcelSelectMode)
@@ -801,7 +812,16 @@ string ExcelOrderComment()
     }
     return("");
 }
-
+datetime ExcelOrderExpiration()
+{
+    switch(ExcelSelectMode)
+    {
+        case MODE_HISTORY: return(ExcelGetValue(ThSheet,ExcelSelectRow,ThExpiration));
+        case MODE_TRADES:
+        default:           return(ExcelGetValue(PoSheet,ExcelSelectRow,PoExpiration));
+    }
+    return(0);
+}
 double ExcelOrderLots()
 {
     switch(ExcelSelectMode)
@@ -812,7 +832,6 @@ double ExcelOrderLots()
     }
     return(0.0);
 }
-
 int ExcelOrderMagicNumber()
 {
     switch(ExcelSelectMode)
@@ -834,7 +853,6 @@ double ExcelOrderOpenPrice()
     }
     return(0.0);
 }
-
 datetime ExcelOrderOpenTime()
 {
     switch(ExcelSelectMode)
@@ -845,7 +863,6 @@ datetime ExcelOrderOpenTime()
     }
     return(0);
 }
-
 double ExcelOrderProfit()
 {
     double calcProfit;
@@ -857,23 +874,7 @@ double ExcelOrderProfit()
     
     switch(ExcelSelectMode)
     {
-        case MODE_HISTORY:
-        //--- Assert get lots, open and close prices
-            lots        = ExcelGetValue(ThSheet,ExcelSelectRow,   ThLots);
-            openPrice   = ExcelGetValue(ThSheet,ExcelSelectRow,   ThOpenPrice);
-            closePrice  = ExcelGetValue(ThSheet,ExcelSelectRow,   ThClosePrice);
-        //--- Assert calculate profits
-            sym         = ExcelGetString(ThSheet,ExcelSelectRow,  ThSymbol);
-            pts = MarketInfo( sym, MODE_POINT );
-            if ( ExcelGetValue(ThSheet,ExcelSelectRow,ThType) == OP_BUY )
-            { 
-               calcProfit = (closePrice-openPrice)*lots*TurtleBigValue(sym)/pts;
-            }
-            else if (ExcelGetValue(ThSheet,ExcelSelectRow,ThType) == OP_SELL )
-            { 
-               calcProfit = (openPrice-closePrice)*lots*TurtleBigValue(sym)/pts;
-            }
-            return(calcProfit);
+        case MODE_HISTORY: return(ExcelGetValue(ThSheet,ExcelSelectRow,ThProfit));
         case MODE_TRADES:
         default:           
         //--- Exclude ALL pending orders
@@ -902,7 +903,6 @@ double ExcelOrderProfit()
     }
     return(0.0);
 }
-
 double ExcelOrderStopLoss()
 {
     switch(ExcelSelectMode)
@@ -913,7 +913,6 @@ double ExcelOrderStopLoss()
     }
     return(0.0);
 }
-
 string ExcelOrderSymbol()
 {
     switch(ExcelSelectMode)
@@ -924,7 +923,6 @@ string ExcelOrderSymbol()
     }
     return("");
 }
-
 double ExcelOrderTakeProfit()
 {
     switch(ExcelSelectMode)
@@ -935,7 +933,6 @@ double ExcelOrderTakeProfit()
     }
     return(0.0);
 }
-
 int ExcelOrderTicket()
 {
     switch(ExcelSelectMode)
@@ -946,7 +943,6 @@ int ExcelOrderTicket()
     }
     return(0);
 }
-
 int ExcelOrderType()
 {
     switch(ExcelSelectMode)
@@ -962,22 +958,22 @@ double ExcelAccountBalance()
 {
     return(ExcelGetValue(AdSheet,AdFirstRow,AdBalance));
 }
-
 double ExcelAccountEquity()
 {
     return(ExcelGetValue(AdSheet,AdFirstRow,AdEquity));
 }
-
 double ExcelAccountMargin()
 {
     return(ExcelGetValue(AdSheet,AdFirstRow,AdMargin));
 }
-
 double ExcelAccountFreeMargin()
 {
     return(0.0);
 }
-
+int ExcelAccountNumber()
+{
+    return(ExcelGetValue(AdSheet,AdFirstRow,AdAccountNo));
+}
 double ExcelAccountProfit()
 {
     return(ExcelGetValue(AdSheet,AdFirstRow,AdProfit));
@@ -1050,6 +1046,7 @@ bool ExcelOrderClose(int ticket, double lots, double price, int slippage, color 
          //--- Adjust trade history values.
             ExcelPutValue(ThSheet,histRow,ThLots,        calcLots);
             ExcelPutValue(ThSheet,histRow,ThClosePrice,  closePrice);
+            ExcelPutValue(ThSheet,histRow,ThProfit,      calcProfit);
             ExcelPutValue(ThSheet,histRow,ThCloseTime,   TimeCurrent());
          }
       }
@@ -1064,6 +1061,7 @@ bool ExcelOrderClose(int ticket, double lots, double price, int slippage, color 
          {
          //--- Adjust trade history values.
             ExcelPutValue(ThSheet,histRow,ThClosePrice,  closePrice);
+            ExcelPutValue(ThSheet,histRow,ThProfit,      calcProfit);
             ExcelPutValue(ThSheet,histRow,ThCloseTime,   TimeCurrent());
          }
       }
@@ -1126,11 +1124,13 @@ int ExcelCopyRow(int sheet, int keyCol, int firstRow, int copyRow, int destSheet
    ExcelPutValue(destSheet,destCopyRow,8,    ExcelGetValue(sheet,copyRow,8));
    ExcelPutValue(destSheet,destCopyRow,9,    ExcelGetValue(sheet,copyRow,9));
    ExcelPutValue(destSheet,destCopyRow,10,   ExcelGetValue(sheet,copyRow,10));
-   ExcelPutString(destSheet,destCopyRow,11,  ExcelGetString(sheet,copyRow,11));
-   ExcelPutString(destSheet,destCopyRow,12,  ExcelGetString(sheet,copyRow,12));
-   ExcelPutString(destSheet,destCopyRow,13,  ExcelGetString(sheet,copyRow,13));
-   ExcelPutString(destSheet,destCopyRow,14,  ExcelGetString(sheet,copyRow,14));
+   ExcelPutValue(destSheet,destCopyRow,11,   ExcelGetValue(sheet,copyRow,11));
+   ExcelPutValue(destSheet,destCopyRow,12,   ExcelGetValue(sheet,copyRow,12));
+   ExcelPutValue(destSheet,destCopyRow,13,   ExcelGetValue(sheet,copyRow,13));
+   ExcelPutValue(destSheet,destCopyRow,14,   ExcelGetValue(sheet,copyRow,14));
    ExcelPutString(destSheet,destCopyRow,15,  ExcelGetString(sheet,copyRow,15));
+   ExcelPutString(destSheet,destCopyRow,16,  ExcelGetString(sheet,copyRow,16));
+   ExcelPutString(destSheet,destCopyRow,17,  ExcelGetString(sheet,copyRow,17));
 
 //--- Debug
    if(GhostDebug>=2)   Print(GhostDebug,":ExcelCopyRow(): destSheet=",destSheet,";destCopyRow=",destCopyRow,";sheet=",sheet,";copyRow=",copyRow);
@@ -1158,11 +1158,13 @@ void ExcelDeleteRow(int sheet, int keyCol, int firstRow, int deleteRow)
         ExcelPutValue(sheet,r-1,8,      ExcelGetValue(sheet,r,8));
         ExcelPutValue(sheet,r-1,9,      ExcelGetValue(sheet,r,9));
         ExcelPutValue(sheet,r-1,10,     ExcelGetValue(sheet,r,10));
-        ExcelPutString(sheet,r-1,11,    ExcelGetString(sheet,r,11));
-        ExcelPutString(sheet,r-1,12,    ExcelGetString(sheet,r,12));
-        ExcelPutString(sheet,r-1,13,    ExcelGetString(sheet,r,13));
-        ExcelPutString(sheet,r-1,14,    ExcelGetString(sheet,r,14));
+        ExcelPutValue(sheet,r-1,11,     ExcelGetValue(sheet,r,11));
+        ExcelPutValue(sheet,r-1,12,     ExcelGetValue(sheet,r,12));
+        ExcelPutValue(sheet,r-1,13,     ExcelGetValue(sheet,r,13));
+        ExcelPutValue(sheet,r-1,14,     ExcelGetValue(sheet,r,14));
         ExcelPutString(sheet,r-1,15,    ExcelGetString(sheet,r,15));
+        ExcelPutString(sheet,r-1,16,    ExcelGetString(sheet,r,16));
+        ExcelPutString(sheet,r-1,17,    ExcelGetString(sheet,r,17));
     }
 //--- Debug
     if(GhostDebug>=2)   Print(GhostDebug,":ExcelDeleteRow(): lastRow=",lastRow,";deleteRow=",deleteRow);
@@ -1178,10 +1180,12 @@ void ExcelDeleteRow(int sheet, int keyCol, int firstRow, int deleteRow)
     ExcelPutValue(sheet,lastRow,8,    0);
     ExcelPutValue(sheet,lastRow,9,    0);
     ExcelPutValue(sheet,lastRow,10,   0);
-    ExcelPutString(sheet,lastRow,11,  "");
-    ExcelPutString(sheet,lastRow,12,  "");
-    ExcelPutString(sheet,lastRow,13,  "");
-    ExcelPutString(sheet,lastRow,14,  "");
+    ExcelPutValue(sheet,lastRow,11,   0);
+    ExcelPutValue(sheet,lastRow,12,   0);
+    ExcelPutValue(sheet,lastRow,13,   0);
+    ExcelPutValue(sheet,lastRow,14,   0);
     ExcelPutString(sheet,lastRow,15,  "");
+    ExcelPutString(sheet,lastRow,16,  "");
+    ExcelPutString(sheet,lastRow,17,  "");
 }
 
