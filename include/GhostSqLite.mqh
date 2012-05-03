@@ -6,6 +6,8 @@
 //| 1.01    Fixed OrderSend() return incorrect Id. Fixed OrdersTotal() and                  |
 //|             OrdersHistoryTotal() return incorrect total. Added print debug info and     |
 //|             some minor fixes in SqLiteCreate() and SqLiteLoadBuffers().                 |
+//| 1.02    Populate Statistics table in SqLiteCreate() and fixed type of StMaxLots and     |
+//|             SqLiteAccountNumber().                                                      |
 //|-----------------------------------------------------------------------------------------|
 
 //|-----------------------------------------------------------------------------------------|
@@ -18,7 +20,7 @@
 //|-----------------------------------------------------------------------------------------|
 //---- Assert internal variables for SQLite
 string   SqLiteName        = "";
-string   SqLiteVer         = "1.01";
+string   SqLiteVer         = "1.02";
 int      SqLiteSelectIndex;
 int      SqLiteSelectMode;
 bool     SqLiteSelectAsc;
@@ -147,7 +149,7 @@ bool SqLiteCreate(int acctNo, string symbol, int period, string eaName)
          isOk=isOk && DbAlterTableReal(SqLiteName,    StTable, StTotalDrawdownStr);
          isOk=isOk && DbAlterTableReal(SqLiteName,    StTable, StTotalDrawdownPipStr);
          isOk=isOk && DbAlterTableReal(SqLiteName,    StTable, StTotalMarginStr);
-         isOk=isOk && DbAlterTableInteger(SqLiteName, StTable, StMaxLotsStr);
+         isOk=isOk && DbAlterTableReal(SqLiteName,    StTable, StMaxLotsStr);
          isOk=isOk && DbAlterTableReal(SqLiteName,    StTable, StMaxProfitStr);
          isOk=isOk && DbAlterTableReal(SqLiteName,    StTable, StMaxProfitPipStr);
          isOk=isOk && DbAlterTableReal(SqLiteName,    StTable, StMaxDrawdownStr);
@@ -221,8 +223,16 @@ bool SqLiteCreate(int acctNo, string symbol, int period, string eaName)
          Print("0:SqLiteCreate(",NormalizeDouble(acctNo,0),",",symbol,",",period,",",eaName,"): Assert failed populate AccountDetails.");
          return(false);
       }
-      else
-         if(GhostDebug>=1) Print(GhostDebug,":SqLiteCreate(",NormalizeDouble(acctNo,0),",",symbol,",",period,",",eaName,"): r=",r,";SqLiteName=",SqLiteName," created successfully.");
+
+   //--- Assert Populate Statistics: 
+      r=SqLiteCreateRow(StTable);
+      if(r<=0) 
+      {
+         Print("0:SqLiteCreate(",NormalizeDouble(acctNo,0),",",symbol,",",period,",",eaName,"): Assert failed populate Statistics.");
+         return(false);
+      }
+      
+      if(GhostDebug>=1) Print(GhostDebug,":SqLiteCreate(",NormalizeDouble(acctNo,0),",",symbol,",",period,",",eaName,"): r=",r,";SqLiteName=",SqLiteName," created successfully.");
    }
    return(true);    
 }
@@ -1118,12 +1128,12 @@ double SqLiteAccountFreeMargin()
 {
     return(0.0);
 }
-double SqLiteAccountNumber()
+int SqLiteAccountNumber()
 {
     int handle;
     int lastCol;
     string exp;
-    double val;
+    int val;
     
     exp="SELECT * FROM "+AdTable+" WHERE id=1";
     
