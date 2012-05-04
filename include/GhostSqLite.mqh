@@ -12,6 +12,7 @@
 //|         Error "function 'sqlite_get_col' call from dll 'sqlite3_wrapper.dll' critical   |
 //|            error means that an OrderFunction() was called after SqLiteFreeSelect().     |
 //| 1.10    Keep a paper trail of all trades.                                               |
+//| 1.11    Fixed data types in SqLiteCreate() and SqLiteHistoryClose().                    |
 //|-----------------------------------------------------------------------------------------|
 
 //|-----------------------------------------------------------------------------------------|
@@ -24,7 +25,7 @@
 //|-----------------------------------------------------------------------------------------|
 //---- Assert internal variables for SQLite
 string   SqLiteName        = "";
-string   SqLiteVer         = "1.10";
+string   SqLiteVer         = "1.11";
 int      SqLiteSelectIndex;
 int      SqLiteSelectMode;
 bool     SqLiteSelectAsc;
@@ -179,8 +180,8 @@ bool SqLiteCreate(int acctNo, string symbol, int period, string eaName)
          isOk=isOk && DbAlterTableReal(SqLiteName,    OpTable, OpProfitStr);
          isOk=isOk && DbAlterTableDT(SqLiteName,      OpTable, OpExpirationStr);
          isOk=isOk && DbAlterTableDT(SqLiteName,      OpTable, OpCloseTimeStr);
-         isOk=isOk && DbAlterTableText(SqLiteName,    OpTable, OpMagicNoStr);
-         isOk=isOk && DbAlterTableText(SqLiteName,    OpTable, OpAccountNoStr);
+         isOk=isOk && DbAlterTableInteger(SqLiteName, OpTable, OpMagicNoStr);
+         isOk=isOk && DbAlterTableInteger(SqLiteName, OpTable, OpAccountNoStr);
          isOk=isOk && DbAlterTableText(SqLiteName,    OpTable, OpSymbolStr);
          isOk=isOk && DbAlterTableText(SqLiteName,    OpTable, OpCommentStr);
          isOk=isOk && DbAlterTableText(SqLiteName,    OpTable, OpExpertNameStr);
@@ -204,8 +205,8 @@ bool SqLiteCreate(int acctNo, string symbol, int period, string eaName)
          isOk=isOk && DbAlterTableReal(SqLiteName,    ThTable, ThProfitStr);
          isOk=isOk && DbAlterTableDT(SqLiteName,      ThTable, ThExpirationStr);
          isOk=isOk && DbAlterTableDT(SqLiteName,      ThTable, ThCloseTimeStr);
-         isOk=isOk && DbAlterTableText(SqLiteName,    ThTable, ThMagicNoStr);
-         isOk=isOk && DbAlterTableText(SqLiteName,    ThTable, ThAccountNoStr);
+         isOk=isOk && DbAlterTableInteger(SqLiteName, ThTable, ThMagicNoStr);
+         isOk=isOk && DbAlterTableInteger(SqLiteName, ThTable, ThAccountNoStr);
          isOk=isOk && DbAlterTableText(SqLiteName,    ThTable, ThSymbolStr);
          isOk=isOk && DbAlterTableText(SqLiteName,    ThTable, ThCommentStr);
          isOk=isOk && DbAlterTableText(SqLiteName,    ThTable, ThExpertNameStr);
@@ -1322,13 +1323,13 @@ bool SqLiteHistoryClose(int ticket, double closePrice, double profit, double lot
          //oCurPrice   = SqLiteGetReal(handle,       OpCurPrice);
          oSwap       = SqLiteGetReal(handle,       OpSwap);
          //oProfit     = SqLiteGetReal(handle,       OpProfit);
-         oExpiration = SqLiteGetReal(handle,       OpExpiration);
-         //oCloseTime  = SqLiteGetReal(handle,       OpCloseTime);
-         oMagicNo    = SqLiteGetReal(handle,       OpMagicNo);
-         oAccountNo  = SqLiteGetReal(handle,       OpAccountNo);
+         oExpiration = SqLiteGetDT(handle,         OpExpiration);
+         //oCloseTime  = SqLiteGetDT(handle,       OpCloseTime);
+         oMagicNo    = SqLiteGetInteger(handle,    OpMagicNo);
+         oAccountNo  = SqLiteGetInteger(handle,    OpAccountNo);
          oSymbol     = SqLiteGetText(handle,       OpSymbol);
-         oComment    = SqLiteGetReal(handle,       OpComment);
-         oExpertName = SqLiteGetReal(handle,       OpExpertName);
+         oComment    = SqLiteGetText(handle,       OpComment);
+         oExpertName = SqLiteGetText(handle,       OpExpertName);
       }
    //--- Assert unlock database
       DbFreeQuery(handle);
