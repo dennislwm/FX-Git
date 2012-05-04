@@ -11,6 +11,7 @@
 //| 1.03    Fixed logic of Statistics drawdowns.                                            |
 //|         Error "function 'sqlite_get_col' call from dll 'sqlite3_wrapper.dll' critical   |
 //|            error means that an OrderFunction() was called after SqLiteFreeSelect().     |
+//| 1.10    Keep a paper trail of all trades.                                               |
 //|-----------------------------------------------------------------------------------------|
 
 //|-----------------------------------------------------------------------------------------|
@@ -23,7 +24,7 @@
 //|-----------------------------------------------------------------------------------------|
 //---- Assert internal variables for SQLite
 string   SqLiteName        = "";
-string   SqLiteVer         = "1.03";
+string   SqLiteVer         = "1.10";
 int      SqLiteSelectIndex;
 int      SqLiteSelectMode;
 bool     SqLiteSelectAsc;
@@ -248,8 +249,10 @@ void SqLiteManager()
    int handle;
    int lastCol;
    int id;
+   bool isOk;
    string exp;
    double bal;
+   int    ticket;
    double calcProfit;
    double closePrice;
    double openPrice;
@@ -265,6 +268,7 @@ void SqLiteManager()
    {
       if(lastCol>0) while( DbNextRow(handle) )
       {
+         ticket      = SqLiteGetInteger(handle, OpTicket);
          type        = SqLiteGetInteger(handle, OpType);
          sym         = SqLiteGetText(handle,    OpSymbol);
       //--- Assert get real-time info
@@ -303,12 +307,16 @@ void SqLiteManager()
    DbFreeQuery(handle);
  
 //--- Assert adjustment to account details using BigValue
-   if(calcProfit!=0.0)
+   if(calcProfit!=0.0 && id>0)
    {
       bal=SqLiteAccountBalance();
-      SqLitePutReal(AdTable,1,AdBalanceStr,  bal+calcProfit);
-   
-      if(id>0) SqLiteDeleteRow(OpTable,id);
+
+      isOk=true;
+         isOk=isOk && SqLitePutReal(AdTable,1,AdBalanceStr,  bal+calcProfit);
+         isOk=isOk && SqLiteHistoryClose( ticket, closePrice, calcProfit );
+         isOk=isOk && SqLiteDeleteRow(OpTable,id);
+      if(!isOk) 
+         Print("0:SqLiteManager(): Assert failed to manage order. id=",id);
 
    //--- Debug    
       if(GhostDebug>=1)   Print(GhostDebug,":SqLiteManager(): id=",id,";openPrice=",NormalizeDouble(openPrice,5),";closePrice=",NormalizeDouble(closePrice,5),";openSL=",NormalizeDouble(openSL,5),";openTP=",NormalizeDouble(openTP,5),";calcProfit=",calcProfit);
@@ -1233,14 +1241,19 @@ bool SqLiteOrderClose(int ticket, double lots, double price, int slippage, color
       //--- Assert partial close to update Lots in row; otherwise delete entire row.
          if( calcLots < orderLots )
          {
+            isOk=isOk && SqLiteHistoryClose( ticket, closePrice, calcProfit, calcLots );
             isOk=isOk && SqLitePutReal(OpTable,id,OpLotsStr,      orderLots-calcLots);
          }
          else
          {
+            isOk=isOk && SqLiteHistoryClose( ticket, closePrice, calcProfit );
             isOk=isOk && SqLiteDeleteRow(OpTable,id);
          }
          if(!isOk) 
+         {
             Print("0:SqLiteOrderClose(",ticket,",",lots,",",price,",",slippage,",",arrow,"): Assert failed to close order ticket=",ticket);
+            return(false);
+         }
          else
             Print("0:SqLiteOrderClose(",ticket,",",lots,",",price,",",slippage,",",arrow,"): Ok closed trade calcProfit=",calcProfit);
          return(true);
@@ -1250,6 +1263,104 @@ bool SqLiteOrderClose(int ticket, double lots, double price, int slippage, color
 //--- Assert ticket not found.
 //--- Debug    
    if(GhostDebug>=1)   Print(GhostDebug,":SqLiteOrderClose(",ticket,",",lots,",",price,",",slippage,",",arrow,"): return=false");
+   return(false);
+}
+
+bool SqLiteHistoryClose(int ticket, double closePrice, double profit, double lots=0.0, datetime closeTime=0)
+{
+   int handle;
+   int lastCol;
+   int id, nd;
+   bool isOk;
+   string expr;
+   int      oTicket;
+   datetime oOpenTime;
+   int      oType;
+   double   oLots;
+   double   oOpenPrice;
+   double   oStopLoss;
+   double   oTakeProfit;
+   //double   oCurPrice;
+   double   oSwap;
+   //double   oProfit;
+   datetime oExpiration;
+   //datetime oCloseTime;
+   int      oMagicNo;
+   int      oAccountNo;
+   string   oSymbol;
+   string   oComment;
+   string   oExpertName;
+   
+//--- Assert paper trail is enabled   
+   if( !GhostTradeHistory ) return(true);
+   
+//--- Assert ticket no exists in Open Positions.
+   id=SqLiteFindTicket(ticket);
+   if(id>0)
+   {
+   //--- Assert Populate Trade History
+      nd=SqLiteCreateRow(ThTable);
+      if(nd<=0) 
+      {
+         Print("0:SqLiteHistoryClose(",ticket,",",NormalizeDouble(closePrice,5),",",NormalizeDouble(profit,5),",",NormalizeDouble(lots,2),"..): Assert failed populate Trade History; id=",id,"; nd=",nd);
+         return(false);
+      }
+   
+      expr="SELECT * FROM "+OpTable+" WHERE id="+id;
+    
+   //--- Assert query will lock database
+      lastCol=DbLockQuery(SqLiteName, handle, expr);
+      {
+         if(lastCol>0) DbNextRow(handle);
+         oTicket     = SqLiteGetInteger(handle,    OpTicket);
+         oOpenTime   = SqLiteGetDT(handle,         OpOpenTime);
+         oType       = SqLiteGetInteger(handle,    OpType);
+         oLots       = SqLiteGetReal(handle,       OpLots);
+         oOpenPrice  = SqLiteGetReal(handle,       OpOpenPrice);
+         oStopLoss   = SqLiteGetReal(handle,       OpStopLoss);
+         oTakeProfit = SqLiteGetReal(handle,       OpTakeProfit);
+         //oCurPrice   = SqLiteGetReal(handle,       OpCurPrice);
+         oSwap       = SqLiteGetReal(handle,       OpSwap);
+         //oProfit     = SqLiteGetReal(handle,       OpProfit);
+         oExpiration = SqLiteGetReal(handle,       OpExpiration);
+         //oCloseTime  = SqLiteGetReal(handle,       OpCloseTime);
+         oMagicNo    = SqLiteGetReal(handle,       OpMagicNo);
+         oAccountNo  = SqLiteGetReal(handle,       OpAccountNo);
+         oSymbol     = SqLiteGetText(handle,       OpSymbol);
+         oComment    = SqLiteGetReal(handle,       OpComment);
+         oExpertName = SqLiteGetReal(handle,       OpExpertName);
+      }
+   //--- Assert unlock database
+      DbFreeQuery(handle);
+   //--- Close ALL lots unless user specify partial lots
+      if(lots==0.0)         lots        = oLots;
+      if(closeTime==0.0)    closeTime   = TimeCurrent();
+      
+      isOk=true;
+         isOk=isOk && SqLitePutInteger(ThTable,nd,ThTicketStr,    oTicket);
+         isOk=isOk && SqLitePutDT(ThTable,nd,ThOpenTimeStr,       oOpenTime);
+         isOk=isOk && SqLitePutInteger(ThTable,nd,ThTypeStr,      oType);
+         isOk=isOk && SqLitePutReal(ThTable,nd,ThLotsStr,         lots);
+         isOk=isOk && SqLitePutReal(ThTable,nd,ThOpenPriceStr,    oOpenPrice);
+         isOk=isOk && SqLitePutReal(ThTable,nd,ThStopLossStr,     oStopLoss);
+         isOk=isOk && SqLitePutReal(ThTable,nd,ThTakeProfitStr,   oTakeProfit);
+         isOk=isOk && SqLitePutReal(ThTable,nd,ThClosePriceStr,   closePrice);
+         isOk=isOk && SqLitePutReal(ThTable,nd,ThSwapStr,         oSwap);
+         isOk=isOk && SqLitePutReal(ThTable,nd,ThProfitStr,       profit);
+         isOk=isOk && SqLitePutDT(ThTable,nd,ThExpirationStr,     oExpiration);
+         isOk=isOk && SqLitePutDT(ThTable,nd,ThCloseTimeStr,      closeTime);
+         isOk=isOk && SqLitePutInteger(ThTable,nd,ThMagicNoStr,   oMagicNo);
+         isOk=isOk && SqLitePutInteger(ThTable,nd,ThAccountNoStr, oAccountNo);
+         isOk=isOk && SqLitePutText(ThTable,nd,ThSymbolStr,       oSymbol);
+         isOk=isOk && SqLitePutText(ThTable,nd,ThCommentStr,      oComment);
+         isOk=isOk && SqLitePutText(ThTable,nd,ThExpertNameStr,   oExpertName);
+      if(!isOk) 
+      {
+         Print("0:SqLiteHistoryClose(",ticket,",",NormalizeDouble(closePrice,5),",",NormalizeDouble(profit,5),",",NormalizeDouble(lots,2),"..): Assert failed to transfer history id=",id,"; nd=",nd);
+         return(false);
+      }
+      return(true);
+   }
    return(false);
 }
 
@@ -1340,22 +1451,18 @@ int SqLiteGetId(int handle)
 {
    return(StrToInteger(sqlite_get_col(handle,0)));
 }
-
 string SqLiteGetText(int handle, int col)
 {
    return(sqlite_get_col(handle,col));
 }
-
 int SqLiteGetInteger(int handle, int col)
 {
    return(StrToInteger(sqlite_get_col(handle,col)));
 }
-
 double SqLiteGetReal(int handle, int col)
 {
    return(StrToDouble(sqlite_get_col(handle,col)));
 }
-
 datetime SqLiteGetDT(int handle, int col)
 {
    return(StrToInteger(sqlite_get_col(handle,col)));
@@ -1372,19 +1479,16 @@ bool SqLitePutText(string table, int id, string key, string value)
    string exp="UPDATE "+table+" SET "+key+"='"+value+"' WHERE id="+id;
    return(DbExec(SqLiteName,exp));
 }
-
 bool SqLitePutInteger(string table, int id, string key, int value)
 {
    string exp="UPDATE "+table+" SET "+key+"="+value+" WHERE id="+id;
    return(DbExec(SqLiteName,exp));
 }
-
 bool SqLitePutReal(string table, int id, string key, double value)
 {
    string exp="UPDATE "+table+" SET "+key+"="+value+" WHERE id="+id;
    return(DbExec(SqLiteName,exp));
 }
-
 bool SqLitePutDT(string table, int id, string key, int value)
 {
    string exp="UPDATE "+table+" SET "+key+"="+value+" WHERE id="+id;
