@@ -24,6 +24,7 @@
 //|            Fixed Excel headers - accidentally replaced with Trade History.              |
 //|            Fixed GhostCurOpenPositions - decrease by one for EACH closed order.         |
 //| 1.60    Split file into GhostExcel, GhostMySql, and GhostSqLite.                        |
+//| 1.61    Display versions of SqLite and Excel, and fixed summary display for SqLite.     |
 //|-----------------------------------------------------------------------------------------|
 #property   copyright "Copyright © 2012, Dennis Lee"
 
@@ -640,9 +641,9 @@ string GhostComment(string cmt="")
    //---- Assert Basic settings in comment
       strtmp=strtmp+"\n    Mode="+DoubleToStr(GhostMode,0);
       if(GhostMode==1)
-         strtmp=strtmp+" (Excel)";
+         strtmp=strtmp+" (Excel "+ExcelVer+")";
       else
-         strtmp=strtmp+" (SqLite)";
+         strtmp=strtmp+" (SqLite "+SqLiteVer+")";
       if(total<=0)
          strtmp=strtmp+"\n    No Active Ghost Trades.";
       else
@@ -727,7 +728,8 @@ void GhostTerminalRefresh(double Pts)
             {
                case 1:     GhostSummaryDisplay(i,ExcelAccountBalance(),ExcelAccountEquity(),ExcelAccountMargin(),0.0);
                            break;
-               case 2:
+               case 2:     GhostSummaryDisplay(i,SqLiteAccountBalance(),SqLiteAccountEquity(),SqLiteAccountMargin(),SqLiteAccountFreeMargin());
+                           break;
                default:    GhostSummaryDisplay(i,AccountBalance(),AccountEquity(),AccountMargin(),AccountFreeMargin());
             }
          	i ++;
