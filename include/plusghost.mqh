@@ -25,6 +25,7 @@
 //|            Fixed GhostCurOpenPositions - decrease by one for EACH closed order.         |
 //| 1.60    Split file into GhostExcel, GhostMySql, and GhostSqLite.                        |
 //| 1.61    Display versions of SqLite and Excel, and fixed summary display for SqLite.     |
+//| 1.62    Removed PlusEasy.mqh dependency for Pts. Allow user to change ExpertName.       |
 //|-----------------------------------------------------------------------------------------|
 #property   copyright "Copyright © 2012, Dennis Lee"
 
@@ -34,9 +35,11 @@
 extern   string GhostTerminal           = "GhostTerminal";
 extern   string g1                      = "Mode: 0-Broker; 1-Excel; 2-SqLite";
 extern   int    GhostMode               = 0;
+extern   string g2                      = "ExpertName: Unique filename";
+extern   string GhostExpertName         = "EA";
 extern   int    GhostRows               = 10;
 extern   int	GhostPipLimit			= 10;
-extern   bool   GhostTradeHistory       = false;
+extern   bool   GhostTradeHistory       = true;
 extern   bool   GhostBigText            = false;
 extern   color  GhostMainColor          = White;
 extern   color  GhostBuyColor           = Green;
@@ -53,8 +56,7 @@ extern   int    GhostDebug              = 1;
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string   GhostName="PlusGhost";
-string   GhostVer="1.60";
-string   GhostExpertName="";
+string   GhostVer="1.62";
 
 //---- Assert internal variables for GhostTerminal
 string   GhostFontType="Arial";
@@ -65,6 +67,8 @@ string   GhostPendingOrders[1][11];
 int      GhostCurOpenPositions=0;
 int      GhostCurPendingOrders=0;
 double   GhostSummProfit=0.0;
+double   Pts;
+
 //---- Terminal window column positions
 int      TwTicket       = 0;
 int      TwOpenTime     = 1;
@@ -85,21 +89,38 @@ int      TwComment      = 10;
 //|-----------------------------------------------------------------------------------------|
 //|                             I N I T I A L I Z A T I O N                                 |
 //|-----------------------------------------------------------------------------------------|
-void GhostInit(string eaName)
+void GhostInit()
 {
-    GhostTerminalInit();
+   string eaName;
+//---- Automatically adjust to Full-Pip or Sub-Pip Accounts
+   if (Digits==4||Digits==2)
+   {
+      Pts=Point;
+   }
+   if (Digits==5||Digits==3)
+   {
+      Pts=Point*10;
+   }
+//---- Automatically adjust one decimal place left for Gold
+   if (Symbol()=="XAUUSD") 
+   {
+      Pts*=10;
+   }
+
+   if(GhostExpertName=="") eaName="EA";
+   else eaName=GhostExpertName;
+  
+   GhostTerminalInit();
 
 //-- Assert Excel or SQL files are created.
-    switch(GhostMode)
-    {
-        case 1:     if(!ExcelCreate(AccountNumber(),Symbol(),Period(),eaName)) { GhostMode=0; }
-                    break;
-        case 2:     if(!SqLiteCreate(AccountNumber(),Symbol(),Period(),eaName)) { GhostMode=0; }
-                    break;
-        default:    break;
-    }
-    
-    GhostExpertName=eaName;
+   switch(GhostMode)
+   {
+      case 1:  if(!ExcelCreate(AccountNumber(),Symbol(),Period(),eaName)) { GhostMode=0; }
+               break;
+      case 2:  if(!SqLiteCreate(AccountNumber(),Symbol(),Period(),eaName)) { GhostMode=0; }
+               break;
+      default: break;
+   }
 }
 
 //|-----------------------------------------------------------------------------------------|
