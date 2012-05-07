@@ -29,6 +29,7 @@
 //| 1.63    Replaced bool GhostTradeHistory with GhostStatistics (history is now compulsory |
 //|            but statistics is an option - to do statistics with 0-Broker).               |
 //|         Additional Debug functions.                                                     |
+//| 1.64    Minor fixes in debug functions and Pts.                                         |
 //|-----------------------------------------------------------------------------------------|
 #property   copyright "Copyright © 2012, Dennis Lee"
 
@@ -61,7 +62,7 @@ extern   int    GhostCount              = 100;
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string   GhostName="PlusGhost";
-string   GhostVer="1.63";
+string   GhostVer="1.64";
 int      gCount=0;
 
 //---- Assert internal variables for GhostTerminal
@@ -73,7 +74,7 @@ string   GhostPendingOrders[1][11];
 int      GhostCurOpenPositions=0;
 int      GhostCurPendingOrders=0;
 double   GhostSummProfit=0.0;
-double   Pts;
+double   GhostPts;
 
 //---- Terminal window column positions
 int      TwTicket       = 0;
@@ -101,16 +102,16 @@ void GhostInit()
 //---- Automatically adjust to Full-Pip or Sub-Pip Accounts
    if (Digits==4||Digits==2)
    {
-      Pts=Point;
+      GhostPts=Point;
    }
    if (Digits==5||Digits==3)
    {
-      Pts=Point*10;
+      GhostPts=Point*10;
    }
 //---- Automatically adjust one decimal place left for Gold
    if (Symbol()=="XAUUSD") 
    {
-      Pts*=10;
+      GhostPts*=10;
    }
 
    if(GhostExpertName=="") eaName="EA";
@@ -151,7 +152,7 @@ void GhostRefresh()
     if(GhostWin<0) return(-1);
     
 //--- Assert refresh terminal window.
-    GhostTerminalRefresh(Pts);
+    GhostTerminalRefresh(GhostPts);
 }
 
 //|-----------------------------------------------------------------------------------------|
@@ -423,14 +424,14 @@ bool GhostOrderSelect(int index,int select, int pool=MODE_TRADES)
     return(false);
 }
 
-void GhostFreeSelect()
+void GhostFreeSelect(bool incr=true)
 {
     bool ret;
     
     switch(GhostMode)
     {
         case 1:     return(0);
-        case 2:     SqLiteFreeSelect();
+        case 2:     SqLiteFreeSelect(incr);
                     return(0);
         default:    return(0);
     }
@@ -685,15 +686,15 @@ string GhostComment(string cmt="")
    return(strtmp);
 }
 
-void GhostDebugPrint(int dbg, string fn, string msg, bool incr=true)
+void GhostDebugPrint(int dbg, string fn, string msg, bool incr=true, int mod=0)
 {
    if(GhostDebug>=dbg)
    {
       if(dbg>=2 && GhostCount>0)
       {
-         if(MathMod(gCount,GhostCount)==0)
+         if( MathMod(gCount,GhostCount) == mod )
             Print(GhostDebug,"-",gCount,":",fn,"(): ",msg);
-         if(incr)
+         if( incr )
             gCount ++;
       }
       else
@@ -704,7 +705,7 @@ string GhostDebugInt(string key, int val)
 {
    return( StringConcatenate(";",key,"=",val) );
 }
-string GhostDebugDbl(string key, double val, int dgt=2)
+string GhostDebugDbl(string key, double val, int dgt=5)
 {
    return( StringConcatenate(";",key,"=",NormalizeDouble(val,dgt)) );
 }
