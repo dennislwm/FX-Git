@@ -26,6 +26,9 @@
 //| 1.60    Split file into GhostExcel, GhostMySql, and GhostSqLite.                        |
 //| 1.61    Display versions of SqLite and Excel, and fixed summary display for SqLite.     |
 //| 1.62    Removed PlusEasy.mqh dependency for Pts. Allow user to change ExpertName.       |
+//| 1.63    Replaced bool GhostTradeHistory with GhostStatistics (history is now compulsory |
+//|            but statistics is an option - to do statistics with 0-Broker).               |
+//|         Additional Debug functions.                                                     |
 //|-----------------------------------------------------------------------------------------|
 #property   copyright "Copyright © 2012, Dennis Lee"
 
@@ -35,11 +38,11 @@
 extern   string GhostTerminal           = "GhostTerminal";
 extern   string g1                      = "Mode: 0-Broker; 1-Excel; 2-SqLite";
 extern   int    GhostMode               = 0;
+extern   bool   GhostStatistics         = false;
 extern   string g2                      = "ExpertName: Unique filename";
 extern   string GhostExpertName         = "EA";
 extern   int    GhostRows               = 10;
 extern   int	GhostPipLimit			= 10;
-extern   bool   GhostTradeHistory       = true;
 extern   bool   GhostBigText            = false;
 extern   color  GhostMainColor          = White;
 extern   color  GhostBuyColor           = Green;
@@ -50,13 +53,16 @@ extern   color  GhostSellColor          = Crimson;
 extern   color  GhostSellOPColor        = Red;
 extern   color  GhostSellSLColor        = Red;
 extern   color  GhostSellTPColor        = Red;
+extern   string g3                      = "Debug: 0-Crit; 1-Core; 2-Detail";
 extern   int    GhostDebug              = 1;
+extern   int    GhostCount              = 100;
 
 //|-----------------------------------------------------------------------------------------|
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string   GhostName="PlusGhost";
-string   GhostVer="1.62";
+string   GhostVer="1.63";
+int      gCount=0;
 
 //---- Assert internal variables for GhostTerminal
 string   GhostFontType="Arial";
@@ -669,15 +675,51 @@ string GhostComment(string cmt="")
          strtmp=strtmp+"\n    No Active Ghost Trades.";
       else
          strtmp=strtmp+"\n    Ghost Trades="+total;
-      if(GhostTradeHistory==false)
-         strtmp=strtmp+"\n    No Trade History.";
+      if(GhostStatistics==false)
+         strtmp=strtmp+"\n    No Statistics.";
       else
-         strtmp=strtmp+"\n    Keep Trade History.";
+         strtmp=strtmp+"\n    Keep Statistics.";
    }
                          
    strtmp=strtmp+"\n";
    return(strtmp);
 }
+
+void GhostDebugPrint(int dbg, string fn, string msg, bool incr=true)
+{
+   if(GhostDebug>=dbg)
+   {
+      if(dbg>=2 && GhostCount>0)
+      {
+         if(MathMod(gCount,GhostCount)==0)
+            Print(GhostDebug,"-",gCount,":",fn,"(): ",msg);
+         if(incr)
+            gCount ++;
+      }
+      else
+         Print(GhostDebug,":",fn,"(): ",msg);
+   }
+}
+string GhostDebugInt(string key, int val)
+{
+   return( StringConcatenate(";",key,"=",val) );
+}
+string GhostDebugDbl(string key, double val, int dgt=2)
+{
+   return( StringConcatenate(";",key,"=",NormalizeDouble(val,dgt)) );
+}
+string GhostDebugStr(string key, string val)
+{
+   return( StringConcatenate(";",key,"=\"",val,"\"") );
+}
+string GhostDebugBln(string key, bool val)
+{
+   string valType;
+   if( val )   valType="true";
+   else        valType="false";
+   return( StringConcatenate(";",key,"=",valType) );
+}
+
 
 //|-----------------------------------------------------------------------------------------|
 //|                             T E R M I N A L   F U N C T I O N S                         |
