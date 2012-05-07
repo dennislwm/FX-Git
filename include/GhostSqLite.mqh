@@ -16,6 +16,8 @@
 //| 1.12    Replaced bool GhostTradeHistory with GhostStatistics (history is now compulsory,|
 //|            but statistics is an option - to do statistics with 0-Broker).               |
 //|         Additional Debug functions.                                                     |
+//| 1.13    Optimize OrderSelect by checking if total < 0.                                  |
+//|         Minor fixes in debug functions and Pts.                                         |
 //|-----------------------------------------------------------------------------------------|
 
 //|-----------------------------------------------------------------------------------------|
@@ -28,7 +30,7 @@
 //|-----------------------------------------------------------------------------------------|
 //---- Assert internal variables for SQLite
 string   SqLiteName        = "";
-string   SqLiteVer         = "1.12";
+string   SqLiteVer         = "1.13";
 int      SqLiteSelectIndex;
 int      SqLiteSelectMode;
 bool     SqLiteSelectAsc;
@@ -303,7 +305,7 @@ void SqLiteManager()
                   (openTP!=0.0 && closePrice>=openTP) )
             {
             //--- Assert calculate profit/loss
-               calcProfit=(closePrice-openPrice)*TurtleBigValue(sym)/Pts;
+               calcProfit=(closePrice-openPrice)*TurtleBigValue(sym)/GhostPts;
                
                id=SqLiteGetId(handle);
                break;
@@ -316,7 +318,7 @@ void SqLiteManager()
                   (openTP!=0.0 && closePrice<=openTP) )
             {
             //--- Assert calculate profit/loss
-               calcProfit=(openPrice-closePrice)*TurtleBigValue(sym)/Pts;
+               calcProfit=(openPrice-closePrice)*TurtleBigValue(sym)/GhostPts;
 
                id=SqLiteGetId(handle);
                break;
@@ -427,14 +429,14 @@ void SqLiteLoadBuffers()
             closePrice = MarketInfo( sym, MODE_BID );
          //--- Assert calculate profits
             calcProfit     = (closePrice-openPrice)*lots*TurtleBigValue(Symbol())/pts;
-            calcProfitPip  = (closePrice-openPrice)/Pts;
+            calcProfitPip  = (closePrice-openPrice)/GhostPts;
          }
          else if( type == OP_SELL )
          {
             closePrice = MarketInfo( sym, MODE_ASK );
          //--- Assert calculate profits
             calcProfit     = (openPrice-closePrice)*lots*TurtleBigValue(Symbol())/pts;
-            calcProfitPip  = (openPrice-closePrice)/Pts;
+            calcProfitPip  = (openPrice-closePrice)/GhostPts;
          }
          GhostOpenPositions[GhostCurOpenPositions][TwCurPrice]   = DoubleToStr( closePrice, digits ); 
          GhostOpenPositions[GhostCurOpenPositions][TwSwap]       = DoubleToStr( SqLiteGetReal(handle,       OpSwap), 2 );
@@ -555,6 +557,8 @@ void SqLiteLoadBuffers()
 //|-----------------------------------------------------------------------------------------|
 void SqLiteDeInit()
 {
+//--- Assert unlock database using SqLiteFreeSelect(); called after OrderSelect().
+   SqLiteFreeSelect();
 }
 
 //|-----------------------------------------------------------------------------------------|
@@ -581,14 +585,14 @@ int SqLiteOrderSend(string sym, int type, double lots, double price, int slip, d
       if(type==OP_BUY)
       {
          openPrice = MarketInfo( sym, MODE_ASK ); 
-         if(SL!=0.0) openSL=NormalizeDouble(openPrice-SL*Pts,Digits);
-         if(TP!=0.0) openTP=NormalizeDouble(openPrice+TP*Pts,Digits);
+         if(SL!=0.0) openSL=NormalizeDouble(openPrice-SL*GhostPts,Digits);
+         if(TP!=0.0) openTP=NormalizeDouble(openPrice+TP*GhostPts,Digits);
       }
       else
       {
          openPrice = MarketInfo( sym, MODE_BID ); 
-         if(SL!=0.0) openSL=NormalizeDouble(openPrice+SL*Pts,Digits);
-         if(TP!=0.0) openTP=NormalizeDouble(openPrice-TP*Pts,Digits);
+         if(SL!=0.0) openSL=NormalizeDouble(openPrice+SL*GhostPts,Digits);
+         if(TP!=0.0) openTP=NormalizeDouble(openPrice-TP*GhostPts,Digits);
       }
       openTime=TimeCurrent(); //server
       
@@ -654,21 +658,37 @@ bool SqLiteOrderModify(int ticket, double price, double SL, double TP, datetime 
             isOk=isOk && SqLitePutReal(OpTable,id,OpTakeProfitStr,   TP);
             isOk=isOk && SqLitePutDT(OpTable,id,OpExpirationStr,     exp);
          if(!isOk) 
-            Print("0:SqLiteOrderModify(",ticket,",",price,",",SL,",",TP,",",exp,",",arrow,"): Assert failed to modify order ticket=",ticket);
+            GhostDebugPrint( 2,"SqLiteOrderModify",
+               GhostDebugInt("ticket",ticket)+
+               GhostDebugDbl("price",price,5)+
+               GhostDebugDbl("SL",SL,5)+
+               GhostDebugDbl("TP",TP,5)+
+               GhostDebugInt("ticket",ticket)+
+               " Assert failed to modify order.",
+               false );
          else
-            Print("0:SqLiteOrderModify(",ticket,",",price,",",SL,",",TP,",",exp,",",arrow,"): return=true; isOk=true; id=",id);
+            GhostDebugPrint( 2,"SqLiteOrderModify",
+               GhostDebugInt("ticket",ticket)+
+               GhostDebugDbl("price",price,5)+
+               GhostDebugDbl("SL",SL,5)+
+               GhostDebugDbl("TP",TP,5)+
+               GhostDebugBln("return",true)+
+               GhostDebugBln("isOk",true)+
+               GhostDebugInt("id",id),
+               false );
          return(true);
       }
    }
 
 //--- Assert ticket not found.
 //--- Debug    
-   GhostDebugPrint( 1,"SqLiteOrderModify",
+   GhostDebugPrint( 2,"SqLiteOrderModify",
       GhostDebugInt("ticket",ticket)+
       GhostDebugDbl("price",price,5)+
       GhostDebugDbl("SL",SL,5)+
       GhostDebugDbl("TP",TP,5)+
-      GhostDebugBln("return",false) );
+      GhostDebugBln("return",false),
+      false );
    return(false);
 }
 //|-----------------------------------------------------------------------------------------|
@@ -768,6 +788,8 @@ bool SqLiteInitTradesSelect(bool asc)
    string ord;
 
    SqLiteSelectTotal=SqLiteOrdersTotal();
+//--- Assert optimize memory check total > 0
+   if( SqLiteSelectTotal <= 0 ) return(false);
    
 //--- Assert order by ascending or descending
    if(asc) 
@@ -802,6 +824,8 @@ bool SqLiteInitHistorySelect(bool asc)
    string ord;
 
    SqLiteSelectTotal=SqLiteOrdersHistoryTotal();
+//--- Assert optimize memory check total > 0
+   if( SqLiteSelectTotal <= 0 ) return(false);
    
 //--- Assert order by ascending or descending
    if(asc) 
@@ -828,7 +852,6 @@ bool SqLiteInitHistorySelect(bool asc)
       false );
    return(lastCol>0);
 }
-
 bool SqLiteOrderSelect(int index, int select, int pool=MODE_TRADES)
 {
    bool init;
@@ -878,6 +901,9 @@ bool SqLiteOrderSelect(int index, int select, int pool=MODE_TRADES)
 //--- Assert SELECT_BY_POS where index=0 is first row.
    else if(select==SELECT_BY_POS)
    {
+   //--- Assert optimize memory check total > 0
+      if( SqLiteSelectTotal <= 0 ) return(false);
+   
    //--- Assert init using SqLiteInitSelect(); called before OrderSelect().
       if(pool==MODE_TRADES)         { return(SqLiteOrderTradesSelect(index)); }
       else if(pool==MODE_HISTORY)   { return(SqLiteOrderHistorySelect(index)); }
@@ -885,7 +911,6 @@ bool SqLiteOrderSelect(int index, int select, int pool=MODE_TRADES)
    //--- Assert unlock database using SqLiteFreeSelect(); called after OrderSelect().
    }
 }
-
 bool SqLiteOrderTradesSelect(int index)
 {
    string dbg;
@@ -949,19 +974,20 @@ bool SqLiteOrderTradesSelect(int index)
    }
    return(false);
 }
-
 bool SqLiteOrderHistorySelect(int index)
 {
    return(SqLiteOrderTradesSelect(index));
 }
-
-void SqLiteFreeSelect()
+void SqLiteFreeSelect(bool incr=true)
 {
+//--- Assert optimize memory check total > 0
+   if( SqLiteSelectTotal <= 0 ) return(false);
+
 //--- Debug    
    GhostDebugPrint( 2,"SqLiteFreeSelect",
       GhostDebugInt("SqLiteSelectHandle",SqLiteSelectHandle)+
       GhostDebugInt("SqLiteSelectIndex",SqLiteSelectIndex),
-      true );
+      incr );
    
 //--- Assert clear global select variables
    SqLiteSelectIndex=-1;
