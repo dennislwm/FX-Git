@@ -6,6 +6,9 @@
 //| 1.01    Adjusted trade history profit in ExcelManager(), OrderClose() and OrderProfit().|
 //|             Split OrderSelect() into OrderTradeSelect() and OrderHistorySelect().       |
 //|             Added OrderExpiration(), AccountNumber(), Expiration and CloseTime.         |
+//| 1.02    Replaced bool GhostTradeHistory with GhostStatistics.                           | 
+//|         Removed PlusEasy.mqh dependency for Pts.                                        |
+//|         Additional Debug functions.                                                     |
 //|-----------------------------------------------------------------------------------------|
 
 //|-----------------------------------------------------------------------------------------|
@@ -38,7 +41,7 @@ int     ExcelAutoFit(bool);
 //|-----------------------------------------------------------------------------------------|
 //---- Assert internal variables for ExcelLink
 string   ExcelFileName;
-string   ExcelVer   = "1.01";
+string   ExcelVer   = "1.02";
 int      ExcelSelectRow;
 int      ExcelSelectMode;
 int      ExcelNextTicket;
@@ -253,7 +256,7 @@ void ExcelManager()
                 (openTP!=0.0 && closePrice>=openTP) )
             {
             //--- Assert calculate profit/loss
-                calcProfit=(closePrice-openPrice)*TurtleBigValue(sym)/Pts;
+                calcProfit=(closePrice-openPrice)*TurtleBigValue(sym)/GhostPts;
                 break;
             }
                     
@@ -265,7 +268,7 @@ void ExcelManager()
                 (openTP!=0.0 && closePrice<=openTP) )
             {
             //--- Assert calculate profit/loss
-                calcProfit=(openPrice-closePrice)*TurtleBigValue(sym)/Pts;
+                calcProfit=(openPrice-closePrice)*TurtleBigValue(sym)/GhostPts;
                 break;
             }
         }
@@ -280,22 +283,25 @@ void ExcelManager()
         ExcelPutValue(AdSheet,AdFirstRow,AdBalance,  ExcelGetValue(AdSheet,AdFirstRow,AdBalance)+calcProfit);
 
         //--- Assert copy row to Trade History
-        if(GhostTradeHistory)
+        histRow=ExcelCopyRow(OpSheet,OpTicket,OpFirstRow,r,ThSheet,ThTicket,ThFirstRow);
+        if(histRow>0)
         {
-            histRow=ExcelCopyRow(OpSheet,OpTicket,OpFirstRow,r,ThSheet,ThTicket,ThFirstRow);
-            if(histRow>0)
-            {
-            //--- Adjust trade history values.
-               ExcelPutValue(ThSheet,histRow,ThClosePrice,  closePrice);
-               ExcelPutValue(ThSheet,histRow,ThProfit,      calcProfit);
-               ExcelPutValue(ThSheet,histRow,ThCloseTime,   TimeCurrent());
-            }
+        //--- Adjust trade history values.
+           ExcelPutValue(ThSheet,histRow,ThClosePrice,  closePrice);
+           ExcelPutValue(ThSheet,histRow,ThProfit,      calcProfit);
+           ExcelPutValue(ThSheet,histRow,ThCloseTime,   TimeCurrent());
         }
         
         if(r>=OpFirstRow) { ExcelDeleteRow(OpSheet,OpTicket,OpFirstRow,r); GhostCurOpenPositions --; }
 
-    //--- Debug    
-        if(GhostDebug>=1)   Print(GhostDebug,":ExcelManager(): r=",r,";openPrice=",NormalizeDouble(openPrice,5),";closePrice=",NormalizeDouble(closePrice,5),";openSL=",NormalizeDouble(openSL,5),";openTP=",NormalizeDouble(openTP,5),";calcProfit=",calcProfit);
+    //--- Debug
+        GhostDebugPrint( 1,"ExcelManager",
+         GhostDebugInt("r",r)+
+         GhostDebugDbl("openPrice",openPrice,5)+
+         GhostDebugDbl("closePrice",closePrice,5)+
+         GhostDebugDbl("openSL",openSL,5)+
+         GhostDebugDbl("openTP",openTP,5)+
+         GhostDebugDbl("calcProfit",calcProfit,5) );
     }
 }
 
@@ -348,14 +354,14 @@ void ExcelLoadBuffers()
          closePrice = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_BID ); 
       //--- Assert calculate profits      
          calcProfit     = (closePrice-openPrice)*lots*TurtleBigValue(Symbol())/pts;
-         calcProfitPip  = (closePrice-openPrice)/Pts;
+         calcProfitPip  = (closePrice-openPrice)/GhostPts;
       }
 		else if ( ExcelGetValue(OpSheet,r,OpType) == OP_SELL )
 		{ 
          closePrice = MarketInfo( ExcelGetString(OpSheet,r,OpSymbol), MODE_ASK ); 
       //--- Assert calculate profits      
          calcProfit     = (openPrice-closePrice)*lots*TurtleBigValue(Symbol())/pts;
-         calcProfitPip  = (openPrice-closePrice)/Pts;
+         calcProfitPip  = (openPrice-closePrice)/GhostPts;
       }
       GhostOpenPositions[GhostCurOpenPositions][TwCurPrice]   = DoubleToStr( closePrice, digits ); 
 		GhostOpenPositions[GhostCurOpenPositions][TwSwap]       = DoubleToStr( ExcelGetValue(OpSheet,r,OpSwap), 2 );
@@ -363,29 +369,32 @@ void ExcelLoadBuffers()
 		GhostOpenPositions[GhostCurOpenPositions][TwComment]    = ExcelGetString(OpSheet,r,OpComment);
         
     //--- Assert record statistics for SINGLE trade
-      if(lots>0)            { if(lots           >
-        ExcelGetValue(StSheet,StFirstRow,   StMaxLots)) 
-        ExcelPutValue(StSheet,StFirstRow,   StMaxLots,          lots); 
-      }
-      if(calcProfit>0)      { if(calcProfit     >
-        ExcelGetValue(StSheet,StFirstRow,   StMaxProfit))
-        ExcelPutValue(StSheet,StFirstRow,   StMaxProfit,        calcProfit);
-      }
-      if(calcProfitPip>0)   { if(calcProfitPip  >
-        ExcelGetValue(StSheet,StFirstRow,   StMaxProfitPip))
-        ExcelPutValue(StSheet,StFirstRow,   StMaxProfitPip,     calcProfitPip);
-      }
-      if(calcProfit<0)      { if(calcProfit     <
-        ExcelGetValue(StSheet,StFirstRow,   StMaxDrawdown))
-        ExcelPutValue(StSheet,StFirstRow,   StMaxDrawdown,      calcProfit);
-      }
-      if(calcProfitPip<0)   { if(calcProfitPip  <
-        ExcelGetValue(StSheet,StFirstRow,   StMaxDrawdownPip))
-        ExcelPutValue(StSheet,StFirstRow,   StMaxDrawdownPip,   calcProfitPip);
-      }
-      if(mgn>0)             { if(mgn            >
-        ExcelGetValue(StSheet,StFirstRow,   StMaxMargin))
-        ExcelPutValue(StSheet,StFirstRow,   StMaxMargin,        mgn);
+      if(GhostStatistics)
+      {
+         if(lots>0)            { if(lots           >
+            ExcelGetValue(StSheet,StFirstRow,   StMaxLots)) 
+            ExcelPutValue(StSheet,StFirstRow,   StMaxLots,          lots); 
+         }
+         if(calcProfit>0)      { if(calcProfit     >
+            ExcelGetValue(StSheet,StFirstRow,   StMaxProfit))
+            ExcelPutValue(StSheet,StFirstRow,   StMaxProfit,        calcProfit);
+         }
+         if(calcProfitPip>0)   { if(calcProfitPip  >
+            ExcelGetValue(StSheet,StFirstRow,   StMaxProfitPip))
+            ExcelPutValue(StSheet,StFirstRow,   StMaxProfitPip,     calcProfitPip);
+         }
+         if(calcProfit<0)      { if(calcProfit     <
+            ExcelGetValue(StSheet,StFirstRow,   StMaxDrawdown))
+            ExcelPutValue(StSheet,StFirstRow,   StMaxDrawdown,      calcProfit);
+         }
+         if(calcProfitPip<0)   { if(calcProfitPip  <
+            ExcelGetValue(StSheet,StFirstRow,   StMaxDrawdownPip))
+            ExcelPutValue(StSheet,StFirstRow,   StMaxDrawdownPip,   calcProfitPip);
+         }
+         if(mgn>0)             { if(mgn            >
+            ExcelGetValue(StSheet,StFirstRow,   StMaxMargin))
+            ExcelPutValue(StSheet,StFirstRow,   StMaxMargin,        mgn);
+         }
       }
 
     //---- Increment row
@@ -399,33 +408,36 @@ void ExcelLoadBuffers()
     }
 
 //--- Assert record AGGREGATE statistics
-    if(GhostCurOpenPositions>0) { if(GhostCurOpenPositions  >
+    if(GhostStatistics)
+    {
+      if(GhostCurOpenPositions>0) { if(GhostCurOpenPositions  >
         ExcelGetValue(StSheet,StFirstRow,   StTotalTrades)) 
         ExcelPutValue(StSheet,StFirstRow,   StTotalTrades,      GhostCurOpenPositions); 
-    }
-    if(totalLots>0)             { if(totalLots              >
+      }
+      if(totalLots>0)             { if(totalLots              >
         ExcelGetValue(StSheet,StFirstRow,   StTotalLots)) 
         ExcelPutValue(StSheet,StFirstRow,   StTotalLots,        totalLots); 
-    }
-    if(GhostSummProfit>0)       { if(GhostSummProfit        >
+      }
+      if(GhostSummProfit>0)       { if(GhostSummProfit        >
         ExcelGetValue(StSheet,StFirstRow,   StTotalProfit))
         ExcelPutValue(StSheet,StFirstRow,   StTotalProfit,      GhostSummProfit);
-    }
-    if(totalProfitPip>0)        { if(totalProfitPip         >
+      }
+      if(totalProfitPip>0)        { if(totalProfitPip         >
         ExcelGetValue(StSheet,StFirstRow,   StTotalProfitPip))
         ExcelPutValue(StSheet,StFirstRow,   StTotalProfitPip,   totalProfitPip);
-    }
-    if(GhostSummProfit<0)       { if(GhostSummProfit        <
+      }
+      if(GhostSummProfit<0)       { if(GhostSummProfit        <
         ExcelGetValue(StSheet,StFirstRow,   StTotalDrawdown))
         ExcelPutValue(StSheet,StFirstRow,   StTotalDrawdown,    GhostSummProfit);
-    }
-    if(totalProfitPip<0)        { if(totalProfitPip         <
+      }
+      if(totalProfitPip<0)        { if(totalProfitPip         <
         ExcelGetValue(StSheet,StFirstRow,   StTotalDrawdownPip))
         ExcelPutValue(StSheet,StFirstRow,   StTotalDrawdownPip, totalProfitPip);
-    }
-    if(totalMargin>0)           { if(totalMargin            >
+      }
+      if(totalMargin>0)           { if(totalMargin            >
         ExcelGetValue(StSheet,StFirstRow,   StTotalMargin))
         ExcelPutValue(StSheet,StFirstRow,   StTotalMargin,      totalMargin);
+      }
     }
     
 //--- Assert Load PendingOrders
@@ -498,14 +510,14 @@ int ExcelOrderSend(string sym, int type, double lots, double price, int slip, do
         if(type==OP_BUY)
         {
             openPrice = MarketInfo( sym, MODE_ASK ); 
-            if(SL!=0.0) openSL=NormalizeDouble(openPrice-SL*Pts,Digits);
-            if(TP!=0.0) openTP=NormalizeDouble(openPrice+TP*Pts,Digits);
+            if(SL!=0.0) openSL=NormalizeDouble(openPrice-SL*GhostPts,Digits);
+            if(TP!=0.0) openTP=NormalizeDouble(openPrice+TP*GhostPts,Digits);
         }
         else
         {
             openPrice = MarketInfo( sym, MODE_BID ); 
-            if(SL!=0.0) openSL=NormalizeDouble(openPrice+SL*Pts,Digits);
-            if(TP!=0.0) openTP=NormalizeDouble(openPrice-TP*Pts,Digits);
+            if(SL!=0.0) openSL=NormalizeDouble(openPrice+SL*GhostPts,Digits);
+            if(TP!=0.0) openTP=NormalizeDouble(openPrice-TP*GhostPts,Digits);
         }
         openTime=TimeCurrent(); //server
 
@@ -554,14 +566,14 @@ bool ExcelOrderModify(int ticket, double price, double SL, double TP, datetime e
             if(type==OP_BUY)
             {
                curPrice = MarketInfo( sym, MODE_ASK ); 
-               if(SL!=0.0) modifySL=NormalizeDouble(curPrice-SL*Pts,Digits);
-               if(TP!=0.0) modifyTP=NormalizeDouble(curPrice+TP*Pts,Digits);
+               if(SL!=0.0) modifySL=NormalizeDouble(curPrice-SL*GhostPts,Digits);
+               if(TP!=0.0) modifyTP=NormalizeDouble(curPrice+TP*GhostPts,Digits);
             }
             else if(type==OP_SELL)
             {
                curPrice = MarketInfo( sym, MODE_BID ); 
-               if(SL!=0.0) modifySL=NormalizeDouble(curPrice+SL*Pts,Digits);
-               if(TP!=0.0) modifyTP=NormalizeDouble(curPrice-TP*Pts,Digits);
+               if(SL!=0.0) modifySL=NormalizeDouble(curPrice+SL*GhostPts,Digits);
+               if(TP!=0.0) modifyTP=NormalizeDouble(curPrice-TP*GhostPts,Digits);
             }
         */
             ExcelPutValue(OpSheet,r,OpStopLoss,     SL);
@@ -584,8 +596,8 @@ bool ExcelOrderModify(int ticket, double price, double SL, double TP, datetime e
             {   modifyPrice=ExcelGetValue(PoSheet,r,PoOpenPrice); }
             else
             {   modifyPrice=price; }
-            if(SL!=0.0) modifySL=NormalizeDouble(modifyPrice-SL*Pts,Digits);
-            if(TP!=0.0) modifyTP=NormalizeDouble(modifyPrice+TP*Pts,Digits);
+            if(SL!=0.0) modifySL=NormalizeDouble(modifyPrice-SL*GhostPts,Digits);
+            if(TP!=0.0) modifyTP=NormalizeDouble(modifyPrice+TP*GhostPts,Digits);
         }
         else if(OP_SELL==ExcelGetValue(PoSheet,r,PoType))
         {
@@ -593,8 +605,8 @@ bool ExcelOrderModify(int ticket, double price, double SL, double TP, datetime e
             {   modifyPrice=ExcelGetValue(PoSheet,r,PoOpenPrice); }
             else
             {   modifyPrice=price; }
-            if(SL!=0.0) modifySL=NormalizeDouble(modifyPrice+SL*Pts,Digits);
-            if(TP!=0.0) modifyTP=NormalizeDouble(modifyPrice-TP*Pts,Digits);
+            if(SL!=0.0) modifySL=NormalizeDouble(modifyPrice+SL*GhostPts,Digits);
+            if(TP!=0.0) modifyTP=NormalizeDouble(modifyPrice-TP*GhostPts,Digits);
         }
         ExcelPutValue(PoSheet,r,PoOpenPrice,    modifyPrice);
         ExcelPutValue(PoSheet,r,PoStopLoss,     modifySL);
@@ -607,7 +619,12 @@ bool ExcelOrderModify(int ticket, double price, double SL, double TP, datetime e
 
 //--- Assert ticket not found.
 //--- Debug    
-    if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderModify(",ticket,",",price,",",SL,",",TP,",",exp,",",arrow,"): return=false");
+   GhostDebugPrint( 1,"ExcelOrderModify",
+      GhostDebugInt("ticket",ticket)+
+      GhostDebugDbl("price",price,5)+
+      GhostDebugDbl("SL",SL,5)+
+      GhostDebugDbl("TP",TP,5)+
+      GhostDebugBln("return",false) );
     return(false);
 }
 
@@ -624,7 +641,11 @@ int ExcelCreateRow(int sheet, int keyCol, int firstRow)
         r ++;
     }
 //--- Debug
-    if(GhostDebug>=2)   Print(GhostDebug,":ExcelCreateRow(",sheet,",",keyCol,",",firstRow,"): return=",r);
+    GhostDebugPrint( 1,"ExcelCreateRow",
+      GhostDebugInt("sheet",sheet)+
+      GhostDebugInt("keyCol",keyCol)+
+      GhostDebugInt("firstRow",firstRow)+
+      GhostDebugInt("return",r) );
 
     if(empty) return(firstRow);
     else return(r);
@@ -665,7 +686,8 @@ int ExcelCreateTicket()
     }
     
 //--- Debug
-    if(GhostDebug>=2)   Print(GhostDebug,":ExcelCreateTicket(): return=",ExcelNextTicket);
+    GhostDebugPrint( 1,"ExcelCreateTicket",
+      GhostDebugInt("return",ExcelNextTicket) );
     return(ExcelNextTicket);
 }
 
@@ -691,11 +713,22 @@ int ExcelFindTicket(int sheet, int keyCol, int firstRow, int ticket)
     //--- Debug    
     if(0==rowFound) 
     {
-        if(GhostDebug>=2)   Print(GhostDebug,":ExcelFindTicket(",sheet,",",keyCol,",",firstRow,",",ticket,"): return=-1");
+      GhostDebugPrint( 2,"ExcelFindTicket",
+         GhostDebugInt("sheet",sheet)+
+         GhostDebugInt("keyCol",keyCol)+
+         GhostDebugInt("firstRow",firstRow)+
+         GhostDebugInt("ticket",ticket)+
+         GhostDebugInt("return",-1),
+         false );
         return(-1);
     }
-
-    if(GhostDebug>=2)   Print(GhostDebug,":ExcelFindTicket(",sheet,",",keyCol,",",firstRow,",",ticket,"): return=",rowFound);
+    GhostDebugPrint( 2,"ExcelFindTicket",
+      GhostDebugInt("sheet",sheet)+
+      GhostDebugInt("keyCol",keyCol)+
+      GhostDebugInt("firstRow",firstRow)+
+      GhostDebugInt("ticket",ticket)+
+      GhostDebugInt("return",rowFound),
+      false );
     return(rowFound);
 }
 
@@ -733,7 +766,13 @@ bool ExcelOrderSelect(int index, int select, int pool=MODE_TRADES)
         if(ExcelSelectRow>0) ret=true;
 
     //--- Debug    
-        if(GhostDebug>=2)   Print(GhostDebug,":ExcelOrderSelect(",index,",",select,",",pool,"): row=",ExcelSelectRow,";return=",ret);
+         GhostDebugPrint( 2,"ExcelOrderSelect",
+            GhostDebugInt("index",index)+
+            GhostDebugInt("select",select)+
+            GhostDebugInt("pool",pool)+
+            GhostDebugInt("row",ExcelSelectRow)+
+            GhostDebugBln("return",ret),
+            true );
         return(ret);
     }
 //--- Assert SELECT_BY_POS where index=0 is FirstRow.
@@ -758,8 +797,11 @@ bool ExcelOrderTradesSelect(int index)
     }    
             
 //--- Debug    
-    if(GhostDebug>=2)   Print(GhostDebug,":ExcelOrderTradesSelect(",index,"): total=",ExcelOrdersTotal(),";return=",ret);
-
+    GhostDebugPrint( 2,"ExcelOrderTradesSelect",
+        GhostDebugInt("index",index)+
+        GhostDebugInt("total",ExcelOrdersTotal())+
+        GhostDebugBln("return",ret),
+        true );
     return(ret);
 }
 
@@ -777,8 +819,11 @@ bool ExcelOrderHistorySelect(int index)
     }
 
 //--- Debug    
-    if(GhostDebug>=2)   Print(GhostDebug,":ExcelOrderHistorySelect(",index,"): historyTotal=",ExcelOrdersHistoryTotal(),";return=",ret);
-
+    GhostDebugPrint( 2,"ExcelOrderHistorySelect",
+        GhostDebugInt("index",index)+
+        GhostDebugInt("historyTotal",ExcelOrdersHistoryTotal())+
+        GhostDebugBln("return",ret),
+        true );
     return(ret);
 }
 
@@ -993,14 +1038,17 @@ bool ExcelOrderClose(int ticket, double lots, double price, int slippage, color 
     if(r<=0) 
     {
     //--- Debug    
-        if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderClose(",ticket,",",lots,",",price,",",slippage,",",arrow,"): return=false");
+        GhostDebugPrint( 1,"ExcelOrderClose",
+         GhostDebugInt("ticket",ticket)+
+         GhostDebugDbl("lots",lots,2)+
+         GhostDebugDbl("price",price,5)+
+         GhostDebugInt("slippage",slippage)+
+         GhostDebugBln("return",false) );
         return(false);        
     }
 //--- Exclude ALL pending orders
    if ( ExcelGetValue(OpSheet,r,OpType) > OP_SELL ) 
    { 
-    //--- Debug    
-        if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderClose(",ticket,",",lots,",",price,",",slippage,",",arrow,"): return=false");
         return(false);        
    }
     
@@ -1038,39 +1086,38 @@ bool ExcelOrderClose(int ticket, double lots, double price, int slippage, color 
       ExcelPutValue(OpSheet,r,OpLots,orderLots-calcLots); 
 
     //--- Assert copy row to Trade History
-      if(GhostTradeHistory)
+      histRow=ExcelCopyRow(OpSheet,OpTicket,OpFirstRow,r,ThSheet,ThTicket,ThFirstRow);
+      if(histRow>0)  
       {
-         histRow=ExcelCopyRow(OpSheet,OpTicket,OpFirstRow,r,ThSheet,ThTicket,ThFirstRow);
-         if(histRow>0)  
-         {
-         //--- Adjust trade history values.
-            ExcelPutValue(ThSheet,histRow,ThLots,        calcLots);
-            ExcelPutValue(ThSheet,histRow,ThClosePrice,  closePrice);
-            ExcelPutValue(ThSheet,histRow,ThProfit,      calcProfit);
-            ExcelPutValue(ThSheet,histRow,ThCloseTime,   TimeCurrent());
-         }
+      //--- Adjust trade history values.
+         ExcelPutValue(ThSheet,histRow,ThLots,        calcLots);
+         ExcelPutValue(ThSheet,histRow,ThClosePrice,  closePrice);
+         ExcelPutValue(ThSheet,histRow,ThProfit,      calcProfit);
+         ExcelPutValue(ThSheet,histRow,ThCloseTime,   TimeCurrent());
       }
     }
     else
     { 
     //--- Assert copy row to Trade History
-      if(GhostTradeHistory)   
+      histRow=ExcelCopyRow(OpSheet,OpTicket,OpFirstRow,r,ThSheet,ThTicket,ThFirstRow);
+      if(histRow>0)
       {
-         histRow=ExcelCopyRow(OpSheet,OpTicket,OpFirstRow,r,ThSheet,ThTicket,ThFirstRow);
-         if(histRow>0)
-         {
-         //--- Adjust trade history values.
-            ExcelPutValue(ThSheet,histRow,ThClosePrice,  closePrice);
-            ExcelPutValue(ThSheet,histRow,ThProfit,      calcProfit);
-            ExcelPutValue(ThSheet,histRow,ThCloseTime,   TimeCurrent());
-         }
+      //--- Adjust trade history values.
+         ExcelPutValue(ThSheet,histRow,ThClosePrice,  closePrice);
+         ExcelPutValue(ThSheet,histRow,ThProfit,      calcProfit);
+         ExcelPutValue(ThSheet,histRow,ThCloseTime,   TimeCurrent());
       }
 
       if(r>=OpFirstRow) { ExcelDeleteRow(OpSheet,OpTicket,OpFirstRow,r); GhostCurOpenPositions --; }
     }
     
 //--- Debug    
-    if(GhostDebug>=1)   Print(GhostDebug,":ExcelOrderClose(",ticket,",",lots,",",price,",",slippage,",",arrow,"): return=true");
+    GhostDebugPrint( 1,"ExcelOrderClose",
+      GhostDebugInt("ticket",ticket)+
+      GhostDebugDbl("lots",lots,2)+
+      GhostDebugDbl("price",price,5)+
+      GhostDebugInt("slippage",slippage)+
+      GhostDebugBln("return",true) );
     return(true);
 }
 
