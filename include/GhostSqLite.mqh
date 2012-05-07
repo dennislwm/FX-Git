@@ -13,6 +13,9 @@
 //|            error means that an OrderFunction() was called after SqLiteFreeSelect().     |
 //| 1.10    Keep a paper trail of all trades.                                               |
 //| 1.11    Fixed data types in SqLiteCreate() and SqLiteHistoryClose().                    |
+//| 1.12    Replaced bool GhostTradeHistory with GhostStatistics (history is now compulsory,|
+//|            but statistics is an option - to do statistics with 0-Broker).               |
+//|         Additional Debug functions.                                                     |
 //|-----------------------------------------------------------------------------------------|
 
 //|-----------------------------------------------------------------------------------------|
@@ -25,7 +28,7 @@
 //|-----------------------------------------------------------------------------------------|
 //---- Assert internal variables for SQLite
 string   SqLiteName        = "";
-string   SqLiteVer         = "1.11";
+string   SqLiteVer         = "1.12";
 int      SqLiteSelectIndex;
 int      SqLiteSelectMode;
 bool     SqLiteSelectAsc;
@@ -225,7 +228,12 @@ bool SqLiteCreate(int acctNo, string symbol, int period, string eaName)
          isOk=isOk && SqLitePutReal(AdTable,r,        AdEquityStr,      AccountEquity());
       if(!isOk)
       {
-         Print("0:SqLiteCreate(",NormalizeDouble(acctNo,0),",",symbol,",",period,",",eaName,"): Assert failed populate AccountDetails.");
+         GhostDebugPrint( 0,"SqLiteCreate",
+            GhostDebugInt("acctNo",acctNo)+
+            GhostDebugStr("symbol",symbol)+
+            GhostDebugInt("period",period)+
+            GhostDebugStr("eaName",eaName)+
+            " Assert failed populate AccountDetails.");
          return(false);
       }
 
@@ -233,11 +241,23 @@ bool SqLiteCreate(int acctNo, string symbol, int period, string eaName)
       r=SqLiteCreateRow(StTable);
       if(r<=0) 
       {
-         Print("0:SqLiteCreate(",NormalizeDouble(acctNo,0),",",symbol,",",period,",",eaName,"): Assert failed populate Statistics.");
+         GhostDebugPrint( 0,"SqLiteCreate",
+            GhostDebugInt("acctNo",acctNo)+
+            GhostDebugStr("symbol",symbol)+
+            GhostDebugInt("period",period)+
+            GhostDebugStr("eaName",eaName)+
+            " Assert failed populate Statistics.");
          return(false);
       }
       
-      if(GhostDebug>=1) Print(GhostDebug,":SqLiteCreate(",NormalizeDouble(acctNo,0),",",symbol,",",period,",",eaName,"): r=",r,";SqLiteName=",SqLiteName," created successfully.");
+      GhostDebugPrint( 1,"SqLiteCreate",
+         GhostDebugInt("acctNo",acctNo)+
+         GhostDebugStr("symbol",symbol)+
+         GhostDebugInt("period",period)+
+         GhostDebugStr("eaName",eaName)+
+         GhostDebugInt("r",r)+
+         GhostDebugStr("SqLiteName",SqLiteName)+
+         " created successfully.");
    }
    return(true);    
 }
@@ -320,7 +340,13 @@ void SqLiteManager()
          Print("0:SqLiteManager(): Assert failed to manage order. id=",id);
 
    //--- Debug    
-      if(GhostDebug>=1)   Print(GhostDebug,":SqLiteManager(): id=",id,";openPrice=",NormalizeDouble(openPrice,5),";closePrice=",NormalizeDouble(closePrice,5),";openSL=",NormalizeDouble(openSL,5),";openTP=",NormalizeDouble(openTP,5),";calcProfit=",calcProfit);
+      GhostDebugPrint( 1,"SqLiteManager",
+         GhostDebugInt("id",id)+
+         GhostDebugDbl("openPrice",openPrice,5)+
+         GhostDebugDbl("closePrice",closePrice,5)+
+         GhostDebugDbl("openSL",openSL,5)+
+         GhostDebugDbl("openTP",openTP,5)+
+         GhostDebugDbl("calcProfit",calcProfit,5) );
    }
 }
 
@@ -434,46 +460,50 @@ void SqLiteLoadBuffers()
    }
 //--- Assert unlock database
    DbFreeQuery(handle);
-   
-//--- Assert retrieve record of statistics details
-   exp="SELECT * FROM "+StTable+" WHERE id=1";
-    
-//--- Assert query will lock database
-   lastCol=DbLockQuery(SqLiteName, handle, exp);
+
+//--- Assert statistics keeping enabled
+   if(GhostStatistics)
    {
-      if(lastCol>0) DbNextRow(handle);
-      bTotalTrades =       GhostCurOpenPositions > SqLiteGetInteger(handle,                  StTotalTrades);
-      bTotalLots =         totalLots > SqLiteGetReal(handle,                                 StTotalLots);
-      bTotalProfit =       GhostSummProfit>0.0 && GhostSummProfit > SqLiteGetReal(handle,    StTotalProfit);
-      bTotalProfitPip =    totalProfitPip>0.0 && totalProfitPip > SqLiteGetReal(handle,      StTotalProfitPip);
-      bTotalDrawdown =     GhostSummProfit<0.0 && GhostSummProfit < SqLiteGetReal(handle,    StTotalDrawdown);
-      bTotalDrawdownPip =  totalProfitPip<0.0 && totalProfitPip < SqLiteGetReal(handle,      StTotalDrawdownPip);
-      bTotalMargin =       totalMargin > SqLiteGetReal(handle,                               StTotalMargin);
-      bMaxLots =        maxLots > SqLiteGetReal(handle,        StMaxLots);
-      bMaxProfit =      maxProfit > SqLiteGetReal(handle,      StMaxProfit);
-      bMaxProfitPip =   maxProfitPip > SqLiteGetReal(handle,   StMaxProfitPip);
-      bMaxDrawdown =    maxDrawdown < SqLiteGetReal(handle,    StMaxDrawdown);
-      bMaxDrawdownPip = maxDrawdownPip < SqLiteGetReal(handle, StMaxDrawdownPip);
-      bMaxMargin =      maxMargin > SqLiteGetReal(handle,      StMaxMargin);
-   }
-//--- Assert unlock database
-   DbFreeQuery(handle);
+   //--- Assert retrieve record of statistics details
+      exp="SELECT * FROM "+StTable+" WHERE id=1";
+    
+   //--- Assert query will lock database
+      lastCol=DbLockQuery(SqLiteName, handle, exp);
+      {
+         if(lastCol>0) DbNextRow(handle);
+         bTotalTrades =       GhostCurOpenPositions > SqLiteGetInteger(handle,                  StTotalTrades);
+         bTotalLots =         totalLots > SqLiteGetReal(handle,                                 StTotalLots);
+         bTotalProfit =       GhostSummProfit>0.0 && GhostSummProfit > SqLiteGetReal(handle,    StTotalProfit);
+         bTotalProfitPip =    totalProfitPip>0.0 && totalProfitPip > SqLiteGetReal(handle,      StTotalProfitPip);
+         bTotalDrawdown =     GhostSummProfit<0.0 && GhostSummProfit < SqLiteGetReal(handle,    StTotalDrawdown);
+         bTotalDrawdownPip =  totalProfitPip<0.0 && totalProfitPip < SqLiteGetReal(handle,      StTotalDrawdownPip);
+         bTotalMargin =       totalMargin > SqLiteGetReal(handle,                               StTotalMargin);
+         bMaxLots =        maxLots > SqLiteGetReal(handle,        StMaxLots);
+         bMaxProfit =      maxProfit > SqLiteGetReal(handle,      StMaxProfit);
+         bMaxProfitPip =   maxProfitPip > SqLiteGetReal(handle,   StMaxProfitPip);
+         bMaxDrawdown =    maxDrawdown < SqLiteGetReal(handle,    StMaxDrawdown);
+         bMaxDrawdownPip = maxDrawdownPip < SqLiteGetReal(handle, StMaxDrawdownPip);
+         bMaxMargin =      maxMargin > SqLiteGetReal(handle,      StMaxMargin);
+      }
+   //--- Assert unlock database
+      DbFreeQuery(handle);
    
-//--- Assert record AGGREGATE statistics
-   if( bTotalTrades ) SqLitePutInteger(StTable,1,StTotalTradesStr,          GhostCurOpenPositions);
-   if( bTotalLots ) SqLitePutReal(StTable,1,StTotalLotsStr,                 totalLots);
-   if( bTotalProfit ) SqLitePutReal(StTable,1,StTotalProfitStr,             GhostSummProfit);
-   if( bTotalProfitPip ) SqLitePutReal(StTable,1,StTotalProfitPipStr,       totalProfitPip);
-   if( bTotalDrawdown ) SqLitePutReal(StTable,1,StTotalDrawdownStr,         GhostSummProfit);
-   if( bTotalDrawdownPip ) SqLitePutReal(StTable,1,StTotalDrawdownPipStr,   totalProfitPip);
-   if( bTotalMargin ) SqLitePutReal(StTable,1,StTotalMarginStr,             totalMargin);
-//--- Assert record statistics for SINGLE trade
-   if( bMaxLots ) SqLitePutReal(StTable,1,StMaxLotsStr,                 maxLots);
-   if( bMaxProfit ) SqLitePutReal(StTable,1,StMaxProfitStr,             maxProfit);
-   if( bMaxProfitPip ) SqLitePutReal(StTable,1,StMaxProfitPipStr,       maxProfitPip);
-   if( bMaxDrawdown ) SqLitePutReal(StTable,1,StMaxDrawdownStr,         maxDrawdown);
-   if( bMaxDrawdownPip ) SqLitePutReal(StTable,1,StMaxDrawdownPipStr,   maxDrawdownPip);
-   if( bMaxMargin ) SqLitePutReal(StTable,1,StMaxMarginStr,             maxMargin);
+   //--- Assert record AGGREGATE statistics
+      if( bTotalTrades ) SqLitePutInteger(StTable,1,StTotalTradesStr,          GhostCurOpenPositions);
+      if( bTotalLots ) SqLitePutReal(StTable,1,StTotalLotsStr,                 totalLots);
+      if( bTotalProfit ) SqLitePutReal(StTable,1,StTotalProfitStr,             GhostSummProfit);
+      if( bTotalProfitPip ) SqLitePutReal(StTable,1,StTotalProfitPipStr,       totalProfitPip);
+      if( bTotalDrawdown ) SqLitePutReal(StTable,1,StTotalDrawdownStr,         GhostSummProfit);
+      if( bTotalDrawdownPip ) SqLitePutReal(StTable,1,StTotalDrawdownPipStr,   totalProfitPip);
+      if( bTotalMargin ) SqLitePutReal(StTable,1,StTotalMarginStr,             totalMargin);
+   //--- Assert record statistics for SINGLE trade
+      if( bMaxLots ) SqLitePutReal(StTable,1,StMaxLotsStr,                 maxLots);
+      if( bMaxProfit ) SqLitePutReal(StTable,1,StMaxProfitStr,             maxProfit);
+      if( bMaxProfitPip ) SqLitePutReal(StTable,1,StMaxProfitPipStr,       maxProfitPip);
+      if( bMaxDrawdown ) SqLitePutReal(StTable,1,StMaxDrawdownStr,         maxDrawdown);
+      if( bMaxDrawdownPip ) SqLitePutReal(StTable,1,StMaxDrawdownPipStr,   maxDrawdownPip);
+      if( bMaxMargin ) SqLitePutReal(StTable,1,StMaxMarginStr,             maxMargin);
+   }
 
 //--- Assert load pending orders (exclude opened positions)
    exp="SELECT * FROM "+PoTable+" WHERE "+PoTypeStr+">"+OP_SELL;
@@ -513,9 +543,9 @@ void SqLiteLoadBuffers()
    DbFreeQuery(handle);
 
 //--- Assert record ACCOUNT details
-   SqLitePutReal(AdTable,1,AdEquityStr,   GhostSummProfit+SqLiteAccountBalance());
-   SqLitePutReal(AdTable,1,AdMarginStr,   totalMargin);
-   SqLitePutReal(AdTable,1,AdProfitStr,   GhostSummProfit);
+   if( GhostSummProfit!=0.0 )    SqLitePutReal(AdTable,1,AdEquityStr,   GhostSummProfit+SqLiteAccountBalance());
+   if( totalMargin>0 )           SqLitePutReal(AdTable,1,AdMarginStr,   totalMargin);
+   if( GhostSummProfit!=0.0 )    SqLitePutReal(AdTable,1,AdProfitStr,   GhostSummProfit);
    
    GhostReorderBuffers();
 }
@@ -633,7 +663,12 @@ bool SqLiteOrderModify(int ticket, double price, double SL, double TP, datetime 
 
 //--- Assert ticket not found.
 //--- Debug    
-   if(GhostDebug>=1)   Print(GhostDebug,":SqLiteOrderModify(",ticket,",",price,",",SL,",",TP,",",exp,",",arrow,"): return=false");
+   GhostDebugPrint( 1,"SqLiteOrderModify",
+      GhostDebugInt("ticket",ticket)+
+      GhostDebugDbl("price",price,5)+
+      GhostDebugDbl("SL",SL,5)+
+      GhostDebugDbl("TP",TP,5)+
+      GhostDebugBln("return",false) );
    return(false);
 }
 //|-----------------------------------------------------------------------------------------|
@@ -660,11 +695,17 @@ int SqLiteFindTicket(int ticket)
 //--- Debug    
    if(id<=0) 
    {
-      if(GhostDebug>=3)   Print(GhostDebug,":SqLiteFindTicket(",ticket,"): return=-1");
+      GhostDebugPrint( 2,"SqLiteFindTicket",
+         GhostDebugInt("ticket",ticket)+
+         GhostDebugInt("return",-1),
+         false );
       return(-1);
    }
-
-   if(GhostDebug>=3)   Print(GhostDebug,":SqLiteFindTicket(",ticket,"): return=",id);
+   
+   GhostDebugPrint( 2,"SqLiteFindTicket",
+      GhostDebugInt("ticket",ticket)+
+      GhostDebugInt("return",id),
+      false );
    return(id);
 }
 
@@ -743,8 +784,14 @@ bool SqLiteInitTradesSelect(bool asc)
     
 //--- Assert query will lock database
    lastCol=DbLockQuery(SqLiteName, SqLiteSelectHandle, exp);
-//--- Debug    
-   if(GhostDebug>=2) if(SqLiteSelectTotal>0) Print(SqLiteSelectHandle,":SqLiteInitTradesSelect(",asc,"): exp=",exp,"; SqLiteSelectIndex=",SqLiteSelectIndex,"; SqLiteSelectTotal=",SqLiteSelectTotal);
+//--- Debug
+   GhostDebugPrint( 2,"SqLiteInitTradesSelect",
+      GhostDebugInt("SqLiteSelectHandle",SqLiteSelectHandle)+
+      GhostDebugBln("asc",asc)+
+      GhostDebugStr("exp",exp)+
+      GhostDebugInt("SqLiteSelectIndex",SqLiteSelectIndex)+
+      GhostDebugInt("SqLiteSelectTotal",SqLiteSelectTotal),
+      false );
    return(lastCol>0);
 }
 
@@ -772,7 +819,13 @@ bool SqLiteInitHistorySelect(bool asc)
 //--- Assert query will lock database
    lastCol=DbLockQuery(SqLiteName, SqLiteSelectHandle, exp);
 //--- Debug    
-   if(GhostDebug>=2) if(SqLiteSelectTotal>0) Print(SqLiteSelectHandle,":SqLiteInitHistorySelect(",asc,"): exp=",exp,"; SqLiteSelectIndex=",SqLiteSelectIndex,"; SqLiteSelectTotal=",SqLiteSelectTotal);
+   GhostDebugPrint( 2,"SqLiteInitHistorySelect",
+      GhostDebugInt("SqLiteSelectHandle",SqLiteSelectHandle)+
+      GhostDebugBln("asc",asc)+
+      GhostDebugStr("exp",exp)+
+      GhostDebugInt("SqLiteSelectIndex",SqLiteSelectIndex)+
+      GhostDebugInt("SqLiteSelectTotal",SqLiteSelectTotal),
+      false );
    return(lastCol>0);
 }
 
@@ -803,12 +856,22 @@ bool SqLiteOrderSelect(int index, int select, int pool=MODE_TRADES)
    //--- Debug    
       if(id<=0) 
       {
-         if(GhostDebug>=2)   Print(GhostDebug,":SqLiteOrderSelect(",index,",",select,",",pool,"): id=-1");
+         GhostDebugPrint( 2,"SqLiteOrderSelect",
+            GhostDebugInt("index",index)+
+            GhostDebugInt("select",select)+
+            GhostDebugInt("pool",pool)+
+            GhostDebugInt("id",-1),
+            false );
          return(false);
       }
       else
       {
-         if(GhostDebug>=2)   Print(GhostDebug,":SqLiteOrderSelect(",index,",",select,",",pool,"): id=",id);
+         GhostDebugPrint( 2,"SqLiteOrderSelect",
+            GhostDebugInt("index",index)+
+            GhostDebugInt("select",select)+
+            GhostDebugInt("pool",pool)+
+            GhostDebugInt("id",id),
+            false );
          return(true);
       }
    }
@@ -853,7 +916,7 @@ bool SqLiteOrderTradesSelect(int index)
 
       //--- Debug    
          dbg=dbg+"; SqLiteSelectIndex="+index+"; id="+SqLiteGetId(SqLiteSelectHandle)+"; ret="+ret;
-         if(GhostDebug>=2) if(SqLiteSelectTotal>0) Print(dbg);
+         GhostDebugPrint( 2,"SqLiteOrderTradesSelect", dbg, false );
 
          return(ret);
       }
@@ -879,7 +942,7 @@ bool SqLiteOrderTradesSelect(int index)
       
       //--- Debug    
          dbg=dbg+"; SqLiteSelectIndex="+index+"; id="+SqLiteGetId(SqLiteSelectHandle)+"; ret="+ret;
-         if(GhostDebug>=2) if(SqLiteSelectTotal>0) Print(dbg);
+         GhostDebugPrint( 2,"SqLiteOrderTradesSelect", dbg, false );
          
          return(ret);
       }
@@ -895,7 +958,10 @@ bool SqLiteOrderHistorySelect(int index)
 void SqLiteFreeSelect()
 {
 //--- Debug    
-   if(GhostDebug>=2) if(SqLiteSelectTotal>0) Print(SqLiteSelectHandle,":SqLiteFreeSelect(): SqLiteSelectIndex=",SqLiteSelectIndex);
+   GhostDebugPrint( 2,"SqLiteFreeSelect",
+      GhostDebugInt("SqLiteSelectHandle",SqLiteSelectHandle)+
+      GhostDebugInt("SqLiteSelectIndex",SqLiteSelectIndex),
+      true );
    
 //--- Assert clear global select variables
    SqLiteSelectIndex=-1;
@@ -1263,7 +1329,12 @@ bool SqLiteOrderClose(int ticket, double lots, double price, int slippage, color
 
 //--- Assert ticket not found.
 //--- Debug    
-   if(GhostDebug>=1)   Print(GhostDebug,":SqLiteOrderClose(",ticket,",",lots,",",price,",",slippage,",",arrow,"): return=false");
+   GhostDebugPrint( 1,"SqLiteOrderClose",
+      GhostDebugInt("ticket",ticket)+
+      GhostDebugDbl("lots",lots,2)+
+      GhostDebugDbl("price",price,5)+
+      GhostDebugInt("slippage",slippage)+
+      GhostDebugBln("return",false) );
    return(false);
 }
 
@@ -1291,9 +1362,6 @@ bool SqLiteHistoryClose(int ticket, double closePrice, double profit, double lot
    string   oSymbol;
    string   oComment;
    string   oExpertName;
-   
-//--- Assert paper trail is enabled   
-   if( !GhostTradeHistory ) return(true);
    
 //--- Assert ticket no exists in Open Positions.
    id=SqLiteFindTicket(ticket);
