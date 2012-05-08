@@ -9,6 +9,7 @@
 //| 1.02    Replaced bool GhostTradeHistory with GhostStatistics.                           | 
 //|         Removed PlusEasy.mqh dependency for Pts.                                        |
 //|         Additional Debug functions.                                                     |
+//| 1.03    Fixed calculation of profit in ExcelManager().                                  |
 //|-----------------------------------------------------------------------------------------|
 
 //|-----------------------------------------------------------------------------------------|
@@ -41,7 +42,7 @@ int     ExcelAutoFit(bool);
 //|-----------------------------------------------------------------------------------------|
 //---- Assert internal variables for ExcelLink
 string   ExcelFileName;
-string   ExcelVer   = "1.02";
+string   ExcelVer   = "1.03";
 int      ExcelSelectRow;
 int      ExcelSelectMode;
 int      ExcelNextTicket;
@@ -233,9 +234,9 @@ bool ExcelCreate(int acctNo, string symbol, int period, string eaName)
 void ExcelManager()
 {
     int r, histRow, type;
-    double closePrice;
+    double lots, closePrice;
     double calcProfit, openPrice;
-    double openSL, openTP;
+    double openSL, openTP, pts;
     string sym;
 
 //--- Assert for each Open Position, check if SL or TP reached.
@@ -244,11 +245,13 @@ void ExcelManager()
     while (ExcelGetValue(OpSheet,r,OpTicket)>0)
     {
         type = ExcelGetValue(OpSheet,r,OpType);
-        sym  = ExcelGetString(OpSheet,r,OpSymbol);
-    //--- Assert get real-time info.
+        lots = ExcelGetValue(OpSheet,r,OpLots);
         openPrice=ExcelGetValue(OpSheet,r,OpOpenPrice);
         openSL=ExcelGetValue(OpSheet,r,OpStopLoss);
         openTP=ExcelGetValue(OpSheet,r,OpTakeProfit);
+        sym  = ExcelGetString(OpSheet,r,OpSymbol);
+        pts  = MarketInfo( sym, MODE_POINT );
+    //--- Assert get real-time info.
         if(type==OP_BUY)
         {
             closePrice = MarketInfo( sym, MODE_BID ); 
@@ -256,7 +259,7 @@ void ExcelManager()
                 (openTP!=0.0 && closePrice>=openTP) )
             {
             //--- Assert calculate profit/loss
-                calcProfit=(closePrice-openPrice)*TurtleBigValue(sym)/GhostPts;
+                calcProfit=(closePrice-openPrice)*lots*TurtleBigValue(sym)/pts;
                 break;
             }
                     
@@ -268,7 +271,7 @@ void ExcelManager()
                 (openTP!=0.0 && closePrice<=openTP) )
             {
             //--- Assert calculate profit/loss
-                calcProfit=(openPrice-closePrice)*TurtleBigValue(sym)/GhostPts;
+                calcProfit=(openPrice-closePrice)*lots*TurtleBigValue(sym)/pts;
                 break;
             }
         }
