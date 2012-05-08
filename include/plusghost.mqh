@@ -30,6 +30,8 @@
 //|            but statistics is an option - to do statistics with 0-Broker).               |
 //|         Additional Debug functions.                                                     |
 //| 1.64    Minor fixes in debug functions and Pts.                                         |
+//| 1.70    Split file into GhostBroker and allow record statistics of opened trades when   |
+//|            in live trading mode.                                                        |
 //|-----------------------------------------------------------------------------------------|
 #property   copyright "Copyright © 2012, Dennis Lee"
 
@@ -56,13 +58,13 @@ extern   color  GhostSellSLColor        = Red;
 extern   color  GhostSellTPColor        = Red;
 extern   string g3                      = "Debug: 0-Crit; 1-Core; 2-Detail";
 extern   int    GhostDebug              = 1;
-extern   int    GhostCount              = 100;
+extern   int    GhostCount              = 1000;
 
 //|-----------------------------------------------------------------------------------------|
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string   GhostName="PlusGhost";
-string   GhostVer="1.64";
+string   GhostVer="1.70";
 int      gCount=0;
 
 //---- Assert internal variables for GhostTerminal
@@ -91,7 +93,7 @@ int      TwComment      = 10;
 
 #include    <GhostExcel.mqh>
 #include    <GhostSqLite.mqh>
-//#include    <GhostMySql.mqh>
+#include    <GhostBroker.mqh>
 
 //|-----------------------------------------------------------------------------------------|
 //|                             I N I T I A L I Z A T I O N                                 |
@@ -126,7 +128,8 @@ void GhostInit()
                break;
       case 2:  if(!SqLiteCreate(AccountNumber(),Symbol(),Period(),eaName)) { GhostMode=0; }
                break;
-      default: break;
+      default: if(!BrokerCreate(AccountNumber(),Symbol(),Period(),eaName)) { GhostStatistics=false; }
+               break;
    }
 }
 
@@ -172,7 +175,9 @@ void GhostDeInit()
         case 2: //--- Assert close database.
                     SqLiteDeInit();
                     break;
-        default:    break;
+        default://--- Assert close dependency.
+                    BrokerDeInit();
+                    break;
     }
 }
 
@@ -662,8 +667,12 @@ string GhostComment(string cmt="")
 
 //---- Assert Trade info in comment
    total=GhostOrdersTotal();
-   if (GhostMode==0)
+   if(GhostMode==0)
+   {
       strtmp=strtmp+"\n    No Ghost Trading.";
+      if( GhostStatistics )
+         strtmp=strtmp+" (Broker "+BrokerVer+")";
+   }
    else 
    {
    //---- Assert Basic settings in comment
@@ -676,10 +685,15 @@ string GhostComment(string cmt="")
          strtmp=strtmp+"\n    No Active Ghost Trades.";
       else
          strtmp=strtmp+"\n    Ghost Trades="+total;
-      if(GhostStatistics==false)
-         strtmp=strtmp+"\n    No Statistics.";
-      else
-         strtmp=strtmp+"\n    Keep Statistics.";
+   }
+//--- Assert Statistics kept for both live and paper trading
+   if(GhostStatistics==false)
+      strtmp=strtmp+"\n    No Statistics.";
+   else
+   {
+      strtmp=strtmp+"\n    Keep Statistics.";
+      if( GhostMode==0 )
+         strtmp=strtmp+" (SqLite "+SqLiteVer+")";
    }
                          
    strtmp=strtmp+"\n";
@@ -1019,71 +1033,6 @@ string OrderTypeToStr(int orderType)
 //|-----------------------------------------------------------------------------------------|
 //|                             T E R M I N A L   B U F F E R S                             |
 //|-----------------------------------------------------------------------------------------|
-void BrokerLoadBuffers()
-{
-	int lastErr, ordersTotal = OrdersTotal(), digits;
-
-    GhostCurOpenPositions=0; GhostCurPendingOrders=0;
-	for ( int z = ordersTotal - 1; z >= 0; z -- )
-	{
-		if ( !OrderSelect( z, SELECT_BY_POS, MODE_TRADES ) )
-		{
-			lastErr = GetLastError();
-			Print( "OrderSelect( ", z, ", SELECT_BY_POS, MODE_TRADES ) - Error #", lastErr );
-			continue;
-		}
-
-		digits = MarketInfo( OrderSymbol(), MODE_DIGITS );
-
-		if ( OrderType() < 2 )
-		{
-			GhostOpenPositions[GhostCurOpenPositions][TwTicket]     = OrderTicket();
-			GhostOpenPositions[GhostCurOpenPositions][TwOpenTime]   = TimeToStr( OrderOpenTime() );
-			GhostOpenPositions[GhostCurOpenPositions][TwType]       = OrderTypeToStr( OrderType() );
-			GhostOpenPositions[GhostCurOpenPositions][TwLots]       = DoubleToStr( OrderLots(), 1 );
-			GhostOpenPositions[GhostCurOpenPositions][TwOpenPrice]  = DoubleToStr( OrderOpenPrice(), digits );
-			GhostOpenPositions[GhostCurOpenPositions][TwStopLoss]   = DoubleToStr( OrderStopLoss(), digits );
-			GhostOpenPositions[GhostCurOpenPositions][TwTakeProfit] = DoubleToStr( OrderTakeProfit(), digits );
-
-			if ( OrderType() == OP_BUY )
-			{ GhostOpenPositions[GhostCurOpenPositions][TwCurPrice] = DoubleToStr( MarketInfo( OrderSymbol(), MODE_BID ), digits ); }
-			else
-			{ GhostOpenPositions[GhostCurOpenPositions][TwCurPrice] = DoubleToStr( MarketInfo( OrderSymbol(), MODE_ASK ), digits ); }
-
-			GhostOpenPositions[GhostCurOpenPositions][TwSwap]       = DoubleToStr( OrderSwap(), 2 );
-			GhostOpenPositions[GhostCurOpenPositions][TwProfit]     = DoubleToStr( OrderProfit(), 2 );
-			GhostOpenPositions[GhostCurOpenPositions][TwComment]    = OrderComment();
-
-			GhostSummProfit += OrderProfit();
-			GhostCurOpenPositions ++;
-			if ( GhostCurOpenPositions >= GhostRows ) { break; }
-		}
-		else
-		{
-			GhostPendingOrders[GhostCurPendingOrders][TwTicket]     = OrderTicket();
-			GhostPendingOrders[GhostCurPendingOrders][TwOpenTime]   = TimeToStr( OrderOpenTime() );
-			GhostPendingOrders[GhostCurPendingOrders][TwType]       = OrderTypeToStr( OrderType() );
-			GhostPendingOrders[GhostCurPendingOrders][TwLots]       = DoubleToStr( OrderLots(), 1 );
-			GhostPendingOrders[GhostCurPendingOrders][TwOpenPrice]  = DoubleToStr( OrderOpenPrice(), digits );
-			GhostPendingOrders[GhostCurPendingOrders][TwStopLoss]   = DoubleToStr( OrderStopLoss(), digits );
-			GhostPendingOrders[GhostCurPendingOrders][TwTakeProfit] = DoubleToStr( OrderTakeProfit(), digits );
-
-			if ( OrderType() == OP_SELLSTOP || OrderType() == OP_SELLLIMIT )
-			{ GhostPendingOrders[GhostCurPendingOrders][TwCurPrice] = DoubleToStr( MarketInfo( OrderSymbol(), MODE_BID ), digits ); }
-			else
-			{ GhostPendingOrders[GhostCurPendingOrders][TwCurPrice] = DoubleToStr( MarketInfo( OrderSymbol(), MODE_ASK ), digits ); }
-
-			GhostPendingOrders[GhostCurPendingOrders][TwSwap]       = DoubleToStr( OrderSwap(), 2 );
-			GhostPendingOrders[GhostCurPendingOrders][TwProfit]     = DoubleToStr( OrderProfit(), 2 );
-			GhostPendingOrders[GhostCurPendingOrders][TwComment]    = OrderComment();
-
-			GhostCurPendingOrders ++;
-			if ( GhostCurOpenPositions + GhostCurPendingOrders >= GhostRows ) { break; }
-		}
-	}
-    GhostReorderBuffers();
-}
-
 void GhostReorderBuffers()
 {
 	string tmp[11];
@@ -1117,4 +1066,3 @@ void GhostReorderBuffers()
 //|-----------------------------------------------------------------------------------------|
 //|                       E N D   O F   E X P E R T   A D V I S O R                         |
 //|-----------------------------------------------------------------------------------------|
-
