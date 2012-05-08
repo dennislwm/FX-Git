@@ -18,6 +18,7 @@
 //|         Additional Debug functions.                                                     |
 //| 1.13    Optimize OrderSelect by checking if total < 0.                                  |
 //|         Minor fixes in debug functions and Pts.                                         |
+//| 1.14    Split function SqLiteLoadBuffers() into SqLiteRecordStatistics().               |
 //|-----------------------------------------------------------------------------------------|
 
 //|-----------------------------------------------------------------------------------------|
@@ -30,7 +31,7 @@
 //|-----------------------------------------------------------------------------------------|
 //---- Assert internal variables for SQLite
 string   SqLiteName        = "";
-string   SqLiteVer         = "1.13";
+string   SqLiteVer         = "1.14";
 int      SqLiteSelectIndex;
 int      SqLiteSelectMode;
 bool     SqLiteSelectAsc;
@@ -383,19 +384,6 @@ void SqLiteLoadBuffers()
    double totalLots;
    double totalProfitPip;
    double totalMargin;
-   bool   bTotalTrades;
-   bool   bTotalLots;
-   bool   bTotalProfit;
-   bool   bTotalProfitPip;
-   bool   bTotalDrawdown;
-   bool   bTotalDrawdownPip;
-   bool   bTotalMargin;
-   bool   bMaxLots; 
-   bool   bMaxProfit; 
-   bool   bMaxProfitPip;
-   bool   bMaxDrawdown;
-   bool   bMaxDrawdownPip;
-   bool   bMaxMargin;
     
    GhostCurOpenPositions=0; GhostCurPendingOrders=0; GhostSummProfit=0.0;
     
@@ -417,7 +405,7 @@ void SqLiteLoadBuffers()
          GhostOpenPositions[GhostCurOpenPositions][TwTicket]     = DoubleToStr( SqLiteGetInteger(handle,    OpTicket), 0 );
          GhostOpenPositions[GhostCurOpenPositions][TwOpenTime]   = TimeToStr( SqLiteGetDT(handle,           OpOpenTime) );
          GhostOpenPositions[GhostCurOpenPositions][TwType]       = OrderTypeToStr( type );
-         GhostOpenPositions[GhostCurOpenPositions][TwLots]       = DoubleToStr( lots, 1 );
+         GhostOpenPositions[GhostCurOpenPositions][TwLots]       = DoubleToStr( lots, 2 );
          GhostOpenPositions[GhostCurOpenPositions][TwOpenPrice]  = DoubleToStr( openPrice, digits );
          GhostOpenPositions[GhostCurOpenPositions][TwStopLoss]   = DoubleToStr( SqLiteGetReal(handle,       OpStopLoss), digits );
          GhostOpenPositions[GhostCurOpenPositions][TwTakeProfit] = DoubleToStr( SqLiteGetReal(handle,       OpTakeProfit), digits );
@@ -466,45 +454,8 @@ void SqLiteLoadBuffers()
 //--- Assert statistics keeping enabled
    if(GhostStatistics)
    {
-   //--- Assert retrieve record of statistics details
-      exp="SELECT * FROM "+StTable+" WHERE id=1";
-    
-   //--- Assert query will lock database
-      lastCol=DbLockQuery(SqLiteName, handle, exp);
-      {
-         if(lastCol>0) DbNextRow(handle);
-         bTotalTrades =       GhostCurOpenPositions > SqLiteGetInteger(handle,                  StTotalTrades);
-         bTotalLots =         totalLots > SqLiteGetReal(handle,                                 StTotalLots);
-         bTotalProfit =       GhostSummProfit>0.0 && GhostSummProfit > SqLiteGetReal(handle,    StTotalProfit);
-         bTotalProfitPip =    totalProfitPip>0.0 && totalProfitPip > SqLiteGetReal(handle,      StTotalProfitPip);
-         bTotalDrawdown =     GhostSummProfit<0.0 && GhostSummProfit < SqLiteGetReal(handle,    StTotalDrawdown);
-         bTotalDrawdownPip =  totalProfitPip<0.0 && totalProfitPip < SqLiteGetReal(handle,      StTotalDrawdownPip);
-         bTotalMargin =       totalMargin > SqLiteGetReal(handle,                               StTotalMargin);
-         bMaxLots =        maxLots > SqLiteGetReal(handle,        StMaxLots);
-         bMaxProfit =      maxProfit > SqLiteGetReal(handle,      StMaxProfit);
-         bMaxProfitPip =   maxProfitPip > SqLiteGetReal(handle,   StMaxProfitPip);
-         bMaxDrawdown =    maxDrawdown < SqLiteGetReal(handle,    StMaxDrawdown);
-         bMaxDrawdownPip = maxDrawdownPip < SqLiteGetReal(handle, StMaxDrawdownPip);
-         bMaxMargin =      maxMargin > SqLiteGetReal(handle,      StMaxMargin);
-      }
-   //--- Assert unlock database
-      DbFreeQuery(handle);
-   
-   //--- Assert record AGGREGATE statistics
-      if( bTotalTrades ) SqLitePutInteger(StTable,1,StTotalTradesStr,          GhostCurOpenPositions);
-      if( bTotalLots ) SqLitePutReal(StTable,1,StTotalLotsStr,                 totalLots);
-      if( bTotalProfit ) SqLitePutReal(StTable,1,StTotalProfitStr,             GhostSummProfit);
-      if( bTotalProfitPip ) SqLitePutReal(StTable,1,StTotalProfitPipStr,       totalProfitPip);
-      if( bTotalDrawdown ) SqLitePutReal(StTable,1,StTotalDrawdownStr,         GhostSummProfit);
-      if( bTotalDrawdownPip ) SqLitePutReal(StTable,1,StTotalDrawdownPipStr,   totalProfitPip);
-      if( bTotalMargin ) SqLitePutReal(StTable,1,StTotalMarginStr,             totalMargin);
-   //--- Assert record statistics for SINGLE trade
-      if( bMaxLots ) SqLitePutReal(StTable,1,StMaxLotsStr,                 maxLots);
-      if( bMaxProfit ) SqLitePutReal(StTable,1,StMaxProfitStr,             maxProfit);
-      if( bMaxProfitPip ) SqLitePutReal(StTable,1,StMaxProfitPipStr,       maxProfitPip);
-      if( bMaxDrawdown ) SqLitePutReal(StTable,1,StMaxDrawdownStr,         maxDrawdown);
-      if( bMaxDrawdownPip ) SqLitePutReal(StTable,1,StMaxDrawdownPipStr,   maxDrawdownPip);
-      if( bMaxMargin ) SqLitePutReal(StTable,1,StMaxMarginStr,             maxMargin);
+      SqLiteRecordStatistics( GhostCurOpenPositions, totalLots, GhostSummProfit, totalProfitPip, totalMargin,
+                              maxLots, maxProfit, maxProfitPip, maxDrawdown, maxDrawdownPip, maxMargin );
    }
 
 //--- Assert load pending orders (exclude opened positions)
@@ -551,6 +502,69 @@ void SqLiteLoadBuffers()
    
    GhostReorderBuffers();
 }
+
+void SqLiteRecordStatistics(int tTrades, double tLots, double tProfit, double tProfitPip, double tMargin,
+                                         double mLots, double mProfit, double mProfitPip, double mDrawdown, double mDrawdownPip, double mMargin)
+{
+   int handle;
+   int lastCol;
+   int id;
+   string expr;
+//--- Assert statistics gathering
+   bool   bTotalTrades;
+   bool   bTotalLots;
+   bool   bTotalProfit;
+   bool   bTotalProfitPip;
+   bool   bTotalDrawdown;
+   bool   bTotalDrawdownPip;
+   bool   bTotalMargin;
+   bool   bMaxLots; 
+   bool   bMaxProfit; 
+   bool   bMaxProfitPip;
+   bool   bMaxDrawdown;
+   bool   bMaxDrawdownPip;
+   bool   bMaxMargin;
+   
+//--- Assert retrieve record of statistics details
+   expr="SELECT * FROM "+StTable+" WHERE id=1";
+  
+//--- Assert query will lock database
+   lastCol=DbLockQuery(SqLiteName, handle, expr);
+   {
+      if(lastCol>0) DbNextRow(handle);
+      bTotalTrades =       tTrades > SqLiteGetInteger(handle,                    StTotalTrades);
+      bTotalLots =         tLots > SqLiteGetReal(handle,                         StTotalLots);
+      bTotalProfit =       tProfit>0.0 && tProfit > SqLiteGetReal(handle,        StTotalProfit);
+      bTotalProfitPip =    tProfitPip>0.0 && tProfitPip > SqLiteGetReal(handle,  StTotalProfitPip);
+      bTotalDrawdown =     tProfit<0.0 && tProfit < SqLiteGetReal(handle,        StTotalDrawdown);
+      bTotalDrawdownPip =  tProfitPip<0.0 && tProfitPip < SqLiteGetReal(handle,  StTotalDrawdownPip);
+      bTotalMargin =       tMargin > SqLiteGetReal(handle,                       StTotalMargin);
+      bMaxLots =           mLots > SqLiteGetReal(handle,          StMaxLots);
+      bMaxProfit =         mProfit > SqLiteGetReal(handle,        StMaxProfit);
+      bMaxProfitPip =      mProfitPip > SqLiteGetReal(handle,     StMaxProfitPip);
+      bMaxDrawdown =       mDrawdown < SqLiteGetReal(handle,      StMaxDrawdown);
+      bMaxDrawdownPip =    mDrawdownPip < SqLiteGetReal(handle,   StMaxDrawdownPip);
+      bMaxMargin =         mMargin > SqLiteGetReal(handle,        StMaxMargin);
+   }
+//--- Assert unlock database
+   DbFreeQuery(handle);
+   
+//--- Assert record AGGREGATE statistics
+   if( bTotalTrades ) SqLitePutInteger(StTable,1,StTotalTradesStr,          tTrades);
+   if( bTotalLots ) SqLitePutReal(StTable,1,StTotalLotsStr,                 tLots);
+   if( bTotalProfit ) SqLitePutReal(StTable,1,StTotalProfitStr,             tProfit);
+   if( bTotalProfitPip ) SqLitePutReal(StTable,1,StTotalProfitPipStr,       tProfitPip);
+   if( bTotalDrawdown ) SqLitePutReal(StTable,1,StTotalDrawdownStr,         tProfit);
+   if( bTotalDrawdownPip ) SqLitePutReal(StTable,1,StTotalDrawdownPipStr,   tProfitPip);
+   if( bTotalMargin ) SqLitePutReal(StTable,1,StTotalMarginStr,             tMargin);
+//--- Assert record statistics for SINGLE trade
+   if( bMaxLots ) SqLitePutReal(StTable,1,StMaxLotsStr,                 mLots);
+   if( bMaxProfit ) SqLitePutReal(StTable,1,StMaxProfitStr,             mProfit);
+   if( bMaxProfitPip ) SqLitePutReal(StTable,1,StMaxProfitPipStr,       mProfitPip);
+   if( bMaxDrawdown ) SqLitePutReal(StTable,1,StMaxDrawdownStr,         mDrawdown);
+   if( bMaxDrawdownPip ) SqLitePutReal(StTable,1,StMaxDrawdownPipStr,   mDrawdownPip);
+   if( bMaxMargin ) SqLitePutReal(StTable,1,StMaxMarginStr,             mMargin);
+}                                         
 
 //|-----------------------------------------------------------------------------------------|
 //|                             D E I N I T I A L I Z A T I O N                             |
