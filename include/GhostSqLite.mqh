@@ -19,6 +19,7 @@
 //| 1.13    Optimize OrderSelect by checking if total < 0.                                  |
 //|         Minor fixes in debug functions and Pts.                                         |
 //| 1.14    Split function SqLiteLoadBuffers() into SqLiteRecordStatistics().               |
+//| 1.15    Fixed calculation of profit in SqLiteManager().                                 |
 //|-----------------------------------------------------------------------------------------|
 
 //|-----------------------------------------------------------------------------------------|
@@ -31,7 +32,7 @@
 //|-----------------------------------------------------------------------------------------|
 //---- Assert internal variables for SQLite
 string   SqLiteName        = "";
-string   SqLiteVer         = "1.14";
+string   SqLiteVer         = "1.15";
 int      SqLiteSelectIndex;
 int      SqLiteSelectMode;
 bool     SqLiteSelectAsc;
@@ -277,11 +278,13 @@ void SqLiteManager()
    string exp;
    double bal;
    int    ticket;
+   double lots;
    double calcProfit;
    double closePrice;
    double openPrice;
    double openSL;
    double openTP;
+   double pts;
    int    type;
    string sym;
     
@@ -294,11 +297,13 @@ void SqLiteManager()
       {
          ticket      = SqLiteGetInteger(handle, OpTicket);
          type        = SqLiteGetInteger(handle, OpType);
-         sym         = SqLiteGetText(handle,    OpSymbol);
-      //--- Assert get real-time info
+         lots        = SqLiteGetReal(handle,    OpLots);
          openPrice   = SqLiteGetReal(handle,    OpOpenPrice);
          openSL      = SqLiteGetReal(handle,    OpStopLoss);
          openTP      = SqLiteGetReal(handle,    OpTakeProfit);
+         sym         = SqLiteGetText(handle,    OpSymbol);
+      //--- Assert get real-time info
+         pts = MarketInfo( sym, MODE_POINT );
          if(type==OP_BUY)
          {
             closePrice = MarketInfo( sym, MODE_BID );
@@ -306,7 +311,7 @@ void SqLiteManager()
                   (openTP!=0.0 && closePrice>=openTP) )
             {
             //--- Assert calculate profit/loss
-               calcProfit=(closePrice-openPrice)*TurtleBigValue(sym)/GhostPts;
+               calcProfit=(closePrice-openPrice)*lots*TurtleBigValue(sym)/pts;
                
                id=SqLiteGetId(handle);
                break;
@@ -319,7 +324,7 @@ void SqLiteManager()
                   (openTP!=0.0 && closePrice<=openTP) )
             {
             //--- Assert calculate profit/loss
-               calcProfit=(openPrice-closePrice)*TurtleBigValue(sym)/GhostPts;
+               calcProfit=(openPrice-closePrice)*lots*TurtleBigValue(sym)/pts;
 
                id=SqLiteGetId(handle);
                break;
