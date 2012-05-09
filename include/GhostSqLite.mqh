@@ -22,6 +22,7 @@
 //| 1.15    Fixed calculation of profit in SqLiteManager().                                 |
 //| 1.16    Fixed memory leak in OrderSelect() for SELECT_BY_TICKET mode.                   |
 //|            Added function OrderDelete().                                                |
+//| 1.17    Fixed non-unique id generated in table OpenedPositions by using AUTOINCREMENT.  |
 //|-----------------------------------------------------------------------------------------|
 
 //|-----------------------------------------------------------------------------------------|
@@ -34,7 +35,7 @@
 //|-----------------------------------------------------------------------------------------|
 //---- Assert internal variables for SQLite
 string   SqLiteName        = "";
-string   SqLiteVer         = "1.16";
+string   SqLiteVer         = "1.17";
 int      SqLiteSelectIndex;
 int      SqLiteSelectMode;
 bool     SqLiteSelectAsc;
@@ -176,7 +177,7 @@ bool SqLiteCreate(int acctNo, string symbol, int period, string eaName)
 
    //--- Assert create table Opened Positions:
       isOk=true;
-         isOk=isOk && DbCreateTable(SqLiteName,       OpTable);
+         isOk=isOk && DbCreateTableAuto(SqLiteName,   OpTable);
          isOk=isOk && DbAlterTableInteger(SqLiteName, OpTable, OpTicketStr);
          isOk=isOk && DbAlterTableDT(SqLiteName,      OpTable, OpOpenTimeStr);
          isOk=isOk && DbAlterTableInteger(SqLiteName, OpTable, OpTypeStr);
@@ -1593,6 +1594,11 @@ bool DbCreateTable(string db, string table)
     return(DbExec(db,exp));
 }
 
+bool DbCreateTableAuto(string db, string table)
+{
+    string exp="CREATE TABLE "+table+" (id INTEGER PRIMARY KEY ASC AUTOINCREMENT)";
+    return(DbExec(db,exp));
+}
 bool DbAlterTableText(string db, string table, string field)
 {
     string exp="ALTER TABLE "+table+" ADD COLUMN "+field+" TEXT NOT NULL DEFAULT ''";
