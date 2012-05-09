@@ -20,6 +20,8 @@
 //|         Minor fixes in debug functions and Pts.                                         |
 //| 1.14    Split function SqLiteLoadBuffers() into SqLiteRecordStatistics().               |
 //| 1.15    Fixed calculation of profit in SqLiteManager().                                 |
+//| 1.16    Fixed memory leak in OrderSelect() for SELECT_BY_TICKET mode.                   |
+//|            Added function OrderDelete().                                                |
 //|-----------------------------------------------------------------------------------------|
 
 //|-----------------------------------------------------------------------------------------|
@@ -32,7 +34,7 @@
 //|-----------------------------------------------------------------------------------------|
 //---- Assert internal variables for SQLite
 string   SqLiteName        = "";
-string   SqLiteVer         = "1.15";
+string   SqLiteVer         = "1.16";
 int      SqLiteSelectIndex;
 int      SqLiteSelectMode;
 bool     SqLiteSelectAsc;
@@ -788,7 +790,7 @@ int SqLiteOrdersHistoryTotal()
    return(count);
 }
 
-bool SqLiteInitSelect(bool asc, int select, int pool=MODE_TRADES)
+bool SqLiteInitSelect(bool asc, int index, int select, int pool)
 {
 //--- Assert init called before OrderSelect().
    if(select==SELECT_BY_POS)
@@ -796,10 +798,74 @@ bool SqLiteInitSelect(bool asc, int select, int pool=MODE_TRADES)
       if(pool==MODE_TRADES)         { return(SqLiteInitTradesSelect(asc)); }
       else if(pool==MODE_HISTORY)   { return(SqLiteInitHistorySelect(asc)); }
    }
-   
+   else if(select==SELECT_BY_TICKET)
+   {
+      if(pool==MODE_TRADES)         { return(SqLiteInitTicketTradesSelect(index)); }
+      else if(pool==MODE_HISTORY)   { return(SqLiteInitTicketHistorySelect(index)); }
+   }
 //--- Assert unlock database using SqLiteFreeSelect(); called after OrderSelect().
 }
+bool SqLiteInitTicketTradesSelect(int index)
+{
+   int lastCol;
+   string exp;
+   string ord;
 
+   SqLiteSelectTotal=SqLiteOrdersTotal();
+//--- Assert optimize memory check total > 0
+   if( SqLiteSelectTotal <= 0 ) return(false);
+   
+//--- Assert order by ascending
+   SqLiteSelectIndex=-1;
+   SqLiteSelectTotal=1;
+   SqLiteSelectAsc=true;
+   
+//--- Find order by ticket
+   exp="SELECT * FROM "+OpTable+" WHERE "+OpTicketStr+"="+index;
+    
+//--- Assert query will lock database
+   lastCol=DbLockQuery(SqLiteName, SqLiteSelectHandle, exp);
+
+//--- Assert unlock database using SqLiteFreeSelect(); called after OrderSelect().
+//--- Debug
+   GhostDebugPrint( 2,"SqLiteInitTicketTradesSelect",
+      GhostDebugInt("SqLiteSelectHandle",SqLiteSelectHandle)+
+      GhostDebugStr("exp",exp)+
+      GhostDebugInt("SqLiteSelectIndex",SqLiteSelectIndex)+
+      GhostDebugInt("SqLiteSelectTotal",SqLiteSelectTotal),
+      false );
+   return(lastCol>0);
+}
+bool SqLiteInitTicketHistorySelect(int index)
+{
+   int lastCol;
+   string exp;
+   string ord;
+
+   SqLiteSelectTotal=SqLiteOrdersHistoryTotal();
+//--- Assert optimize memory check total > 0
+   if( SqLiteSelectTotal <= 0 ) return(false);
+   
+//--- Assert order by ascending
+   SqLiteSelectIndex=-1;
+   SqLiteSelectTotal=1;
+   SqLiteSelectAsc=true;
+   
+//--- Find order by ticket
+   exp="SELECT * FROM "+ThTable+" WHERE "+ThTicketStr+"="+index;
+    
+//--- Assert query will lock database
+   lastCol=DbLockQuery(SqLiteName, SqLiteSelectHandle, exp);
+//--- Assert unlock database using SqLiteFreeSelect(); called after OrderSelect().
+//--- Debug
+   GhostDebugPrint( 2,"SqLiteInitTicketHistorySelect",
+      GhostDebugInt("SqLiteSelectHandle",SqLiteSelectHandle)+
+      GhostDebugStr("exp",exp)+
+      GhostDebugInt("SqLiteSelectIndex",SqLiteSelectIndex)+
+      GhostDebugInt("SqLiteSelectTotal",SqLiteSelectTotal),
+      false );
+   return(lastCol>0);
+}
 bool SqLiteInitTradesSelect(bool asc)
 {
    int lastCol;
@@ -835,7 +901,6 @@ bool SqLiteInitTradesSelect(bool asc)
       false );
    return(lastCol>0);
 }
-
 bool SqLiteInitHistorySelect(bool asc)
 {
    int lastCol;
@@ -884,38 +949,14 @@ bool SqLiteOrderSelect(int index, int select, int pool=MODE_TRADES)
 //--- Assert SELECT_BY_TICKET index is order ticket.
    if(select==SELECT_BY_TICKET)
    {
-   //--- Find order by ticket
-      exp="SELECT id FROM "+OpTable+" WHERE "+OpTicketStr+"="+index;
-    
-      //--- Assert query will lock database
-      lastCol=DbLockQuery(SqLiteName, SqLiteSelectHandle, exp);
-      {
-         if(lastCol>0) DbNextRow(SqLiteSelectHandle);
-         id=SqLiteGetId(SqLiteSelectHandle);
-      }
+   //--- Assert optimize memory check total > 0
+      if( SqLiteSelectTotal <= 0 ) return(false);
+   
+   //--- Assert init using SqLiteInitSelect(); called before OrderSelect().
+      if(pool==MODE_TRADES)         { return(SqLiteOrderTradesSelect(index)); }
+      else if(pool==MODE_HISTORY)   { return(SqLiteOrderHistorySelect(index)); }
+
    //--- Assert unlock database using SqLiteFreeSelect(); called after OrderSelect().
-    
-   //--- Debug    
-      if(id<=0) 
-      {
-         GhostDebugPrint( 2,"SqLiteOrderSelect",
-            GhostDebugInt("index",index)+
-            GhostDebugInt("select",select)+
-            GhostDebugInt("pool",pool)+
-            GhostDebugInt("id",-1),
-            false );
-         return(false);
-      }
-      else
-      {
-         GhostDebugPrint( 2,"SqLiteOrderSelect",
-            GhostDebugInt("index",index)+
-            GhostDebugInt("select",select)+
-            GhostDebugInt("pool",pool)+
-            GhostDebugInt("id",id),
-            false );
-         return(true);
-      }
    }
 //--- Assert SELECT_BY_POS where index=0 is first row.
    else if(select==SELECT_BY_POS)
@@ -1382,7 +1423,61 @@ bool SqLiteOrderClose(int ticket, double lots, double price, int slippage, color
       GhostDebugBln("return",false) );
    return(false);
 }
+bool SqLiteOrderDelete(int ticket, color arrow=CLR_NONE)
+{
+   int handle;
+   int lastCol;
+   int id;
+   bool isOk;
+   string expr;
+   int type;
 
+//--- Assert ticket no exists in Open Positions.
+   id=SqLiteFindTicket(ticket);
+   if(id>0)
+   {
+      expr="SELECT * FROM "+OpTable+" WHERE id="+id;
+    
+   //--- Assert query will lock database
+      lastCol=DbLockQuery(SqLiteName, handle, expr);
+      {
+         if(lastCol>0) DbNextRow(handle);
+         type     = SqLiteGetInteger(handle,    OpType);
+      }
+   //--- Assert unlock database
+      DbFreeQuery(handle);
+      
+      if( type > OP_SELL )
+      {
+         isOk=isOk && SqLiteDeleteRow(OpTable,id);
+         if(!isOk) 
+         {
+         //--- Debug    
+            GhostDebugPrint( 0,"SqLiteOrderDelete",
+               GhostDebugInt("ticket",ticket)+
+               GhostDebugInt("type",type)+
+               GhostDebugBln("return",false)+
+               " Assert failed to delete order." );
+            return(false);
+         }
+         else
+         //--- Debug    
+            GhostDebugPrint( 0,"SqLiteOrderDelete",
+               GhostDebugInt("ticket",ticket)+
+               GhostDebugInt("type",type)+
+               GhostDebugBln("return",true)+
+               " Ok deleted order." );
+         return(true);
+      }
+   }
+//--- Assert ticket not found or incorrect type
+//--- Debug    
+   GhostDebugPrint( 1,"SqLiteOrderDelete",
+      GhostDebugInt("ticket",ticket)+
+      GhostDebugInt("type",type)+
+      GhostDebugBln("return",false) );
+   return(false);
+}
 bool SqLiteHistoryClose(int ticket, double closePrice, double profit, double lots=0.0, datetime closeTime=0)
 {
    int handle;
