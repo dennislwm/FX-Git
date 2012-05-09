@@ -32,6 +32,8 @@
 //| 1.64    Minor fixes in debug functions and Pts.                                         |
 //| 1.70    Split file into GhostBroker and allow record statistics of opened trades when   |
 //|            in live trading mode.                                                        |
+//| 1.71    Fixed memory leak in OrderSelect() for SELECT_BY_TICKET mode and added          |
+//|            OrderDelete for SqLite.                                                      |
 //|-----------------------------------------------------------------------------------------|
 #property   copyright "Copyright © 2012, Dennis Lee"
 
@@ -64,7 +66,7 @@ extern   int    GhostCount              = 1000;
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string   GhostName="PlusGhost";
-string   GhostVer="1.70";
+string   GhostVer="1.71";
 int      gCount=0;
 
 //---- Assert internal variables for GhostTerminal
@@ -400,14 +402,14 @@ double GhostOrderProfit()
     return(0.0);
 }
 
-bool GhostInitSelect(bool asc, int select, int pool=MODE_TRADES)
+bool GhostInitSelect(bool asc, int index, int select, int pool)
 {
     bool ret;
     
     switch(GhostMode)
     {
         case 1:     return(true);
-        case 2:     ret=SqLiteInitSelect(asc,select,pool);
+        case 2:     ret=SqLiteInitSelect(asc,index,select,pool);
                     return(ret);
         default:    return(true);
     }
@@ -650,7 +652,8 @@ bool GhostOrderDelete(int ticket, color arrow=CLR_NONE)
         case 1:     ret=ExcelOrderDelete(ticket,arrow);
                     ExcelSaveFile(ExcelFileName);
                     return(ret);
-        case 2:     return(ret);
+        case 2:     ret=SqLiteOrderDelete(ticket,arrow);
+                    return(ret);
         default:    return(OrderDelete(ticket,arrow));
     }
     return(false);
