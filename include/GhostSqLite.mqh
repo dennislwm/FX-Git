@@ -23,6 +23,7 @@
 //| 1.16    Fixed memory leak in OrderSelect() for SELECT_BY_TICKET mode.                   |
 //|            Added function OrderDelete().                                                |
 //| 1.17    Fixed non-unique id generated in table OpenedPositions by using AUTOINCREMENT.  |
+//| 1.18    Added function OrderTicketSelect().                                             |
 //|-----------------------------------------------------------------------------------------|
 
 //|-----------------------------------------------------------------------------------------|
@@ -35,7 +36,7 @@
 //|-----------------------------------------------------------------------------------------|
 //---- Assert internal variables for SQLite
 string   SqLiteName        = "";
-string   SqLiteVer         = "1.17";
+string   SqLiteVer         = "1.18";
 int      SqLiteSelectIndex;
 int      SqLiteSelectMode;
 bool     SqLiteSelectAsc;
@@ -954,8 +955,8 @@ bool SqLiteOrderSelect(int index, int select, int pool=MODE_TRADES)
       if( SqLiteSelectTotal <= 0 ) return(false);
    
    //--- Assert init using SqLiteInitSelect(); called before OrderSelect().
-      if(pool==MODE_TRADES)         { return(SqLiteOrderTradesSelect(index)); }
-      else if(pool==MODE_HISTORY)   { return(SqLiteOrderHistorySelect(index)); }
+      if(pool==MODE_TRADES)         { return(SqLiteOrderTicketSelect(index)); }
+      else if(pool==MODE_HISTORY)   { return(SqLiteOrderTicketSelect(index)); }
 
    //--- Assert unlock database using SqLiteFreeSelect(); called after OrderSelect().
    }
@@ -971,6 +972,31 @@ bool SqLiteOrderSelect(int index, int select, int pool=MODE_TRADES)
       
    //--- Assert unlock database using SqLiteFreeSelect(); called after OrderSelect().
    }
+}
+bool SqLiteOrderTicketSelect(int index)
+{
+   string dbg;
+   bool ret;
+   
+//--- Debug    
+   dbg=SqLiteSelectHandle+":SqLiteOrderTicketSelect("+index+")";
+   
+//--- Assert index (ticket) is valid (>0)   
+   if(index>0) 
+   {
+   //--- Debug    
+      dbg=dbg+"; "+index+">0";
+      
+      SqLiteSelectIndex = index;
+      ret=DbNextRow(SqLiteSelectHandle);
+      
+   //--- Debug    
+      dbg=dbg+"; SqLiteSelectIndex="+index+"; id="+SqLiteGetId(SqLiteSelectHandle)+"; ret="+ret;
+      GhostDebugPrint( 2,"SqLiteOrderTicketSelect", dbg, false );
+      
+      return(ret);
+   }
+   return(false);
 }
 bool SqLiteOrderTradesSelect(int index)
 {
