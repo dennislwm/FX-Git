@@ -2,6 +2,7 @@
 //|                                                                     NewsTrader_v5.3.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.10    Added PlusTurtle.mqh and PlusGhost.mqh (SqLite).                                |
 //| 1.00    Originated from Forex-TSD Elite member section NewsTrader_v5.3_eurusd nfp.      |
 //|-----------------------------------------------------------------------------------------|
 #property copyright "Copyright © 2012, Dennis Lee"
@@ -9,6 +10,10 @@
 
 #include <WebGet.mqh>
 #include <stdlib.mqh>
+
+//--- Assert 2: Plus include files
+#include <PlusTurtle.mqh>
+#include <PlusGhost.mqh>
 
 //---- input parameters
 extern string     ExpertName       = "NewsTrader_v5.3";
@@ -81,8 +86,9 @@ int init()
 {
 //---- 
    fTime = true;
-   
-//----
+//--- Assert 2: Init Plus   
+   TurtleInit();
+   GhostInit();
 return(0);
 }
   
@@ -125,32 +131,64 @@ void TrailStop()
    int    error;  
    bool   result=false;
    double Gain = 0;
-    
-   for (int cnt=0;cnt<OrdersTotal();cnt++)
+//--- Assert 9: Declare variables for OrderSelect #1
+//       1-OrderModify BUY; 2-OrderClose BUY; 3-OrderModify SELL; 4-OrderClose SELL;
+   int      aCommand[];
+   int      aTicket[];
+   double   aLots[];
+   double   aOpenPrice[];
+   double   aStopLoss[];
+   double   aTakeProfit[];
+   bool     aOk;
+   int      aCount;
+   int      maxTrades=10;
+//--- Assert 6: Dynamically resize arrays for OrderSelect #1
+   ArrayResize(aCommand,maxTrades);
+   ArrayResize(aTicket,maxTrades);
+   ArrayResize(aLots,maxTrades);
+   ArrayResize(aOpenPrice,maxTrades);
+   ArrayResize(aStopLoss,maxTrades);
+   ArrayResize(aTakeProfit,maxTrades);
+//--- Assert 1: Init OrderSelect #1
+   GhostInitSelect(true,0,SELECT_BY_POS,MODE_TRADES);
+   int      total=GhostOrdersTotal();
+   for (int cnt=0;cnt<total;cnt++)
    { 
-   OrderSelect(cnt, SELECT_BY_POS);   
-   int mode=OrderType();    
-      if ( OrderSymbol()==Symbol() && OrderMagicNumber()==Magic) 
+   GhostOrderSelect(cnt, SELECT_BY_POS);   
+   //--- Assert 6: Populate arrays for OrderSelect #1
+      aCommand[aCount]     =  0;
+      aTicket[aCount]      =  GhostOrderTicket();
+      aLots[aCount]        =  GhostOrderLots();
+      aOpenPrice[aCount]   =  GhostOrderOpenPrice();
+      aStopLoss[aCount]    =  GhostOrderStopLoss();
+      aTakeProfit[aCount]  =  GhostOrderTakeProfit();
+   int mode=GhostOrderType();    
+      if ( GhostOrderSymbol()==Symbol() && GhostOrderMagicNumber()==Magic) 
       {
          if (mode==OP_BUY) 
          {
 			   if ( BreakEven > TrailingStop && BEvent==0 )
 			   {
-			   Gain = (MarketInfo(Symbol(),MODE_BID) - OrderOpenPrice())/Point;
-			      if( Gain >= BreakEven && OrderStopLoss()<=OrderOpenPrice()+1*Point) 
+			   Gain = (MarketInfo(Symbol(),MODE_BID) - GhostOrderOpenPrice())/Point;
+			      if( Gain >= BreakEven && GhostOrderStopLoss()<=GhostOrderOpenPrice()+1*Point) 
 			      {
-			      double BuyStop = NormalizeDouble(OrderOpenPrice()+1*Point,Digits);
+			      double BuyStop = NormalizeDouble(GhostOrderOpenPrice()+1*Point,Digits);
 			      BEvent=1;
 			      }
 			   }
 			   else 			   
 			   if( TrailingStop > 0) BuyStop = NormalizeDouble(Bid - TrailingStop*Point,Digits);
 			   
-			   if( NormalizeDouble(OrderOpenPrice(),Digits)<= BuyStop || OrderStopLoss() == 0) 
+			   if( NormalizeDouble(GhostOrderOpenPrice(),Digits)<= BuyStop || GhostOrderStopLoss() == 0) 
             {   
-			      if ( BuyStop > NormalizeDouble(OrderStopLoss(),Digits)) 
+			      if ( BuyStop > NormalizeDouble(GhostOrderStopLoss(),Digits)) 
 			      {
-			         for(int k = 0 ; k < TriesNum; k++)
+               //--- Assert 4: replace OrderModify a buystop with arrays
+                  aCommand[aCount]     = 1;
+                  aStopLoss[aCount]    = BuyStop;
+                  aCount ++;
+                  if( aCount >= maxTrades ) break;
+			         /*for(int k = 0 ; k < TriesNum; k++)
                   {
                   result = OrderModify(OrderTicket(),OrderOpenPrice(),
 			                              BuyStop,
@@ -158,7 +196,7 @@ void TrailStop()
                   error=GetLastError();
                      if(error==0) break;
                      else {Sleep(5000); RefreshRates(); continue;}
-                  }   		 
+                  }*/
                }            
             }
          }   
@@ -167,21 +205,26 @@ void TrailStop()
          {
             if ( BreakEven > TrailingStop && BEvent==0)
 			   {
-			   Gain = (OrderOpenPrice()-MarketInfo(Symbol(),MODE_ASK))/Point;
-			      if( Gain >= BreakEven && OrderStopLoss()>=OrderOpenPrice()-1*Point) 
+			   Gain = (GhostOrderOpenPrice()-MarketInfo(Symbol(),MODE_ASK))/Point;
+			      if( Gain >= BreakEven && GhostOrderStopLoss()>=GhostOrderOpenPrice()-1*Point) 
 			      {
-			      double SellStop = NormalizeDouble(OrderOpenPrice()-1*Point,Digits);
+			      double SellStop = NormalizeDouble(GhostOrderOpenPrice()-1*Point,Digits);
 			      BEvent=-1;
 			      }
 			   }
 			   else 
 			   if( TrailingStop > 0) SellStop = NormalizeDouble(MarketInfo(Symbol(),MODE_ASK) + TrailingStop*Point,Digits);   
             
-            if((NormalizeDouble(OrderOpenPrice(),Digits) >= SellStop && SellStop>0) || OrderStopLoss() == 0) 
+            if((NormalizeDouble(GhostOrderOpenPrice(),Digits) >= SellStop && SellStop>0) || GhostOrderStopLoss() == 0) 
             {
-               if( SellStop < NormalizeDouble(OrderStopLoss(),Digits)) 
+               if( SellStop < NormalizeDouble(GhostOrderStopLoss(),Digits)) 
                {
-                  for( k = 0 ; k < TriesNum; k++)
+               //--- Assert 4: replace OrderModify a sellstop with arrays
+                  aCommand[aCount]     = 3;
+                  aStopLoss[aCount]    = SellStop;
+                  aCount ++;
+                  if( aCount >= maxTrades ) break;
+                  /*for( k = 0 ; k < TriesNum; k++)
                   {
                   result = OrderModify(OrderTicket(),OrderOpenPrice(),
 			                              SellStop,
@@ -189,12 +232,27 @@ void TrailStop()
                   error=GetLastError();
                      if(error==0) break;
                      else {Sleep(5000); RefreshRates(); continue;}
-                  }
+                  }*/
                }   
    			}	    
          }
       }
    }     
+//--- Assert 1: Free OrderSelect #1
+   GhostFreeSelect(true);
+//--- Assert for: process array of commands for OrderSelect #1
+   for(int i=0; i<aCount; i++)
+   {
+      switch( aCommand[i] )
+      {
+         case 1:  // OrderModify BuyStop
+            GhostOrderModify( aTicket[i], aOpenPrice[i], aStopLoss[i], aTakeProfit[i], 0, Lime );
+            break;
+         case 3:  // OrderModify SellStop
+            GhostOrderModify( aTicket[i], aOpenPrice[i], aStopLoss[i], aTakeProfit[i], 0, Orange );
+            break;
+      }
+   }
 }
 
 // ---- Open Sell Orders
@@ -205,7 +263,7 @@ int SellOrdOpen(double price,double sl,double tp,int num)
       
    while ( ticket <= 0 && tr <= TriesNum)
    {
-   ticket = OrderSend( Symbol(),OP_SELLSTOP,MoneyManagement(),
+   ticket = GhostOrderSend( Symbol(),OP_SELLSTOP,MoneyManagement(),
 	                    NormalizeDouble(price , Digits),
 	                    Slippage,
 	                    NormalizeDouble(sl, Digits),
@@ -215,8 +273,12 @@ int SellOrdOpen(double price,double sl,double tp,int num)
       if(ticket > 0) 
       {
       BEvent=0;   
-         if (OrderSelect(ticket, SELECT_BY_TICKET, MODE_TRADES)) 
-         Print("SELLSTOP order opened : ", OrderOpenPrice());
+      //--- Assert 1: Init OrderSelect #2
+         GhostInitSelect(true,ticket, SELECT_BY_TICKET, MODE_TRADES);
+         if (GhostOrderSelect(ticket, SELECT_BY_TICKET, MODE_TRADES)) 
+         Print("SELLSTOP order opened : ", GhostOrderOpenPrice());
+      //--- Assert 1: Free OrderSelect #2
+         GhostFreeSelect(false);
       }
 	   else 	
       if(ticket < 0)
@@ -239,7 +301,7 @@ int BuyOrdOpen(double price,double sl,double tp,int num)
       
    while ( ticket <= 0 && tr <= TriesNum)
    {
-   ticket = OrderSend(Symbol(),OP_BUYSTOP,MoneyManagement(),
+   ticket = GhostOrderSend(Symbol(),OP_BUYSTOP,MoneyManagement(),
 	                   NormalizeDouble(price , Digits),
 	                   Slippage,
 	                   NormalizeDouble(sl, Digits), 
@@ -249,9 +311,12 @@ int BuyOrdOpen(double price,double sl,double tp,int num)
       if(ticket > 0) 
       {
       BEvent=0;
-         if (OrderSelect(ticket, SELECT_BY_TICKET, MODE_TRADES)) 
-         Print("BUYSTOP order opened : ", OrderOpenPrice());
-      
+      //--- Assert 1: Init OrderSelect #3
+         GhostInitSelect(true,ticket, SELECT_BY_TICKET, MODE_TRADES);
+         if (GhostOrderSelect(ticket, SELECT_BY_TICKET, MODE_TRADES)) 
+         Print("BUYSTOP order opened : ", GhostOrderOpenPrice());
+      //--- Assert 1: Free OrderSelect #3
+         GhostFreeSelect(false);
       }
       else 
 	   if(ticket < 0)
@@ -270,27 +335,31 @@ int BuyOrdOpen(double price,double sl,double tp,int num)
 
 int ScanTrades(int ord,int mode)
 {   
-   int total = OrdersTotal();
+   int total = GhostOrdersTotal();
    int numords = 0;
    bool type = false; 
    int trd = 0;
    
+//--- Assert 1: Init OrderSelect #4
+   GhostInitSelect(true,0,SELECT_BY_POS,MODE_TRADES);
    for(int cnt=0; cnt<total; cnt++) 
    {        
-   OrderSelect(cnt, SELECT_BY_POS);            
+   GhostOrderSelect(cnt, SELECT_BY_POS);            
    if ( ord != 0 )
    {
-   if ( OrderType()==0 || OrderType()==2 || OrderType()==4 ) trd =  1;
-   if ( OrderType()==1 || OrderType()==3 || OrderType()==5 ) trd =  2;      
+   if ( GhostOrderType()==0 || GhostOrderType()==2 || GhostOrderType()==4 ) trd =  1;
+   if ( GhostOrderType()==1 || GhostOrderType()==3 || GhostOrderType()==5 ) trd =  2;      
    } else trd=0;
    
-   if (mode == 0) type = OrderType()<=OP_SELLSTOP;
-   if (mode == 1) type = OrderType()<=OP_SELL;   
-   if (mode == 2) type = OrderType()>OP_SELL && OrderType()<=OP_SELLSTOP; 
+   if (mode == 0) type = GhostOrderType()<=OP_SELLSTOP;
+   if (mode == 1) type = GhostOrderType()<=OP_SELL;   
+   if (mode == 2) type = GhostOrderType()>OP_SELL && GhostOrderType()<=OP_SELLSTOP; 
    
-   if(OrderSymbol() == Symbol() && type && trd==ord && OrderMagicNumber() == Magic)  
+   if(GhostOrderSymbol() == Symbol() && type && trd==ord && GhostOrderMagicNumber() == Magic)  
    numords++;
    }
+//--- Assert 1: Free OrderSelect #4
+   GhostFreeSelect(false);
    return(numords);
 }  
 
@@ -299,12 +368,16 @@ datetime FinishTime(int Duration)
    int total = OrdersTotal();
    datetime ftime=0;
          
+//--- Assert 1: Init OrderSelect #5
+   GhostInitSelect(true,0,SELECT_BY_POS,MODE_TRADES);
    for(int i=0; i<total; i++) 
    {        
-   OrderSelect(i, SELECT_BY_POS);            
-   if(OrderSymbol() == Symbol() && OrderType()<=OP_SELLSTOP && OrderMagicNumber() == Magic) 
-   ftime=OrderOpenTime()+ Duration*60;
+   GhostOrderSelect(i, SELECT_BY_POS);            
+   if(GhostOrderSymbol() == Symbol() && GhostOrderType()<=OP_SELLSTOP && GhostOrderMagicNumber() == Magic) 
+   ftime=GhostOrderOpenTime()+ Duration*60;
    }
+//--- Assert 1: Free OrderSelect #5
+   GhostFreeSelect(false);
    return(ftime);
 }
 
@@ -313,22 +386,55 @@ void PendOrdDel(int mode)
 {
    bool result = false;
    
-   for (int i=0; i<OrdersTotal(); i++)  
+//--- Assert 5: Declare variables for OrderSelect #6
+//       1-OrderModify BUY; 2-OrderClose BUY; 3-OrderModify SELL; 4-OrderClose SELL; 5-OrderDelete;
+   int      aCommand[];    
+   int      aTicket[];
+   bool     aOk;
+   int      aCount;
+   int      maxTrades=10;
+//--- Assert 2: Dynamically resize arrays
+   ArrayResize(aCommand,maxTrades);
+   ArrayResize(aTicket,maxTrades);
+//--- Assert 2: Init OrderSelect #6 with arrays
+   GhostInitSelect(true,0,SELECT_BY_POS,MODE_TRADES);
+   int total = GhostOrdersTotal();
+   for (int i=0; i<total; i++)  
    {
-   OrderSelect(i,SELECT_BY_POS,MODE_TRADES);
-      if ( Symbol()==OrderSymbol() && OrderMagicNumber()==Magic)     
+   GhostOrderSelect(i,SELECT_BY_POS,MODE_TRADES);
+      if ( Symbol()==GhostOrderSymbol() && GhostOrderMagicNumber()==Magic)     
       {
-         if((mode==0 || mode==1) && OrderType()==OP_BUYSTOP)
+         if((mode==0 || mode==1) && GhostOrderType()==OP_BUYSTOP)
          {     
-         result = OrderDelete(OrderTicket());
-         if(!result) Print("BUYSTOP: OrderDelete failed with error #",GetLastError());
+         //--- Assert 3: replace OrderDelete with arrays
+            aCommand[aCount]     = 5;
+            aCount ++;
+            if( aCount >= maxTrades ) break;
+         /*result = OrderDelete(OrderTicket());
+         if(!result) Print("BUYSTOP: OrderDelete failed with error #",GetLastError());*/
          }
          else
-         if((mode==0 || mode==2) && OrderType()==OP_SELLSTOP)
+         if((mode==0 || mode==2) && GhostOrderType()==OP_SELLSTOP)
          {     
-         result = OrderDelete( OrderTicket() );  
-         if(!result) Print("SELLSTOP: OrderDelete failed with error #",GetLastError());
+         //--- Assert 3: replace OrderDelete with arrays
+            aCommand[aCount]     = 5;
+            aCount ++;
+            if( aCount >= maxTrades ) break;
+         /*result = OrderDelete( OrderTicket() );  
+         if(!result) Print("SELLSTOP: OrderDelete failed with error #",GetLastError());*/
          }
+      }
+   }
+//--- Assert 1: Free OrderSelect #6
+   GhostFreeSelect(false);
+//--- Assert for: process array of commands
+   for(i=0; i<aCount; i++)
+   {
+      switch( aCommand[i] )
+      {
+         case 5:  // OrderDelete
+            GhostOrderDelete( aTicket[i] );
+            break;
       }
    }
 }    
@@ -449,19 +555,68 @@ void CloseOrder(int mode)
    bool result=false; 
    int  total=OrdersTotal();
    
+//--- Assert 7: Declare variables for OrderSelect #7
+//       1-OrderModify BUY; 2-OrderClose BUY; 3-OrderModify SELL; 4-OrderClose SELL;
+   int      aCommand[];    
+   int      aTicket[];
+   double   aLots[];
+   double   aClosePrice[];
+   bool     aOk;
+   int      aCount;
+   int      maxTrades=10;
+//--- Assert 4: Dynamically resize arrays
+   ArrayResize(aCommand,maxTrades);
+   ArrayResize(aTicket,maxTrades);
+   ArrayResize(aLots,maxTrades);
+   ArrayResize(aClosePrice,maxTrades);
+//--- Assert 1: Init OrderSelect #7 with arrays
+   GhostInitSelect(true,0,SELECT_BY_POS,MODE_TRADES);
    for (int i=0; i<=total; i++)  
    {
-   OrderSelect(i,SELECT_BY_POS,MODE_TRADES);
-      if (OrderMagicNumber() == Magic && OrderSymbol() == Symbol()) 
+   GhostOrderSelect(i,SELECT_BY_POS,MODE_TRADES);
+   //--- Assert 4: Populate arrays
+      aCommand[aCount]     =  0;
+      aTicket[aCount]      =  GhostOrderTicket();
+      aLots[aCount]        =  GhostOrderLots();
+      aClosePrice[aCount]  =  GhostOrderClosePrice();
+      if (GhostOrderMagicNumber() == Magic && GhostOrderSymbol() == Symbol()) 
       {
-      if ((mode == 0 || mode ==1) && OrderType()==OP_BUY ) result=CloseAtMarket(OrderTicket(),OrderLots(),Aqua);
-      if ((mode == 0 || mode ==2) && OrderType()==OP_SELL) result=CloseAtMarket(OrderTicket(),OrderLots(),Pink);
+      if ((mode == 0 || mode ==1) && GhostOrderType()==OP_BUY ) 
+      {
+      //--- Assert 3: replace CloseAtMarket a buy trade with arrays
+         aCommand[aCount]     = 2;
+         aCount ++;
+         if( aCount >= maxTrades ) break;
+         /*result=CloseAtMarket(OrderTicket(),OrderLots(),Aqua);*/
+      }
+      if ((mode == 0 || mode ==2) && GhostOrderType()==OP_SELL) 
+      {
+      //--- Assert 3: replace CloseAtMarket a sell trade with arrays
+         aCommand[aCount]     = 4;
+         aCount ++;
+         if( aCount >= maxTrades ) break;
+         /*result=CloseAtMarket(OrderTicket(),OrderLots(),Pink);*/
+      }
+      }
+   }
+//--- Assert 1: Free OrderSelect #7
+   GhostFreeSelect(false);
+//--- Assert for: process array of commands
+   for(i=0; i<aCount; i++)
+   {
+      switch( aCommand[i] )
+      {
+         case 2:  // CloseAtMarket Buy
+            CloseAtMarket( aTicket[i], aLots[i], aClosePrice[i], Aqua );
+            break;
+         case 4:  // CloseAtMarket Sell
+            CloseAtMarket( aTicket[i], aLots[i], aClosePrice[i], Pink );
+            break;
       }
    }
 }
 
-
-bool CloseAtMarket(int ticket,double lot,color clr) 
+bool CloseAtMarket(int ticket,double lot,double closePrice,color clr) 
 {
    bool result = false; 
    int  ntr;
@@ -472,7 +627,8 @@ bool CloseAtMarket(int ticket,double lot,color clr)
       ntr=0; 
       while (ntr<5 && !IsTradeAllowed()) { ntr++; Sleep(5000); }
       RefreshRates();
-      result=OrderClose(ticket,lot,OrderClosePrice(),Slippage,clr);
+      result=GhostOrderClose(ticket,lot,closePrice,Slippage,clr);
+      /*result=OrderClose(ticket,lot,OrderClosePrice(),Slippage,clr);*/
       tries++;
    }
    if (!result) Print("Error closing order : ",ErrorDescription(GetLastError()));
@@ -498,12 +654,40 @@ void TrailOppositeOrder(int mode)
    bool   result=false;
    double Gain = 0;
     
-   for (int cnt=0;cnt<OrdersTotal();cnt++)
+//--- Assert 9: Declare variables for OrderSelect #8
+//       1-OrderModify BUY; 2-OrderClose BUY; 3-OrderModify SELL; 4-OrderClose SELL;
+   int      aCommand[];
+   int      aTicket[];
+   double   aLots[];
+   double   aOpenPrice[];
+   double   aStopLoss[];
+   double   aTakeProfit[];
+   bool     aOk;
+   int      aCount;
+   int      maxTrades=10;
+//--- Assert 6: Dynamically resize arrays for OrderSelect #8
+   ArrayResize(aCommand,maxTrades);
+   ArrayResize(aTicket,maxTrades);
+   ArrayResize(aLots,maxTrades);
+   ArrayResize(aOpenPrice,maxTrades);
+   ArrayResize(aStopLoss,maxTrades);
+   ArrayResize(aTakeProfit,maxTrades);
+//--- Assert 2: Free OrderSelect #8 with arrays
+   GhostInitSelect(true,0,SELECT_BY_POS,MODE_TRADES);
+   int    total=GhostOrdersTotal();
+   for (int cnt=0;cnt<total;cnt++)
    { 
-   OrderSelect(cnt, SELECT_BY_POS);   
-      if ( OrderSymbol()==Symbol() && OrderMagicNumber()==Magic) 
+   GhostOrderSelect(cnt, SELECT_BY_POS);   
+   //--- Assert 6: Populate arrays for OrderSelect #8
+      aCommand[aCount]     =  0;
+      aTicket[aCount]      =  GhostOrderTicket();
+      aLots[aCount]        =  GhostOrderLots();
+      aOpenPrice[aCount]   =  GhostOrderOpenPrice();
+      aStopLoss[aCount]    =  GhostOrderStopLoss();
+      aTakeProfit[aCount]  =  GhostOrderTakeProfit();
+      if ( GhostOrderSymbol()==Symbol() && GhostOrderMagicNumber()==Magic) 
       {
-         if (mode == 1 && OrderType() == OP_BUYSTOP) 
+         if (mode == 1 && GhostOrderType() == OP_BUYSTOP) 
          {
 			   for( int nt=1; nt<=OrdersNum; nt++)
             {
@@ -514,10 +698,17 @@ void TrailOppositeOrder(int mode)
 		         if (InitialStop > 0) double BuyStop =  BuyPrice - InitialStop*Point; else BuyStop=0;
                if (TakeProfit  > 0) double BuyProfit= BuyPrice +  TakeProfit*Point; else BuyProfit=0; 
 			   			     
-			         if( NormalizeDouble(OrderOpenPrice(),Digits) > BuyPrice) 
+			         if( NormalizeDouble(GhostOrderOpenPrice(),Digits) > BuyPrice) 
                   {   
 			            Print("bPrice=",BuyPrice,"bStop=",BuyStop,"bProfit=",BuyProfit);
-			            for(int k = 0 ; k < TriesNum; k++)
+                  //--- Assert 6: replace OrderModify a buystop with arrays
+                     aCommand[aCount]     = 1;
+                     aOpenPrice[aCount]   = NormalizeDouble(BuyPrice,Digits);
+                     aStopLoss[aCount]    = NormalizeDouble(BuyStop,Digits);
+                     aTakeProfit[aCount]  = NormalizeDouble(BuyProfit,Digits);
+                     aCount ++;
+                     if( aCount >= maxTrades ) break;
+			            /*for(int k = 0 ; k < TriesNum; k++)
                      {
                      result = OrderModify(OrderTicket(),NormalizeDouble(BuyPrice,Digits),
 			                                 NormalizeDouble(BuyStop,Digits),
@@ -525,13 +716,13 @@ void TrailOppositeOrder(int mode)
                      error=GetLastError();
                         if(error==0) break;
                         else {Sleep(5000); RefreshRates(); continue;}
-                     }
+                     }*/
                   }      		 
                }            
             }
          }   
 // - SELL Orders          
-         if (mode==2 && OrderType() == OP_SELLSTOP)
+         if (mode==2 && GhostOrderType() == OP_SELLSTOP)
          {
             for( nt=1; nt<=OrdersNum; nt++)
             {
@@ -542,10 +733,17 @@ void TrailOppositeOrder(int mode)
 		         if (InitialStop > 0) double SellStop  = SellPrice + InitialStop*Point; else SellStop=0;
                if (TakeProfit  > 0) double SellProfit= SellPrice -  TakeProfit*Point; else SellProfit=0;  	   
          
-                  if(NormalizeDouble(OrderOpenPrice(),Digits) < SellPrice) 
+                  if(NormalizeDouble(GhostOrderOpenPrice(),Digits) < SellPrice) 
                   {
                      Print("sPrice=",SellPrice,"sStop=",SellStop,"sProfit=",SellProfit);
-                     for( k = 0 ; k < TriesNum; k++)
+                  //--- Assert 6: replace OrderModify a sellstop with arrays
+                     aCommand[aCount]     = 3;
+                     aOpenPrice[aCount]   = NormalizeDouble(SellPrice,Digits);
+                     aStopLoss[aCount]    = NormalizeDouble(SellStop,Digits);
+                     aTakeProfit[aCount]  = NormalizeDouble(SellProfit,Digits);
+                     aCount ++;
+                     if( aCount >= maxTrades ) break;
+                     /*for( k = 0 ; k < TriesNum; k++)
                      {
                      result = OrderModify(OrderTicket(),NormalizeDouble(SellPrice,Digits),
 			                                 NormalizeDouble(SellStop,Digits),
@@ -553,35 +751,50 @@ void TrailOppositeOrder(int mode)
                      error=GetLastError();
                         if(error==0) break;
                         else {Sleep(5000); RefreshRates(); continue;}
-                     }
+                     }*/
                   }   
                }   
    			}	    
          }
       }
    }     
+//--- Assert 1: Free OrderSelect #8
+   GhostFreeSelect(false);
+//--- Assert for: process array of commands for OrderSelect #8
+   for(int i=0; i<aCount; i++)
+   {
+      switch( aCommand[i] )
+      {
+         case 1:  // OrderModify BuyStop
+            GhostOrderModify( aTicket[i], aOpenPrice[i], aStopLoss[i], aTakeProfit[i], 0, Aqua );
+            break;
+         case 3:  // OrderModify SellStop
+            GhostOrderModify( aTicket[i], aOpenPrice[i], aStopLoss[i], aTakeProfit[i], 0, Magenta );
+            break;
+      }
+   }
 }
 
 bool VerifyComment(int mode, int num)
 {
-   int total = OrdersTotal();
+   /*int total = OrdersTotal();*/
    bool result = false; 
       
-   for(int cnt=0; cnt<total; cnt++) 
+   /*for(int cnt=0; cnt<total; cnt++) 
    {        
-   OrderSelect(cnt, SELECT_BY_POS);            
+   OrderSelect(cnt, SELECT_BY_POS);*/
       if (mode==1 && OrderComment() == ExpertName+" BUY:"+num)  
       {
       result=true;
-      break;
+      /*break;*/
       }
       
       if (mode==2 && OrderComment() == ExpertName+" SELL:"+num) 
       {
       result=true;
-      break;
+      /*break;*/
       }
-   }
+   /*}*/
   
    return(result);
 }                                   
@@ -619,7 +832,7 @@ string ForexTSD_Calendar()
    return(CalName);   
 }
 
-void ChartComment()
+string ChartComment()
 {
    
    string sComment   = "";
@@ -669,7 +882,7 @@ void ChartComment()
    sComment = sComment+"Next = " + nextTime +" "+nextNews + NL;
    sComment = sComment+sp;
   
-   Comment(sComment);
+   return(sComment);
 }      
 
 void TotalProfit()
@@ -677,35 +890,41 @@ void TotalProfit()
    int total=OrdersTotal();
    totalPips = 0;
    totalProfits = 0;
+//--- Assert 1: Init OrderSelect #9
+   GhostInitSelect(true,0,SELECT_BY_POS,MODE_TRADES);
    for (int cnt=0;cnt<total;cnt++)
    { 
-   OrderSelect(cnt, SELECT_BY_POS);   
-   int mode=OrderType();
+   GhostOrderSelect(cnt, SELECT_BY_POS);   
+   int mode=GhostOrderType();
    bool condition = false;
-   if ( Magic>0 && OrderMagicNumber()==Magic ) condition = true;
+   if ( Magic>0 && GhostOrderMagicNumber()==Magic ) condition = true;
    else if ( Magic==0 ) condition = true;   
       if (condition)
       {      
          switch (mode)
          {
          case OP_BUY:
-            totalPips += MathRound((MarketInfo(OrderSymbol(),MODE_BID)-OrderOpenPrice())/MarketInfo(OrderSymbol(),MODE_POINT));
-            totalProfits += OrderProfit();
+            totalPips += MathRound((MarketInfo(GhostOrderSymbol(),MODE_BID)-GhostOrderOpenPrice())/MarketInfo(GhostOrderSymbol(),MODE_POINT));
+            totalProfits += GhostOrderProfit();
             break;
             
          case OP_SELL:
-            totalPips += MathRound((OrderOpenPrice()-MarketInfo(OrderSymbol(),MODE_ASK))/MarketInfo(OrderSymbol(),MODE_POINT));
-            totalProfits += OrderProfit();
+            totalPips += MathRound((GhostOrderOpenPrice()-MarketInfo(GhostOrderSymbol(),MODE_ASK))/MarketInfo(GhostOrderSymbol(),MODE_POINT));
+            totalProfits += GhostOrderProfit();
             break;
          }
       }            
 	}
+//--- Assert 1: Free OrderSelect #9
+   GhostFreeSelect(false);
 }               
 //+------------------------------------------------------------------+
 //| expert deinitialization function                                 |
 //+------------------------------------------------------------------+
 int deinit()
   {
+//--- Assert 1: DeInit Plus
+   GhostDeInit();
 //---- 
    ObjDel();
  
@@ -751,7 +970,11 @@ int start()
       }
    }
    
-   ChartComment();
+//--- Assert 1: Refresh Plus   
+   GhostRefresh();
+//--- Assert 1: Replace comment with Ghost comment   
+   Comment( GhostComment( ChartComment() ) );
+   /*ChartComment();*/
    
    if (ScanTrades(0,0) > 0)
    {
@@ -809,8 +1032,3 @@ int start()
  return(0);
 }//int start
 //+------------------------------------------------------------------+
-
-
-
-
-
