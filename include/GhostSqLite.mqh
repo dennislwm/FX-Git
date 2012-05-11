@@ -24,6 +24,7 @@
 //|            Added function OrderDelete().                                                |
 //| 1.17    Fixed non-unique id generated in table OpenedPositions by using AUTOINCREMENT.  |
 //| 1.18    Added function OrderTicketSelect().                                             |
+//| 1.19    Added function OrderOpen() and modified OrderSend() to include pending orders.  |
 //|-----------------------------------------------------------------------------------------|
 
 //|-----------------------------------------------------------------------------------------|
@@ -36,7 +37,7 @@
 //|-----------------------------------------------------------------------------------------|
 //---- Assert internal variables for SQLite
 string   SqLiteName        = "";
-string   SqLiteVer         = "1.18";
+string   SqLiteVer         = "1.19";
 int      SqLiteSelectIndex;
 int      SqLiteSelectMode;
 bool     SqLiteSelectAsc;
@@ -589,21 +590,15 @@ void SqLiteDeInit()
 //|-----------------------------------------------------------------------------------------|
 int SqLiteOrderSend(string sym, int type, double lots, double price, int slip, double SL, double TP, string cmt="", int mgc=0, datetime exp=0, color arrow=CLR_NONE)
 {
-   int handle;
-   int lastCol;
-   int id;
-   bool isOk;
    double openPrice;
    double openSL;
    double openTP;
    int    openTime;
+   double curPrice;
 
 //--- Assert Create new ticket in OpenedPositions
    if(type==OP_BUY || type==OP_SELL)
    {
-      id=SqLiteCreateRow(OpTable);
-      if(id<=0) return(-1);
-   
    //--- Assert get real-time info.
       if(type==OP_BUY)
       {
@@ -619,30 +614,100 @@ int SqLiteOrderSend(string sym, int type, double lots, double price, int slip, d
       }
       openTime=TimeCurrent(); //server
       
-      isOk=true;
-         isOk=isOk && SqLitePutInteger(OpTable,id,OpTicketStr,    id);
-         isOk=isOk && SqLitePutDT(OpTable,id,OpOpenTimeStr,       openTime);
-         isOk=isOk && SqLitePutInteger(OpTable,id,OpTypeStr,      type);
-         isOk=isOk && SqLitePutReal(OpTable,id,OpLotsStr,         lots);
-         isOk=isOk && SqLitePutReal(OpTable,id,OpOpenPriceStr,    openPrice);
-         isOk=isOk && SqLitePutReal(OpTable,id,OpStopLossStr,     openSL);
-         isOk=isOk && SqLitePutReal(OpTable,id,OpTakeProfitStr,   openTP);
-         //isOk=isOk && SqLitePutReal(OpTable,id,OpCurPriceStr,     0.0);
-         //isOk=isOk && SqLitePutReal(OpTable,id,OpSwapStr,         0.0);
-         //isOk=isOk && SqLitePutReal(OpTable,id,OpProfitStr,       0.0);
-         //isOk=isOk && SqLitePutDT(OpTable,id,OpExpirationStr,     0);
-         //isOk=isOk && SqLitePutDT(OpTable,id,OpCloseTimeStr,      closeTime);
-         isOk=isOk && SqLitePutInteger(OpTable,id,OpMagicNoStr,   mgc);
-         isOk=isOk && SqLitePutInteger(OpTable,id,OpAccountNoStr, SqLiteAccountNumber());
-         isOk=isOk && SqLitePutText(OpTable,id,OpSymbolStr,       sym);
-         isOk=isOk && SqLitePutText(OpTable,id,OpCommentStr,      cmt);
-         isOk=isOk && SqLitePutText(OpTable,id,OpExpertNameStr,   GhostExpertName);
-      if(!isOk) 
-         Print("0:SqLiteOrderSend(",sym,",",type,",",lots,",",price,",",slip,",",SL,",",TP,",",cmt,",",mgc,",",exp,",",arrow,"): Assert failed to open order return=",id);
-      else
-         Print("0:SqLiteOrderSend(",sym,",",type,",",lots,",",price,",",slip,",",SL,",",TP,",",cmt,",",mgc,",",exp,",",arrow,"): OK opened order return=",id);
-      return(id);
+      return( SqLiteOrderOpen( sym, openTime, type, lots, openPrice, openSL, openTP, cmt, mgc, exp, arrow ) );
    }
+   else if(type>OP_SELL)
+   {
+   //--- Assert get real-time info.
+      openPrice   = price;
+      openSL      = SL;
+      openTP      = TP;
+      switch(type)
+      {
+         case OP_BUYLIMIT:
+            curPrice = MarketInfo( sym, MODE_ASK ); 
+            if( openPrice > curPrice ) return(-1);
+         break;
+         case OP_SELLLIMIT:
+            curPrice = MarketInfo( sym, MODE_BID ); 
+            if( openPrice < curPrice ) return(-1);
+         break;
+         case OP_BUYSTOP:
+            curPrice = MarketInfo( sym, MODE_ASK ); 
+            if( openPrice < curPrice ) return(-1);
+         break;
+         case OP_SELLSTOP:
+            curPrice = MarketInfo( sym, MODE_BID ); 
+            if( openPrice > curPrice ) return(-1);
+         break;
+      }
+      openTime=0;
+      
+      return( SqLiteOrderOpen( sym, openTime, type, lots, openPrice, openSL, openTP, cmt, mgc, exp, arrow ) );
+   }
+}
+int SqLiteOrderOpen(string sym, datetime openTime, int type, double lots, double price, double SL, double TP, string cmt="", int mgc=0, datetime exp=0, color arrow=CLR_NONE)
+{
+   int handle;
+   int lastCol;
+   int id;
+   bool isOk;
+
+
+//--- Assert Create new ticket in OpenedPositions
+   id=SqLiteCreateRow(OpTable);
+   if(id<=0) return(-1);
+
+//--- Assert Populate OpenedPositions
+   isOk=true;
+      isOk=isOk && SqLitePutInteger(OpTable,id,OpTicketStr,    id);
+      isOk=isOk && SqLitePutDT(OpTable,id,OpOpenTimeStr,       openTime);
+      isOk=isOk && SqLitePutInteger(OpTable,id,OpTypeStr,      type);
+      isOk=isOk && SqLitePutReal(OpTable,id,OpLotsStr,         lots);
+      isOk=isOk && SqLitePutReal(OpTable,id,OpOpenPriceStr,    price);
+      isOk=isOk && SqLitePutReal(OpTable,id,OpStopLossStr,     SL);
+      isOk=isOk && SqLitePutReal(OpTable,id,OpTakeProfitStr,   TP);
+      //isOk=isOk && SqLitePutReal(OpTable,id,OpCurPriceStr,     0.0);
+      //isOk=isOk && SqLitePutReal(OpTable,id,OpSwapStr,         0.0);
+      //isOk=isOk && SqLitePutReal(OpTable,id,OpProfitStr,       0.0);
+      isOk=isOk && SqLitePutDT(OpTable,id,OpExpirationStr,     exp);
+      //isOk=isOk && SqLitePutDT(OpTable,id,OpCloseTimeStr,      closeTime);
+      isOk=isOk && SqLitePutInteger(OpTable,id,OpMagicNoStr,   mgc);
+      isOk=isOk && SqLitePutInteger(OpTable,id,OpAccountNoStr, SqLiteAccountNumber());
+      isOk=isOk && SqLitePutText(OpTable,id,OpSymbolStr,       sym);
+      isOk=isOk && SqLitePutText(OpTable,id,OpCommentStr,      cmt);
+      isOk=isOk && SqLitePutText(OpTable,id,OpExpertNameStr,   GhostExpertName);
+   if(!isOk) 
+      GhostDebugPrint( 0,"SqLiteOrderOpen",
+         GhostDebugStr("sym",sym)+
+         GhostDebugInt("ticket",id)+
+         GhostDebugInt("openTime",openTime)+
+         GhostDebugInt("type",type)+
+         GhostDebugDbl("lots",lots,2)+
+         GhostDebugDbl("price",price,5)+
+         GhostDebugDbl("SL",SL,5)+
+         GhostDebugDbl("TP",TP,5)+
+         GhostDebugInt("exp",exp)+
+         GhostDebugInt("mgc",mgc)+
+         GhostDebugStr("cmt",cmt)+
+         GhostDebugStr("GhostExpertName",GhostExpertName)+
+         " Assert failed to open order." );
+   else
+      GhostDebugPrint( 0,"SqLiteOrderOpen",
+         GhostDebugStr("sym",sym)+
+         GhostDebugInt("ticket",id)+
+         GhostDebugInt("openTime",openTime)+
+         GhostDebugInt("type",type)+
+         GhostDebugDbl("lots",lots,2)+
+         GhostDebugDbl("price",price,5)+
+         GhostDebugDbl("SL",SL,5)+
+         GhostDebugDbl("TP",TP,5)+
+         GhostDebugInt("exp",exp)+
+         GhostDebugInt("mgc",mgc)+
+         GhostDebugStr("cmt",cmt)+
+         GhostDebugStr("GhostExpertName",GhostExpertName)+
+         " OK opened order." );
+   return(id);
 }
 
 bool SqLiteOrderModify(int ticket, double price, double SL, double TP, datetime exp, color arrow=CLR_NONE)
