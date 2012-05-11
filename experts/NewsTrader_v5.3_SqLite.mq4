@@ -2,6 +2,7 @@
 //|                                                                     NewsTrader_v5.3.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.11    Fixed missing ticket no in PendOrdDel().                                        |
 //| 1.10    Added PlusTurtle.mqh and PlusGhost.mqh (SqLite).                                |
 //| 1.00    Originated from Forex-TSD Elite member section NewsTrader_v5.3_eurusd nfp.      |
 //|-----------------------------------------------------------------------------------------|
@@ -402,6 +403,9 @@ void PendOrdDel(int mode)
    for (int i=0; i<total; i++)  
    {
    GhostOrderSelect(i,SELECT_BY_POS,MODE_TRADES);
+   //--- Assert 6: Populate arrays for OrderSelect #6
+      aCommand[aCount]     =  0;
+      aTicket[aCount]      =  GhostOrderTicket();
       if ( Symbol()==GhostOrderSymbol() && GhostOrderMagicNumber()==Magic)     
       {
          if((mode==0 || mode==1) && GhostOrderType()==OP_BUYSTOP)
