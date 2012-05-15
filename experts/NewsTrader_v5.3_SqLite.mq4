@@ -2,6 +2,7 @@
 //|                                                                     NewsTrader_v5.3.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.12    Fixed OrdersTotal() that were not replaced by Ghost and were in wrong order.    |
 //| 1.11    Fixed missing ticket no in PendOrdDel().                                        |
 //| 1.10    Added PlusTurtle.mqh and PlusGhost.mqh (SqLite).                                |
 //| 1.00    Originated from Forex-TSD Elite member section NewsTrader_v5.3_eurusd nfp.      |
@@ -151,8 +152,8 @@ void TrailStop()
    ArrayResize(aStopLoss,maxTrades);
    ArrayResize(aTakeProfit,maxTrades);
 //--- Assert 1: Init OrderSelect #1
-   GhostInitSelect(true,0,SELECT_BY_POS,MODE_TRADES);
    int      total=GhostOrdersTotal();
+   GhostInitSelect(true,0,SELECT_BY_POS,MODE_TRADES);
    for (int cnt=0;cnt<total;cnt++)
    { 
    GhostOrderSelect(cnt, SELECT_BY_POS);   
@@ -366,7 +367,7 @@ int ScanTrades(int ord,int mode)
 
 datetime FinishTime(int Duration)
 {   
-   int total = OrdersTotal();
+   int total = GhostOrdersTotal();
    datetime ftime=0;
          
 //--- Assert 1: Init OrderSelect #5
@@ -398,8 +399,8 @@ void PendOrdDel(int mode)
    ArrayResize(aCommand,maxTrades);
    ArrayResize(aTicket,maxTrades);
 //--- Assert 2: Init OrderSelect #6 with arrays
-   GhostInitSelect(true,0,SELECT_BY_POS,MODE_TRADES);
    int total = GhostOrdersTotal();
+   GhostInitSelect(true,0,SELECT_BY_POS,MODE_TRADES);
    for (int i=0; i<total; i++)  
    {
    GhostOrderSelect(i,SELECT_BY_POS,MODE_TRADES);
@@ -557,7 +558,7 @@ void ObjDel()
 void CloseOrder(int mode)  
 {
    bool result=false; 
-   int  total=OrdersTotal();
+   int  total=GhostOrdersTotal();
    
 //--- Assert 7: Declare variables for OrderSelect #7
 //       1-OrderModify BUY; 2-OrderClose BUY; 3-OrderModify SELL; 4-OrderClose SELL;
@@ -677,8 +678,8 @@ void TrailOppositeOrder(int mode)
    ArrayResize(aStopLoss,maxTrades);
    ArrayResize(aTakeProfit,maxTrades);
 //--- Assert 2: Free OrderSelect #8 with arrays
-   GhostInitSelect(true,0,SELECT_BY_POS,MODE_TRADES);
    int    total=GhostOrdersTotal();
+   GhostInitSelect(true,0,SELECT_BY_POS,MODE_TRADES);
    for (int cnt=0;cnt<total;cnt++)
    { 
    GhostOrderSelect(cnt, SELECT_BY_POS);   
@@ -891,7 +892,7 @@ string ChartComment()
 
 void TotalProfit()
 {
-   int total=OrdersTotal();
+   int total=GhostOrdersTotal();
    totalPips = 0;
    totalProfits = 0;
 //--- Assert 1: Init OrderSelect #9
