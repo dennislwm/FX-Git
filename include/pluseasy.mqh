@@ -2,6 +2,7 @@
 //|                                                                            pluseasy.mqh |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.31    Minor fixes in functions Comment, GetFirstTicket, OrderBuy and OrderSell.       |
 //| 1.30    Replaced Order functions with GhostOrder functions.                             |
 //|            Added CloseBasket() functions.                                               |
 //| 1.20    Added EasyTicketMagic() that returns first open ticket no.                      |
@@ -44,7 +45,7 @@ extern bool EasyDebug=0;
 double Pip;
 double Pts;
 string PlusName="PlusEasy";
-string PlusVer="1.20";
+string PlusVer="1.31";
 
 //|-----------------------------------------------------------------------------------------|
 //|                             I N I T I A L I Z A T I O N                                 |
@@ -94,7 +95,7 @@ string EasyComment(double profit, string cmt="")
       strtmp=strtmp+"\n    Spread="+DoubleToStr(spread,1)+" (OK <= "+DoubleToStr(EasyMaxSpread,1)+")";
    
 //---- Assert Trade info in comment
-   int total=OrdersTotal();
+   int total=GhostOrdersTotal();
    if (EasyMaxAccountTrades==0)
       strtmp=strtmp+"\n    No Trades Allowed.";
    else if (total<=0)
@@ -164,7 +165,7 @@ int EasyGetFirstTicket(int mgc, string sym)
 //---- Assert determine count of all trades done with this MagicNumber
 //       Init OrderSelect #3
    GhostInitSelect(true,0,SELECT_BY_POS,MODE_TRADES);
-   for(int j=0;j<OrdersTotal();j++)
+   for(int j=0;j<total;j++)
    {
       GhostOrderSelect(j,SELECT_BY_POS,MODE_TRADES);
 
@@ -180,7 +181,7 @@ int EasyGetFirstTicket(int mgc, string sym)
 //+-----------------------------------------------------------------------------------------|
 //|                             O P E N   N E W   T R A D E                                 |
 //+-----------------------------------------------------------------------------------------|
-int EasyOrderBuy(int mgc, string sym, double lot, double SL, double TP, string cmt, int maxTrades, int maxSpread)
+int EasyOrderBuy(int mgc, string sym, double lot, double SL, double TP, string cmt, int maxTrades)
 {
 //---- Assert Check limits of externs
 //       MaxTrades has not been exceeded
@@ -192,9 +193,9 @@ int EasyOrderBuy(int mgc, string sym, double lot, double SL, double TP, string c
       return(0);
    }
    double spread=MarketInfo(sym,MODE_SPREAD)/Pip;
-   if (spread>maxSpread)
+   if (spread>EasyMaxSpread)
    {
-      Print("EasyOrderBuy: Spread has exceeded maximum spread of ",maxSpread);
+      Print("EasyOrderBuy: Spread has exceeded maximum spread of ",EasyMaxSpread);
       return(0);
    }
 //---- Assert check limits of account
@@ -248,7 +249,7 @@ int EasyOrderBuy(int mgc, string sym, double lot, double SL, double TP, string c
          aTakeProfit[aCount]  =  GhostOrderTakeProfit();
          
       //---- Assert Open Buy
-         Print("EasyBuyOrder: Order opened : ticket=",ticket," openPrice=",DoubleToStr(GhostOrderOpenPrice(),5));
+         Print("EasyOrderBuy: Order opened : ticket=",ticket," openPrice=",DoubleToStr(GhostOrderOpenPrice(),5));
          //OpenWave=-1;
          if (SL!=0) calcSL=NormalizeDouble(GhostOrderOpenPrice()-SL*Pts,Digits);
          if (TP!=0) calcTP=NormalizeDouble(GhostOrderOpenPrice()+TP*Pts,Digits);
@@ -260,11 +261,6 @@ int EasyOrderBuy(int mgc, string sym, double lot, double SL, double TP, string c
                aTakeProfit[aCount]  = calcTP;
                aCount ++;
          }
-            /*if (!OrderModify(ticket,OrderOpenPrice(),SL,TP,0,0))
-            {
-               Print("Error modifying BUY order : ",GetLastError());
-               if (EasyDebug>=2) Print("EasyBuy(): sym=",sym,",Price=",OrderOpenPrice(),",SL=",SL,",TP=",0);
-            }*/
       }
    //--- Assert 1: Free OrderSelect #3
       GhostFreeSelect(true);
@@ -291,7 +287,7 @@ int EasyOrderBuy(int mgc, string sym, double lot, double SL, double TP, string c
 // =====================
 // sell to open function                                            
 // =====================
-int EasyOrderSell(int mgc, string sym, double lot, double SL, double TP, string cmt, int maxTrades, int maxSpread)
+int EasyOrderSell(int mgc, string sym, double lot, double SL, double TP, string cmt, int maxTrades)
 {
 //---- Assert Check limits of externs
 //       MaxTrades has not been exceeded
@@ -303,9 +299,9 @@ int EasyOrderSell(int mgc, string sym, double lot, double SL, double TP, string 
       return(0);
    }
    double spread=MarketInfo(sym,MODE_SPREAD)/Pip;
-   if (spread>maxSpread)
+   if (spread>EasyMaxSpread)
    {
-      Print("EasyOrderSell: Spread has exceeded maximum spread of ",maxSpread);
+      Print("EasyOrderSell: Spread has exceeded maximum spread of ",EasyMaxSpread);
       return(0);
    }
 //---- Assert check limits of account
@@ -371,11 +367,6 @@ int EasyOrderSell(int mgc, string sym, double lot, double SL, double TP, string 
                aTakeProfit[aCount]  = calcTP;
                aCount ++;
          }
-            /*if (!OrderModify(ticket,OrderOpenPrice(),SL,TP,0,0))
-            {
-               Print("Error modifying SELL order : ",GetLastError());
-               if (EasyDebug>=2) Print("EasySell(): sym=",sym,",Price=",OrderOpenPrice(),",SL=",SL,",TP=",TP);
-            }*/
       }
    //--- Assert 1: Free OrderSelect #4
       GhostFreeSelect(true);
@@ -398,6 +389,7 @@ int EasyOrderSell(int mgc, string sym, double lot, double SL, double TP, string 
    }
    return(0);
 }
+
 //+------------------------------------------------------------------+
 //| Sell to close function                                           |
 //+------------------------------------------------------------------+
@@ -515,6 +507,7 @@ bool EasySellToClose(int ticket, string sym, int maxTrades)
    }
    return(Closed);
 }
+
 //+------------------------------------------------------------------+
 //| Buy to close function                                            |
 //+------------------------------------------------------------------+
