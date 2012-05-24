@@ -2,6 +2,7 @@
 //|                                                                           pluslinex.mqh |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 2.30    Added PlusGhost.mqh and fixed bug in quota.                                     |
 //| 2.20    Added maximum trail pips, i.e. a watching trendline will revert to a pending    |
 //|            trendline after x pips has been trailed.                                     |
 //| 2.10    Added quota for each trend line.                                                |
@@ -74,7 +75,7 @@ int      I_Status, II_Status;
 //-- Assert Added quota for each trend line.
 int      I_Quota, II_Quota;
 string   LinexName="PlusLinex";
-string   LinexVer="2.20";
+string   LinexVer="2.30";
 
 //|-----------------------------------------------------------------------------------------|
 //|                             I N I T I A L I Z A T I O N                                 |
@@ -248,7 +249,7 @@ int Linex(double Pts)
             //--  Assert Open orders are removed
                if (LinexOpenOrd(Linex1Magic)==0)   
                {
-                  II_Quota++;
+                  I_Quota++;
                   return(1);
                }
                else
@@ -258,7 +259,7 @@ int Linex(double Pts)
                      if (LinexOneTrade && LinexOpenOrd(Linex2Magic)>0)    LinexCloseOrders(Linex2Magic);
                      Sleep(300); 
                   //--  Assert Open orders are removed
-                     II_Quota++;
+                     I_Quota++;
                      return(1);
                   }
          }
@@ -296,7 +297,11 @@ int Linex(double Pts)
             if (II_Status!=1 && !Linex2NoMove)  {}    // do nothing
             else
             //--  Assert Open orders are removed
-               if (LinexOpenOrd(Linex2Magic)==0)   return(-2);
+               if (LinexOpenOrd(Linex2Magic)==0)
+               {
+                  II_Quota ++;
+                  return(-2);
+               }
                else
                   if (LinexOpenLast(Linex2Magic)==OP_SELL)
                   {   
@@ -304,6 +309,7 @@ int Linex(double Pts)
                      if (LinexOneTrade && LinexOpenOrd(Linex1Magic)>0)    LinexCloseOrders(Linex1Magic);
                      Sleep(300); 
                   //--  Assert Open orders are removed
+                     II_Quota ++;
                      return(-2);
                   }
          }
@@ -322,7 +328,11 @@ int Linex(double Pts)
             if (II_Status!=1 && !Linex2NoMove)  {}    // do nothing
             else
             //-- Assert Open orders are removed
-               if (LinexOpenOrd(Linex2Magic)==0)   return(2);
+               if (LinexOpenOrd(Linex2Magic)==0)
+               {
+                  II_Quota ++;
+                  return(2);
+               }
                else
                   if (LinexOpenLast(Linex2Magic)==OP_BUY)
                   {   
@@ -330,6 +340,7 @@ int Linex(double Pts)
                       if (LinexOneTrade && LinexOpenOrd(Linex1Magic)>0)    LinexCloseOrders(Linex1Magic);
                      Sleep(300); 
                   //--  Assert Open orders are removed
+                     II_Quota ++;
                      return(2);
                   }
          }
@@ -447,26 +458,36 @@ string LinexComment(string cmt="")
 int LinexOpenLast(int mgc)
 {
    int   last=-1;
-      
-   for (int i = 0; i < OrdersTotal(); i++)
+   int   total=GhostOrdersTotal();
+//--- Assert 1: Init OrderSelect #1
+   GhostInitSelect(true,0,SELECT_BY_POS,MODE_TRADES);
+   for (int i = 0; i < total; i++)
    {
-      OrderSelect(i,SELECT_BY_POS,MODE_TRADES);
-      if (OrderMagicNumber() == mgc && OrderSymbol()==Symbol() && OrderType()<=1)
-          last = OrderType();
-   }      
+      GhostOrderSelect(i,SELECT_BY_POS,MODE_TRADES);
+      if (GhostOrderMagicNumber() == mgc && GhostOrderSymbol()==Symbol() && GhostOrderType()<=1)
+          last = GhostOrderType();
+   }
+//--- Assert 1: Free OrderSelect #1
+   GhostFreeSelect(false);
+   
    return(last);
 }
 
 int LinexOpenOrd(int mgc)
 {
-   int      ord=0;
-   
-   for (int i = 0; i < OrdersTotal(); i++)
+   int   ord=0;
+   int   total=GhostOrdersTotal();
+//--- Assert 1: Init OrderSelect #2
+   GhostInitSelect(true,0,SELECT_BY_POS,MODE_TRADES);
+   for (int i = 0; i < total; i++)
    {
-      OrderSelect(i,SELECT_BY_POS,MODE_TRADES);
-      if (OrderMagicNumber() == mgc && OrderSymbol()==Symbol() && OrderType()<=1)
+      GhostOrderSelect(i,SELECT_BY_POS,MODE_TRADES);
+      if (GhostOrderMagicNumber() == mgc && GhostOrderSymbol()==Symbol() && GhostOrderType()<=1)
           ord++;
    }      
+//--- Assert 1: Free OrderSelect #2
+   GhostFreeSelect(true);
+   
    return(ord);
 }
 
@@ -476,21 +497,45 @@ int LinexOpenOrd(int mgc)
 
 void LinexCloseOrders(int mgc)
 {
-      int cnt,c,total=0,ticket=0,err=0;
+   int cnt,c,total=0,ticket=0,err=0;
+   total = GhostOrdersTotal();
+//--- Assert 7: Declare variables for OrderSelect #3
+//       1-OrderModify BUY; 2-OrderClose BUY; 3-OrderModify SELL; 4-OrderClose SELL;
+   int      aCommand[];
+   int      aTicket[];
+   double   aLots[];
+   double   aClosePrice[];
+   bool     aOk;
+   int      aCount;
+   int      maxTrades=total;
+//--- Assert 4: Dynamically resize arrays for OrderSelect #3
+   ArrayResize(aCommand,maxTrades);
+   ArrayResize(aTicket,maxTrades);
+   ArrayResize(aLots,maxTrades);
+   ArrayResize(aClosePrice,maxTrades);
       
       if (IsTradeAllowed() == true)
       { 
-       total = OrdersTotal();
+      //--- Assert 1: Init OrderSelect #8
+       GhostInitSelect(false,0,SELECT_BY_POS,MODE_TRADES);
        for(cnt=total-1;cnt>=0;cnt--)
        {
-          OrderSelect(cnt, SELECT_BY_POS, MODE_TRADES);
+          GhostOrderSelect(cnt, SELECT_BY_POS, MODE_TRADES);
+       //--- Assert 4: Populate arrays for OrderSelect #8
+          aCommand[aCount]     =  0;
+          aTicket[aCount]      =  GhostOrderTicket();
+          aLots[aCount]        =  GhostOrderLots();
+          aClosePrice[aCount]  =  GhostOrderClosePrice();
 
-          if(OrderMagicNumber()==mgc && OrderSymbol()==Symbol())
+          if(GhostOrderMagicNumber()==mgc && GhostOrderSymbol()==Symbol())
           {
-             switch(OrderType())
+             switch(GhostOrderType())
              {
                 case OP_BUY      :
-                   for(c=0;c<5;c++)
+                //--- Assert 3: replace OrderClose Buy trade with arrays
+                   aCommand[aCount]     = 2;
+                   aCount ++;
+                   /*for(c=0;c<5;c++)
                    {
                       RefreshRates();
                       OrderClose(OrderTicket(),OrderLots(),OrderClosePrice(),3,Yellow);
@@ -503,11 +548,14 @@ void LinexCloseOrders(int mgc)
                          if(err==0 || err==4 || err==136 || err==137 || err==138 || err==146)
                          { Sleep(5000); continue; }                            // Busy errors
                       }
-                   }   
+                   }*/  
                    break;
                
                 case OP_SELL     :
-                   for(c=0;c<5;c++)
+                //--- Assert 3: replace OrderClose Sell trade with arrays
+                   aCommand[aCount]     = 4;
+                   aCount ++;
+                   /*for(c=0;c<5;c++)
                    {
                       RefreshRates();
                       OrderClose(OrderTicket(),OrderLots(),OrderClosePrice(),3,Yellow);
@@ -520,13 +568,35 @@ void LinexCloseOrders(int mgc)
                          if(err==0 || err==4 || err==136 || err==137 || err==138 || err==146)
                          { Sleep(5000); continue; }                            // Busy errors
                       }
-                   }   
+                   }*/
                    break;
              } // end of switch
+             if( aCount >= maxTrades ) break;
           } // end of if
        } // end of for
       }       
-      return(0);
+//--- Assert 1: Free OrderSelect #3
+   GhostFreeSelect(false);
+//--- Assert for: process array of commands for OrderSelect #3
+   aOk = true;
+   for(int i=0; i<aCount; i++)
+   {
+      switch( aCommand[i] )
+      {
+         case 2:  // OrderClose a buy trade
+            aOk = aOk && GhostOrderClose( aTicket[i], aLots[i], aClosePrice[i], 3, Yellow);
+            break;
+         case 4:  // OrderClose a sell trade
+            aOk = aOk && GhostOrderClose( aTicket[i], aLots[i], aClosePrice[i], 3, Yellow);
+            break;
+      }
+   }
+   if (!aOk)
+   {
+      Print("LinexCloseOrders: Error closing order : ",GetLastError());
+      if (LinexDebug>=2) Print("LinexCloseOrders: mgc=",mgc," aCount=",aCount);
+   }
+   return(0);
 }
 
 //|-----------------------------------------------------------------------------------------|
