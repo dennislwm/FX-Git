@@ -2,6 +2,7 @@
 //|                                                                           PlusSwiss.mqh |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.23    Replaced EasyProfitsMagic() with EasyProfitsBasket().                           |
 //| 1.22    Fixed bug in reset status.                                                      |
 //| 1.21    Fixed bug in Trade Decision Sell Zone for Target2.                              |
 //| 1.20    Added PlusLinex.mqh for take profit lines.                                      |
@@ -47,7 +48,7 @@ double   I_TargetLineLevelStart, II_TargetLineLevelStart;
 int      I_TargetStatus, II_TargetStatus;
 int      I_TargetMagic, II_TargetMagic;
 string SwissName="PlusSwiss";
-string SwissVer="1.21";
+string SwissVer="1.23";
 
 //|-----------------------------------------------------------------------------------------|
 //|                             I N I T I A L I Z A T I O N                                 |
@@ -303,7 +304,7 @@ int SwissTargetLinex(double Pts)
                else
                   if (LinexOpenLast(I_TargetMagic)==OP_SELL)
                   {  
-                     if (SwissOnlyTakeProfits && EasyProfitsMagic(I_TargetMagic)<=0)  {}  // do nothing
+                     if (SwissOnlyTakeProfits && EasyProfitsBasket(I_TargetMagic,Symbol())<=0)  {}  // do nothing
                      else
                      {
                         LinexCloseOrders(I_TargetMagic);
@@ -334,7 +335,7 @@ int SwissTargetLinex(double Pts)
                else
                   if (LinexOpenLast(I_TargetMagic)==OP_BUY)
                   {   
-                     if (SwissOnlyTakeProfits && EasyProfitsMagic(I_TargetMagic)<=0)  {}  // do nothing
+                     if (SwissOnlyTakeProfits && EasyProfitsBasket(I_TargetMagic,Symbol())<=0)  {}  // do nothing
                      else
                      {
                         LinexCloseOrders(I_TargetMagic); 
@@ -374,7 +375,7 @@ int SwissTargetLinex(double Pts)
                else
                   if (LinexOpenLast(II_TargetMagic)==OP_SELL)
                   {   
-                     if (SwissOnlyTakeProfits && EasyProfitsMagic(II_TargetMagic)<=0)  {}  // do nothing
+                     if (SwissOnlyTakeProfits && EasyProfitsBasket(II_TargetMagic,Symbol())<=0)  {}  // do nothing
                      else
                      {
                         LinexCloseOrders(II_TargetMagic); 
@@ -405,7 +406,7 @@ int SwissTargetLinex(double Pts)
                else
                   if (LinexOpenLast(II_TargetMagic)==OP_BUY)
                   {   
-                     if (SwissOnlyTakeProfits && EasyProfitsMagic(II_TargetMagic)<=0)  {}  // do nothing
+                     if (SwissOnlyTakeProfits && EasyProfitsBasket(II_TargetMagic,Symbol())<=0)  {}  // do nothing
                      else
                      {
                         LinexCloseOrders(II_TargetMagic); 
