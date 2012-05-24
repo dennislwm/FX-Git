@@ -2,6 +2,7 @@
 //|                                                                            pluseasy.mqh |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.32    Set maxTrades=0 (optional) will use EasyMaxAccountTrades in order functions.    |
 //| 1.31    Minor fixes in functions Comment, GetFirstTicket, OrderBuy and OrderSell.       |
 //| 1.30    Replaced Order functions with GhostOrder functions.                             |
 //|            Added CloseBasket() functions.                                               |
@@ -45,7 +46,7 @@ extern bool EasyDebug=0;
 double Pip;
 double Pts;
 string PlusName="PlusEasy";
-string PlusVer="1.31";
+string PlusVer="1.32";
 
 //|-----------------------------------------------------------------------------------------|
 //|                             I N I T I A L I Z A T I O N                                 |
@@ -181,8 +182,9 @@ int EasyGetFirstTicket(int mgc, string sym)
 //+-----------------------------------------------------------------------------------------|
 //|                             O P E N   N E W   T R A D E                                 |
 //+-----------------------------------------------------------------------------------------|
-int EasyOrderBuy(int mgc, string sym, double lot, double SL, double TP, string cmt, int maxTrades)
+int EasyOrderBuy(int mgc, string sym, double lot, double SL, double TP, string cmt, int maxTrades=0)
 {
+   if( maxTrades==0 ) maxTrades = EasyMaxAccountTrades;
 //---- Assert Check limits of externs
 //       MaxTrades has not been exceeded
 //       MaxSpread has not been exceeded
@@ -287,8 +289,9 @@ int EasyOrderBuy(int mgc, string sym, double lot, double SL, double TP, string c
 // =====================
 // sell to open function                                            
 // =====================
-int EasyOrderSell(int mgc, string sym, double lot, double SL, double TP, string cmt, int maxTrades)
+int EasyOrderSell(int mgc, string sym, double lot, double SL, double TP, string cmt, int maxTrades=0)
 {
+   if( maxTrades==0 ) maxTrades = EasyMaxAccountTrades;
 //---- Assert Check limits of externs
 //       MaxTrades has not been exceeded
 //       MaxSpread has not been exceeded
@@ -393,8 +396,9 @@ int EasyOrderSell(int mgc, string sym, double lot, double SL, double TP, string 
 //+------------------------------------------------------------------+
 //| Sell to close function                                           |
 //+------------------------------------------------------------------+
-bool EasySellToCloseBasket(int mgc, string sym, int maxTrades)
+bool EasySellToCloseBasket(int mgc, string sym, int maxTrades=0)
 {
+   if( maxTrades==0 ) maxTrades = EasyMaxAccountTrades;
 //--- Assert 5: Declare variables for OrderSelect #7
 //       1-OrderModify BUY; 2-OrderClose BUY; 3-OrderModify SELL; 4-OrderClose SELL;
    int      aCommand[];
@@ -445,8 +449,9 @@ bool EasySellToCloseBasket(int mgc, string sym, int maxTrades)
    }
    return(aOk);
 }
-bool EasySellToClose(int ticket, string sym, int maxTrades)
+bool EasySellToClose(int ticket, string sym, int maxTrades=0)
 {
+   if( maxTrades==0 ) maxTrades = EasyMaxAccountTrades;
    bool Closed;
 //---- Assert ticket is valid.
    if (ticket<=0)
