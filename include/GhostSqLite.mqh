@@ -25,6 +25,7 @@
 //| 1.17    Fixed non-unique id generated in table OpenedPositions by using AUTOINCREMENT.  |
 //| 1.18    Added function OrderTicketSelect().                                             |
 //| 1.19    Added function OrderOpen() and modified OrderSend() to include pending orders.  |
+//| 1.20    Minor fixes to Create, LoadBuffers, AccountFreeMargin and OrderDelete.          |
 //|-----------------------------------------------------------------------------------------|
 
 //|-----------------------------------------------------------------------------------------|
@@ -37,7 +38,7 @@
 //|-----------------------------------------------------------------------------------------|
 //---- Assert internal variables for SQLite
 string   SqLiteName        = "";
-string   SqLiteVer         = "1.19";
+string   SqLiteVer         = "1.20";
 int      SqLiteSelectIndex;
 int      SqLiteSelectMode;
 bool     SqLiteSelectAsc;
@@ -234,7 +235,7 @@ bool SqLiteCreate(int acctNo, string symbol, int period, string eaName)
          isOk=isOk && SqLitePutInteger(AdTable,r,     AdAccountNoStr,   AccountNumber());
          isOk=isOk && SqLitePutText(AdTable,r,        AdCurrencyStr,    AccountCurrency());
          isOk=isOk && SqLitePutReal(AdTable,r,        AdBalanceStr,     AccountBalance());
-         isOk=isOk && SqLitePutReal(AdTable,r,        AdEquityStr,      AccountEquity());
+         isOk=isOk && SqLitePutReal(AdTable,r,        AdEquityStr,      AccountBalance());
       if(!isOk)
       {
          GhostDebugPrint( 0,"SqLiteCreate",
@@ -509,6 +510,12 @@ void SqLiteLoadBuffers()
    if( GhostSummProfit!=0.0 )    SqLitePutReal(AdTable,1,AdEquityStr,   GhostSummProfit+SqLiteAccountBalance());
    if( totalMargin>0 )           SqLitePutReal(AdTable,1,AdMarginStr,   totalMargin);
    if( GhostSummProfit!=0.0 )    SqLitePutReal(AdTable,1,AdProfitStr,   GhostSummProfit);
+   if( totalMargin==0 && SqLiteAccountMargin() != 0.0 )
+   {
+      SqLitePutReal(AdTable,1,AdEquityStr,   SqLiteAccountBalance());
+      SqLitePutReal(AdTable,1,AdMarginStr,   0.0);
+      SqLitePutReal(AdTable,1,AdProfitStr,   0.0);
+   }
    
    GhostReorderBuffers();
 }
@@ -1382,7 +1389,26 @@ double SqLiteAccountMargin()
 }
 double SqLiteAccountFreeMargin()
 {
-    return(0.0);
+    int handle;
+    int lastCol;
+    string exp;
+    double val;
+    double eqy,mgn;
+    
+    exp="SELECT * FROM "+AdTable+" WHERE id=1";
+    
+//--- Assert query will lock database
+    lastCol=DbLockQuery(SqLiteName, handle, exp);
+    {
+       if(lastCol>0) DbNextRow(handle);
+       eqy=SqLiteGetReal(handle,AdEquity);
+       mgn=SqLiteGetReal(handle,AdMargin);
+       val=eqy-mgn;
+    }
+//--- Assert unlock database
+    DbFreeQuery(handle);
+
+    return(val);
 }
 int SqLiteAccountNumber()
 {
@@ -1541,7 +1567,8 @@ bool SqLiteOrderDelete(int ticket, color arrow=CLR_NONE)
       
       if( type > OP_SELL )
       {
-         isOk=isOk && SqLiteDeleteRow(OpTable,id);
+         isOk=true;
+            isOk=isOk && SqLiteDeleteRow(OpTable,id);
          if(!isOk) 
          {
          //--- Debug    
