@@ -2,6 +2,9 @@
 //|                                                                          plusturtle.mqh |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.01    Fixed BigValue for case 4 (Base to Counter) where return value should be the    |
+//|            inverse of the value. Also, if CounterCurrency is JPY, then multiply by 100, |
+//|            because one pip value is two decimal (0.01) instead of four decimal (0.0001).|
 //| 1.00    Calculate Big Value, i.e. tick value in deposit currency.                       |
 //|         E.g. For symbol=AUDUSD and AccountCurrency=SGD, tick value is USDSGD=1.30       |
 //+-----------------------------------------------------------------------------------------+
@@ -20,7 +23,10 @@ extern int      TurtleDebug=0;
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string   TurtleName="PlusTurtle";
-string   TurtleVer="1.00";
+string   TurtleVer="1.01";
+string   TurtleSymbolBase;
+string   TurtleSymbolCounter;
+string   TurtlePostFix;
 
 //|-----------------------------------------------------------------------------------------|
 //|                             I N I T I A L I Z A T I O N                                 |
@@ -50,7 +56,10 @@ double TurtleBigValue(string sym)
                   break;
       case 3   :  return(MarketInfo(BasePairForCross(sym),MODE_BID));
                   break;
-      case 4   :  return(MarketInfo(CounterPairForCross(sym),MODE_BID));
+      case 4   :  if( TurtleSymbolCounter=="JPY" )
+                     return( 100/MarketInfo(CounterPairForCross(sym),MODE_BID) );
+                  else
+                     return( 1/MarketInfo(CounterPairForCross(sym),MODE_BID) );
                   break;
       case 5   :  return(MarketInfo(CounterPairForCross(sym),MODE_BID));
                   break;
@@ -224,13 +233,12 @@ void SymbolInfoVerbose(string sym)
 {
    double   CalculatedLeverage=0;
    int      CalculatedSymbolType=0,ticket=0,LotSizeDigits=0,CurrentOrderType=0;
-   string   SymbolBase="",SymbolCounter="",postfix="";
 
    CalculatedSymbolType=CalcSymbolType(sym);
       
-   SymbolBase=StringSubstr(sym,0,3);
-   SymbolCounter=StringSubstr(sym,3,3);
-   postfix=StringSubstr(sym,6);
+   TurtleSymbolBase=StringSubstr(sym,0,3);
+   TurtleSymbolCounter=StringSubstr(sym,3,3);
+   TurtlePostFix=StringSubstr(sym,6);
    
    Print("Current Symbol = ",sym,", Bid = ",DoubleToStr(MarketInfo(sym,MODE_BID),MarketInfo(sym,MODE_DIGITS))," and Ask = ",DoubleToStr(MarketInfo(sym,MODE_ASK),MarketInfo(sym,MODE_DIGITS)));
    CalcSymbolTypeVerbose(sym, CalculatedSymbolType);
@@ -354,4 +362,3 @@ void CalcSymbolLeverageVerbose(string sym, int CalculatedLeverage)
 //|-----------------------------------------------------------------------------------------|
 //|                     E N D   O F   E X P E R T   A D V I S O R                           |
 //|-----------------------------------------------------------------------------------------|
-
