@@ -26,6 +26,7 @@
 //| 1.18    Added function OrderTicketSelect().                                             |
 //| 1.19    Added function OrderOpen() and modified OrderSend() to include pending orders.  |
 //| 1.20    Minor fixes to Create, LoadBuffers, AccountFreeMargin and OrderDelete.          |
+//| 1.21    Implemented opening and expiration of stop orders in SqLiteManager.             |
 //|-----------------------------------------------------------------------------------------|
 
 //|-----------------------------------------------------------------------------------------|
@@ -38,7 +39,7 @@
 //|-----------------------------------------------------------------------------------------|
 //---- Assert internal variables for SQLite
 string   SqLiteName        = "";
-string   SqLiteVer         = "1.20";
+string   SqLiteVer         = "1.21";
 int      SqLiteSelectIndex;
 int      SqLiteSelectMode;
 bool     SqLiteSelectAsc;
@@ -281,23 +282,27 @@ void SqLiteManager()
    int lastCol;
    int id;
    bool isOk;
-   string exp;
+   string expr;
    double bal;
    int    ticket;
    double lots;
    double calcProfit;
    double closePrice;
+   double marketPrice;
    double openPrice;
    double openSL;
    double openTP;
    double pts;
    int    type;
+   int    openTime;
+   datetime exp;
+   int    calcType=-1;
    string sym;
     
-   exp="SELECT * FROM "+OpTable;
+   expr="SELECT * FROM "+OpTable;
     
 //--- Assert query will lock database
-   lastCol=DbLockQuery(SqLiteName, handle, exp);
+   lastCol=DbLockQuery(SqLiteName, handle, expr);
    {
       if(lastCol>0) while( DbNextRow(handle) )
       {
@@ -307,9 +312,10 @@ void SqLiteManager()
          openPrice   = SqLiteGetReal(handle,    OpOpenPrice);
          openSL      = SqLiteGetReal(handle,    OpStopLoss);
          openTP      = SqLiteGetReal(handle,    OpTakeProfit);
+         exp         = SqLiteGetDT(handle,      OpExpiration);
          sym         = SqLiteGetText(handle,    OpSymbol);
       //--- Assert get real-time info
-         pts = MarketInfo( sym, MODE_POINT );
+         pts         = MarketInfo( sym, MODE_POINT );
          if(type==OP_BUY)
          {
             closePrice = MarketInfo( sym, MODE_BID );
@@ -336,6 +342,84 @@ void SqLiteManager()
                break;
             }
          }
+      //--- Assert check if stop orders are to be open
+      //       No changes to SL and TP.
+         else if( type == OP_BUYSTOP )
+         {
+            marketPrice = MarketInfo( sym, MODE_ASK );
+            openTime    = TimeCurrent();
+            if( TimeCurrent() >= exp )
+            {
+               openTime = 0;
+               calcType = OP_BUY;
+               id=SqLiteGetId(handle);
+               break;
+            }
+            else if( marketPrice >= openPrice )
+            {
+            //--- Assert determine new type
+               calcType = OP_BUY;
+               id=SqLiteGetId(handle);
+               break;
+            }
+         }
+         else if( type == OP_SELLSTOP )
+         {
+            marketPrice = MarketInfo( sym, MODE_BID );
+            openTime    = TimeCurrent();
+            if( TimeCurrent() >= exp )
+            {
+               openTime = 0;
+               calcType = OP_SELL;
+               id=SqLiteGetId(handle);
+               break;
+            }
+            else if( marketPrice <= openPrice )
+            {
+            //--- Assert determine new type
+               calcType = OP_SELL;
+               id=SqLiteGetId(handle);
+               break;
+            }
+         }
+         else if( type == OP_BUYLIMIT )
+         {
+            marketPrice = MarketInfo( sym, MODE_ASK );
+            openTime    = TimeCurrent();
+            if( TimeCurrent() >= exp )
+            {
+               openTime = 0;
+               calcType = OP_BUY;
+               id=SqLiteGetId(handle);
+               break;
+            }
+            else if( marketPrice <= openPrice )
+            {
+            //--- Assert determine new type
+               calcType = OP_BUY;
+               id=SqLiteGetId(handle);
+               break;
+            }
+         }
+         else if( type == OP_SELLLIMIT )
+         {
+            marketPrice = MarketInfo( sym, MODE_BID );
+            openTime    = TimeCurrent();
+            if( TimeCurrent() >= exp )
+            {
+               openTime = 0;
+               calcType = OP_SELL;
+               id=SqLiteGetId(handle);
+               break;
+            }
+            else if( marketPrice >= openPrice )
+            {
+            //--- Assert determine new type
+               calcType = OP_SELL;
+               id=SqLiteGetId(handle);
+               break;
+            }
+         }
       }
    }
 //--- Assert unlock database
@@ -347,8 +431,8 @@ void SqLiteManager()
       bal=SqLiteAccountBalance();
 
       isOk=true;
-         isOk=isOk && SqLitePutReal(AdTable,1,AdBalanceStr,  bal+calcProfit);
-         isOk=isOk && SqLiteHistoryClose( ticket, closePrice, calcProfit );
+         isOk=isOk && SqLitePutReal(AdTable,1,AdBalanceStr,    bal+calcProfit);
+         isOk=isOk && SqLiteHistoryClose( ticket, closePrice,  calcProfit );
          isOk=isOk && SqLiteDeleteRow(OpTable,id);
       if(!isOk) 
          Print("0:SqLiteManager(): Assert failed to manage order. id=",id);
@@ -361,6 +445,36 @@ void SqLiteManager()
          GhostDebugDbl("openSL",openSL,5)+
          GhostDebugDbl("openTP",openTP,5)+
          GhostDebugDbl("calcProfit",calcProfit,5) );
+   }
+//--- Assert adjustment to stop orders
+   if(calcType>=0 && id>0)
+   {
+      if( openTime==0 )
+      {
+         isOk=true;
+            isOk=isOk && SqLiteDeleteRow(OpTable,id);
+         if(!isOk) 
+            Print("0:SqLiteManager(): Assert failed to delete stop order. id=",id);
+      }
+      else
+      {
+         isOk=true;
+            isOk=isOk && SqLitePutDT(OpTable,id,OpOpenTimeStr,    openTime);
+            isOk=isOk && SqLitePutInteger(OpTable,id,OpTypeStr,   calcType);
+            isOk=isOk && SqLitePutReal(OpTable,id,OpOpenPriceStr, marketPrice);
+         if(!isOk) 
+            Print("0:SqLiteManager(): Assert failed to manage stop order. id=",id);
+      }
+   //--- Debug    
+      GhostDebugPrint( 1,"SqLiteManager",
+         GhostDebugInt("id",id)+
+         GhostDebugDbl("marketPrice",marketPrice,5)+
+         GhostDebugDbl("openPrice",openPrice,5)+
+         GhostDebugDbl("openSL",openSL,5)+
+         GhostDebugDbl("openTP",openTP,5)+
+         GhostDebugInt("calcType",calcType)+
+         GhostDebugInt("openTime",openTime)+
+         GhostDebugInt("exp",exp) );
    }
 }
 
