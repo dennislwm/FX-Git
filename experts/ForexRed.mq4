@@ -2,6 +2,8 @@
 //|                                                                            ForexRed.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.01    Fixed EMPTY_VALUE returned from Custom indicators.                              |
+//|            Valid TDSetup signal is either 4 or -4.                                      |
 //| 1.00    Originated from RedAuto 1.00. This EA is a Martingale Swing EA that uses        |
 //|            SharpeRSI_Ann to determine when to open. The Neural Net wave signal is then  |
 //|            validated by looking for a similar TDSetup wave signal n bars back.          |
@@ -12,6 +14,8 @@
 #include <plusinit.mqh>
 extern   int      Fred1Magic     = 11000;
 extern   int      Fred2Magic     = 12000;
+extern   int      FredDebug      = 1;
+extern   int      FredDebugCount = 1000;
 extern   string   s1             ="-->PlusRed Settings<--";
 #include <plusred.mqh>
 //---- Assert Basic externs
@@ -29,7 +33,8 @@ extern   string   s4             ="-->PlusGhost Settings<--";
 //|                           I N T E R N A L   V A R I A B L E S                            |
 //|------------------------------------------------------------------------------------------|
 string   EaName   ="ForexRed";
-string   EaVer    ="1.00";
+string   EaVer    ="1.01";
+int      EaDebugCount;
 
 // ------------------------------------------------------------------------------------------|
 //                             I N I T I A L I S A T I O N                                   |
@@ -69,7 +74,7 @@ int deinit()
 
 int start()
 {
-   string strtmp;
+   string strtmp, dbg;
    int wave,ticket;
    int period;
 
@@ -78,7 +83,10 @@ int start()
    Comment(EaComment());
 
 //--- Assert there are NO opened trades.   
-   int total=GhostOrdersTotal();
+   int total=EasyOrdersBasket(Fred1Magic, Symbol());
+   EaDebugPrint( 2,"start",
+      EaDebugInt("total",total),
+      true, 0 );
    if( total > 0 ) return(0);
 
    if( isNewBar() )
@@ -87,27 +95,46 @@ int start()
       if( RedShortCycle ) period = RedShortPeriod;
       else period = RedLongPeriod;
    //--- Determine if a signal is generated.
-      int shWave = iCustom( NULL, period, "SharpeRSI_Ann", 12, 26, 9, 0, 0 );
-      if( shWave == 0 ) return(0);
+      //int shWave = iCustom( Symbol(), period, "SharpeRSI_Ann", 12, 26, 9, 0, 1 );
+      string gFredStr = StringConcatenate( Symbol(), "_", period );
+      int shWave = GlobalVariableGet( gFredStr );
+      EaDebugPrint( 2,"start",
+         EaDebugStr("sym",Symbol())+
+         EaDebugInt("period",period)+
+         EaDebugInt("total",total)+
+         EaDebugInt("shWave",shWave),
+         false, 1 );
+      if( shWave == 0 || shWave == EMPTY_VALUE ) return(0);
       
    //--- Verify wave signal by checking TDSetup n bars back.
       int tdWave;
-      int n=MathAbs(shWave);
+      int n=MathAbs(shWave)+1;
       
       for(int i=0; i<n; i++)
       {
-         tdWave = iCustom( NULL, period, "TDSetup", 5, 30, 0, i );
-         if( tdWave < 0 && shWave < 0 ) 
+         tdWave = iCustom( NULL, 0, "TDSetup", 5, 30, 0, i );
+         EaDebugPrint( 2,"start",
+            EaDebugInt("i",i)+
+            EaDebugInt("tdWave",tdWave),
+            false, 1 );
+         if( tdWave!= EMPTY_VALUE && tdWave <= -4 && shWave < 0 ) 
          {
+            Print(i,": tdWave=",tdWave," shWave=",shWave);
             wave = -1;
             break;
          }
-         if( tdWave > 0 && shWave > 0 )
+         if( tdWave!= EMPTY_VALUE && tdWave >= 4 && shWave > 0 )
          {
+            Print(i,": tdWave=",tdWave," shWave=",shWave);
             wave = 1;
             break;
          }
       }
+      EaDebugPrint( 2,"start",
+         EaDebugInt("n",n)+
+         EaDebugInt("shWave",shWave)+
+         EaDebugInt("tdWave",tdWave),
+         false, 1 );
    }
 
    switch(wave)
@@ -152,8 +179,41 @@ string EaComment(string cmt="")
    strtmp = strtmp+"\n";
    return(strtmp);
 }
+void EaDebugPrint(int dbg, string fn, string msg, bool incr=true, int mod=0)
+{
+   if(FredDebug>=dbg)
+   {
+      if(dbg>=2 && FredDebugCount>0)
+      {
+         if( MathMod(EaDebugCount,FredDebugCount) == mod )
+            Print(FredDebug,"-",EaDebugCount,":",fn,"(): ",msg);
+         if( incr )
+            EaDebugCount ++;
+      }
+      else
+         Print(FredDebug,":",fn,"(): ",msg);
+   }
+}
+string EaDebugInt(string key, int val)
+{
+   return( StringConcatenate(";",key,"=",val) );
+}
+string EaDebugDbl(string key, double val, int dgt=5)
+{
+   return( StringConcatenate(";",key,"=",NormalizeDouble(val,dgt)) );
+}
+string EaDebugStr(string key, string val)
+{
+   return( StringConcatenate(";",key,"=\"",val,"\"") );
+}
+string EaDebugBln(string key, bool val)
+{
+   string valType;
+   if( val )   valType="true";
+   else        valType="false";
+   return( StringConcatenate(";",key,"=",valType) );
+}
 
 //|------------------------------------------------------------------------------------------|
 //|                       E N D   O F   E X P E R T   A D V I S O R                          |
 //|------------------------------------------------------------------------------------------|
-
