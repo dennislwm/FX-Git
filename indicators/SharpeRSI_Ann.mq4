@@ -2,6 +2,7 @@
 //|                                                                       SharpeRSI_Ann.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.10    Fixed repainting code by using the Sharpe MACD AlleeH4 4.43.                    |
 //| 1.00    Standalone SharpeRSI indicator with Neural Net wave signal. The length of the   |
 //|            wave indicates the validity length in bars. E.g. 10 means SELL with a 10-bar |
 //|            validity. Requires PlusAnn.                                                  |
@@ -12,10 +13,12 @@
 #property indicator_separate_window
 #property indicator_minimum -20
 #property indicator_maximum 20
-#property indicator_buffers 2
+#property indicator_buffers 8
 #property indicator_color1 Thistle
-#property indicator_color2 Black
-#property indicator_color3 Black
+#property indicator_color2 Red
+#property indicator_color3 Yellow
+#property indicator_color4 LimeGreen
+#property indicator_color5 Cyan
 
 #include    <PlusAnn.mqh>
 
@@ -23,24 +26,32 @@
 extern int       EmaFast=12;
 extern int       EmaSlow=26;
 extern int       EmaSignal=9;
-//--- buffers
-double ExtMapBuffer1[];
-double ExtMapBuffer2[];
-//--- Assert variables used by variance
-double cross_prod[];
-//--- Assert variables used by EMA values
-double ema_fast[];
-double ema_slow[];
-//--- Assert variables used by MACD
-double macd[];
-//--- Assert variables used by signal
-double signal[];
-//--- Assert variables used by RSI
-double rsi[];
-double aHigh[], aLow[], aClose[], aOpen[];
+//---- Assert indicator name and version
+string IndName="SharpeRSI_Ann";
+string IndVer="1.10";
+//---- Assert indicators for outputs (1) and calculations (7)
+double ExtMapBuffer1[];    // wave signal by Neural Net
+double ExtMapBuffer2[];    // rsi of sharpe
+double ExtMapBuffer3[];    // macd of sharpe
+double ExtMapBuffer4[];    // signal of sharpe
+double ExtMapBuffer5[];    // histogram of sharpe
+double ExtMapBuffer6[];    // cross product of deviation from mean
+double ExtMapBuffer7[];    // ema fast of sharpe
+double ExtMapBuffer8[];    // ema slow of sharpe
+//---- Assert variables for cumulative mean of MACD
+double mean=0;
+double sum=0;
+int    n=0;
 //--- Assert variables used by Ann
-double inRsi[], outRsi[], sumRsi=0.0;
-int    posCount, negCount;
+double aOpen[];
+double aHigh[];
+double aLow[];
+double aClose[];
+double inRsi[];
+double outRsi[];
+double sumRsi=0.0;
+int    posCount;
+int    negCount;
 //--- Assert variables to detect new bar
 int    nextBarTime;
 
@@ -50,10 +61,34 @@ int    nextBarTime;
 int init()
   {
 //---- indicators
+   IndicatorBuffers(8);
    SetIndexStyle(0,DRAW_HISTOGRAM);
+   SetIndexStyle(1,DRAW_LINE);
+   SetIndexStyle(2,DRAW_LINE);
+   SetIndexStyle(3,DRAW_LINE);
+   SetIndexStyle(4,DRAW_HISTOGRAM);
+   SetIndexStyle(5,DRAW_NONE);
+   SetIndexStyle(6,DRAW_NONE);
+   SetIndexStyle(7,DRAW_NONE);
+   
+   IndicatorDigits(Digits+10);
+   SetIndexDrawBegin(0,EmaSlow);
+   SetIndexDrawBegin(1,EmaSlow);
+   SetIndexDrawBegin(2,EmaSlow);
+   SetIndexDrawBegin(3,EmaSlow);
+   SetIndexDrawBegin(4,EmaSlow);
+   SetIndexDrawBegin(5,EmaSlow);
+   SetIndexDrawBegin(6,EmaSlow);
+   SetIndexDrawBegin(7,EmaSlow);
+
    SetIndexBuffer(0,ExtMapBuffer1);
-   SetIndexStyle(1,DRAW_NONE);
    SetIndexBuffer(1,ExtMapBuffer2);
+   SetIndexBuffer(2,ExtMapBuffer3);
+   SetIndexBuffer(3,ExtMapBuffer4);
+   SetIndexBuffer(4,ExtMapBuffer5);
+   SetIndexBuffer(5,ExtMapBuffer6);
+   SetIndexBuffer(6,ExtMapBuffer7);
+   SetIndexBuffer(7,ExtMapBuffer8);
 //----
    return(0);
   }
@@ -86,48 +121,51 @@ int start()
    int i;
    int unused_bars;
    int used_bars=IndicatorCounted();
-//---- Assert variables used by cumulative mean
-   static double mean=0;
-   static double sum=0;
-   static int n=0;
 
    string debug;
    
 //---- check for possible errors
    if (used_bars<0) return(-1);
 //---- last counted bar will be recounted
-//   if (used_bars>0) used_bars--;
-
-//---- Assert count from last bar (function Bars) to current bar (0)
+   if (used_bars>0) used_bars--;
    unused_bars=Bars-used_bars;
 
-
-   for (i=unused_bars-1; i>0; i--)
+//---- Assert count from last bar (function Bars) to current bar (0)
+   for (i=unused_bars-1;i>=0;i--)
    {
-//---- Assert cumulative mean
-      n+=1;
-      sum+=Close[i];
-      mean=sum/n;
+   //---- Assert cumulative mean (exclude current Bar)
+      if (n<Bars)
+      {
+         n+=1;
+         sum+=Close[i];
+         mean=sum/n;
+      }
 
-//---- Assert variance in decimal
-      ArrayResize(cross_prod,n);
-      cross_prod[i]=(Close[i]-mean)*(Close[i]-mean);
-//---- Assert parameter cross_prod is changed from array to timeseries
-      ArraySetAsSeries(cross_prod,true);
-//---- Assert EMA values in decimal
-      ArrayResize(ema_fast,n);
-      ArrayResize(ema_slow,n);
-      ema_fast[i]=MathSqrt(iMAOnArray(cross_prod,0,EmaFast,0,MODE_EMA,i));
-      ema_slow[i]=MathSqrt(iMAOnArray(cross_prod,0,EmaSlow,0,MODE_EMA,i));
-//---- Assert MACD values in decimal
-      ArrayResize(macd,n);
-      macd[i]=ema_fast[i]-ema_slow[i];
-//---- Assert RSI values in decimal
-      ArrayResize(rsi,n);
-      rsi[i]=iRSIOnArray(macd,0,14,i);
-      ArraySetAsSeries(macd,true);
-//---- Display arrays as a timeseries
-      ExtMapBuffer2[i]=rsi[i];
+   //---- Assert variance in decimal
+   //---- Assert parameter cross_prod is changed from array to timeseries
+      ExtMapBuffer6[i]=(Close[i]-mean)*(Close[i]-mean);
+   }
+
+   for (i=unused_bars-1;i>=0;i--)
+   {
+   //---- Assert EMA values in decimal
+      ExtMapBuffer7[i]=MathSqrt(iMAOnArray(ExtMapBuffer6,0,EmaFast,0,MODE_EMA,i));
+      ExtMapBuffer8[i]=MathSqrt(iMAOnArray(ExtMapBuffer6,0,EmaSlow,0,MODE_EMA,i));
+
+   //---- Assert MACD values in decimal
+      ExtMapBuffer3[i]=MathSqrt(iMAOnArray(ExtMapBuffer6,0,EmaFast,0,MODE_EMA,i))-MathSqrt(iMAOnArray(ExtMapBuffer6,0,EmaSlow,0,MODE_EMA,i));
+   }
+
+   for (i=unused_bars-1;i>=0;i--)
+   {
+   //---- Assert signal values in decimal
+      ExtMapBuffer4[i]=iMAOnArray(ExtMapBuffer3,0,EmaSignal,0,MODE_EMA,i);
+
+   //---- Assert histogram values in decimal 
+      ExtMapBuffer5[i]=ExtMapBuffer3[i]-iMAOnArray(ExtMapBuffer3,0,EmaSignal,0,MODE_EMA,i);
+      
+   //---- Assert RSI values in decimal 
+      ExtMapBuffer2[i]=iRSIOnArray(ExtMapBuffer3,0,14,i);
    }
 
 //--- Assert Ann   
@@ -145,7 +183,7 @@ int start()
             Retrain(inRsi, ArraySize(inRsi), i);
             outRsi[i] = PredictDirectionNN(inRsi, ArraySize(inRsi), i) * 100;
             sumRsi = sumRsi + outRsi[i];
-            if(outRsi[i]>=rsi[1]) posCount ++;
+            if(outRsi[i]>=ExtMapBuffer2[1]) posCount ++;
             else negCount++;
          }
          if( posCount == AnnCommitteeSize || negCount == AnnCommitteeSize ) {}
@@ -153,8 +191,8 @@ int start()
          if(sumRsi!=0.0) 
          {
             double avg=sumRsi/AnnCommitteeSize;
-            int hiRsi   =CalcSeqBackBar(rsi,AnnTotalBars);
-            int loRsi   =CalcSeqBackBar(rsi,AnnTotalBars,true);
+            int hiRsi   =CalcSeqBackBar(ExtMapBuffer2,AnnTotalBars);
+            int loRsi   =CalcSeqBackBar(ExtMapBuffer2,AnnTotalBars,true);
             populateArray(High,aHigh,AnnTotalBars);
             int hiHigh  =CalcSeqBackBar(aHigh,AnnTotalBars);
             int loHigh  =CalcSeqBackBar(aHigh,AnnTotalBars,true);
@@ -171,9 +209,9 @@ int start()
             double avgHi= ( hiOpen+hiHigh+hiLow+hiClose )/4;
    
          //--- Assert find the closest OHLC bars to the validity bars.
-            if( hiRsi > loRsi && avg > rsi[1] )
+            if( hiRsi > loRsi && avg > ExtMapBuffer2[1] )
             {
-                //Print("Continuation up rsi[1]=", rsi[1] ," AvgNN=", avg, " (validity ", hiRsi, " bars).");
+                //Print("Continuation up rsi[1]=", ExtMapBuffer2[1] ," AvgNN=", avg, " (validity ", hiRsi, " bars).");
                 if( MathAbs(avgLo-hiRsi) > MathAbs(avgHi-hiRsi) )
                 //--- Assert smaller delta of number of bars implies greater correlation between SharpeRSI direction and OHLC trend.
                    //Print("Continuation of UP trend");
@@ -182,9 +220,9 @@ int start()
                    //Print("Continuation of DN trend");
                    ExtMapBuffer1[0]=0;
             }
-            else if( hiRsi > loRsi && avg <= rsi[1] )
+            else if( hiRsi > loRsi && avg <= ExtMapBuffer2[1] )
             {
-                Print("REVERSAL up rsi[1]=", rsi[1] ," AvgNN=", avg, " (validity ", hiRsi, " bars).");
+                Print("REVERSAL up rsi[1]=", ExtMapBuffer2[1] ," AvgNN=", avg, " (validity ", hiRsi, " bars).");
                 if( MathAbs(avgLo-hiRsi) > MathAbs(avgHi-hiRsi) )
                 //--- Assert smaller delta of number of bars implies greater correlation between SharpeRSI direction and OHLC trend.
                    //Print("REVERSAL of UP trend");
@@ -193,9 +231,9 @@ int start()
                    //Print("REVERSAL of DN trend");
                    ExtMapBuffer1[0]=-hiRsi;
             }
-            else if( loRsi > hiRsi && rsi[1] > avg )
+            else if( loRsi > hiRsi && ExtMapBuffer2[1] > avg )
             {
-                Print("Continuation dn rsi[1]=", rsi[1] ," AvgNN=", avg, " (validity ", loRsi, " bars).");
+                //Print("Continuation dn rsi[1]=", ExtMapBuffer2[1] ," AvgNN=", avg, " (validity ", loRsi, " bars).");
                 if( MathAbs(avgLo-loRsi) > MathAbs(avgHi-loRsi) )
                 //--- Assert smaller delta of number of bars implies greater correlation between SharpeRSI direction and OHLC trend.
                    //Print("Continuation of UP trend");
@@ -204,9 +242,9 @@ int start()
                    //Print("Continuation of DN trend");
                    ExtMapBuffer1[0]=0;
             }
-            else if( loRsi > hiRsi && rsi[1] <= avg )
+            else if( loRsi > hiRsi && ExtMapBuffer2[1] <= avg )
             {
-                Print("REVERSAL dn rsi[1]=", rsi[1] ," AvgNN=", avg, " (validity ", loRsi, " bars).");
+                Print("REVERSAL dn rsi[1]=", ExtMapBuffer2[1] ," AvgNN=", avg, " (validity ", loRsi, " bars).");
                 if( MathAbs(avgLo-loRsi) > MathAbs(avgHi-loRsi) )
                 //--- Assert smaller delta of number of bars implies greater correlation between SharpeRSI direction and OHLC trend.
                    //Print("REVERSAL of UP trend");
@@ -228,13 +266,13 @@ int start()
    }
    
 //----
-   debug="SharpeRSI rsi[1]="+DoubleToStr(rsi[1],4);
-   debug=debug+" Bars="+AnnTotalBars;
-   debug=debug+" mse="+DoubleToStr(GetMse()*1000,4);
+   debug=IndName+" "+IndVer+" rsi[1]="+DoubleToStr(ExtMapBuffer2[1],3);
+   debug=debug+" Bars="+DoubleToStr(AnnTotalBars,0);
+   debug=debug+" mse="+DoubleToStr(GetMse()*1000,1);
    if(sumRsi==0.0)
       debug=debug+" No cons (+"+posCount+" -"+negCount+")";
    else
-      debug=debug+" Avg NN="+DoubleToStr(sumRsi/AnnCommitteeSize,4);
+      debug=debug+" Avg NN="+DoubleToStr(sumRsi/AnnCommitteeSize,3);
    IndicatorShortName(debug);
    
    return(0);
@@ -250,10 +288,10 @@ void populateRsi(int n)
     {
     //--- Assert first element of Array is the last Bar
     //      Last element of inRsi[] is Bar[1].
-        if(rsi[ n - i ]!=0) inRsi[ i ] = rsi[ n - i ]/100;
+        if(ExtMapBuffer2[ n - i ]!=0) inRsi[ i ] = ExtMapBuffer2[ n - i ]/100;
         else inRsi[ i ]=0;
         
-        /*if(i==n-1) Print("inRsi[",i,"]=",DoubleToStr(inRsi[i],5),"; rsi[",n-i,"]=",DoubleToStr(rsi[n-i],5));*/
+        /*if(i==n-1) Print("inRsi[",i,"]=",DoubleToStr(inRsi[i],5),"; ExtMapBuffer2[",n-i,"]=",DoubleToStr(ExtMapBuffer2[n-i],5));*/
     }
     /*Print("ArraySize=",ArraySize(inRsi));*/
 }
