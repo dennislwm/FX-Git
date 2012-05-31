@@ -2,6 +2,8 @@
 //|                                                                             PlusRed.mqh |
 //|                                                             Copyright  2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.11    Fixed RedCalcBreakEvenBasket to input profit as pips (same as VRSetka2).        |
+//|            Fixed bug in RedIsOkTakeProfitBasket for OP_SELL.                            |
 //| 1.10    Created functions OrderManagerBasket, OrderModifyBasket, CalcBreakEvenBasket,   |
 //|            IsOkStopLossBasket and IsOkTakeProfitBasket.                                 |
 //|            Added pending order array in LoadBuffers.                                    |
@@ -33,7 +35,7 @@ extern   int      RedDebugCount  =1000;
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string   RedName="PlusRed";
-string   RedVer="1.10";
+string   RedVer="1.11";
 //--- Assert variables for Basic
 double   redSL;
 int      redCycleSL=3;
@@ -65,6 +67,7 @@ int      nextBarTime;
 //--- Assert variables for cycle gaps
 int      redCyclePip;
 double   redBaseOpenPrice;
+double   redCalcSL, redCalcTP;
 //--- Assert variables for debug
 int      RedCount;
 
@@ -166,9 +169,9 @@ void RedOrderManagerBasket(int mgc, string sym, int maxTrades)
    int    beg, end;
    int    oldTotal, newTotal;
    double drawdown;
-   double calcSL, calcTP;
    double pts = MarketInfo( sym, MODE_POINT );
 //--- Assert Load buffers with existing trades
+   redCalcSL=0; redCalcTP=0;
    oldTotal = RedLoadBuffers(mgc,sym);
    if( oldTotal < 1 ) return(0);
 //--- Assert calculate drawdown for child trade
@@ -183,21 +186,23 @@ void RedOrderManagerBasket(int mgc, string sym, int maxTrades)
       RedDebugStr("sym",sym)+
       RedDebugInt("maxTrades",maxTrades)+
       RedDebugDbl("drawdown",drawdown,2)+
-      RedDebugDbl("buffer",redCyclePip*InitPts*RedBaseLot*TurtleBigValue(sym)/Point,2),
+      RedDebugDbl("buffer",redCyclePip*InitPts/(oldTotal+1),2),
       false, 1 );
    
 //--- Assert calculate SL and TP
    if( redOpType[end] == OP_BUY )
    {
-      calcSL   = redOpOpenPrice[end] - redCycleSL * redCyclePip * InitPts;
-      calcTP   = RedCalcBreakEvenBasket( OP_BUY, sym, drawdown - redCyclePip*InitPts*RedBaseLot*TurtleBigValue(sym)/Point );
-      //calcTP   = calcTP + redCyclePip * InitPts;
+      redCalcSL   = redOpOpenPrice[end] - redCycleSL * redCyclePip * InitPts;
+      redCalcTP   = RedCalcBreakEvenBasket( OP_BUY, sym, redCyclePip / (oldTotal + 1) );
+      //redCalcTP   = RedCalcBreakEvenBasket( OP_BUY, sym, drawdown - redCyclePip*InitPts*RedBaseLot*TurtleBigValue(sym)/(Point*oldTotal) );
+      //redCalcTP   = redCalcTP + redCyclePip * InitPts;
    }
    if( redOpType[end] == OP_SELL )
    {
-      calcSL   = redOpOpenPrice[end] + redCycleSL * redCyclePip * InitPts;
-      calcTP   = RedCalcBreakEvenBasket( OP_SELL, sym, drawdown - redCyclePip*InitPts*RedBaseLot*TurtleBigValue(sym)/Point );
-      //calcTP   = calcTP - redCyclePip * InitPts;
+      redCalcSL   = redOpOpenPrice[end] + redCycleSL * redCyclePip * InitPts;
+      redCalcTP   = RedCalcBreakEvenBasket( OP_SELL, sym, redCyclePip / (oldTotal + 1) );
+      //redCalcTP   = RedCalcBreakEvenBasket( OP_SELL, sym, drawdown - redCyclePip*InitPts*RedBaseLot*TurtleBigValue(sym)/(Point*oldTotal) );
+      //redCalcTP   = redCalcTP - redCyclePip * InitPts;
    }
    RedDebugPrint( 2,"RedOrderManagerBasket",
       RedDebugInt("end",end)+
@@ -205,14 +210,14 @@ void RedOrderManagerBasket(int mgc, string sym, int maxTrades)
       RedDebugInt("type",redOpType[end])+
       RedDebugDbl("lots",redOpLots[end])+
       RedDebugDbl("OpenPrice",redOpOpenPrice[end],5)+
-      RedDebugDbl("calcSL",calcSL,5)+
-      RedDebugDbl("calcTP",calcTP,5),
+      RedDebugDbl("redCalcSL",redCalcSL,5)+
+      RedDebugDbl("redCalcTP",redCalcTP,5),
       false, 1 );
 //--- Assert Ok StopLoss basket
    beg = 0; end = oldTotal - 1;
-   if( !RedIsOkStopLossBasket(calcSL) || !RedIsOkTakeProfitBasket(calcTP) )
+   if( !RedIsOkStopLossBasket(redCalcSL) || !RedIsOkTakeProfitBasket(redCalcTP) )
    {
-      RedOrderModifyBasket( mgc, sym, calcSL, calcTP, 0, maxTrades );
+      RedOrderModifyBasket( mgc, sym, redCalcSL, redCalcTP, 0, maxTrades );
       oldTotal = RedLoadBuffers(mgc,sym);
    }
 //--- Assert max Basket level has not been reached
@@ -223,22 +228,22 @@ void RedOrderManagerBasket(int mgc, string sym, int maxTrades)
    if( newTotal == oldTotal ) return(0);
 //--- Assert calculate Stop Loss for child trade
    beg = 0; end = newTotal - 1;
-   calcSL = redOpStopLoss[end];
-   calcTP = RedCalcBreakEvenBasket( redOpType[end], sym, drawdown );
+   redCalcSL = redOpStopLoss[end];
+   redCalcTP = RedCalcBreakEvenBasket( redOpType[end], sym, drawdown - redCyclePip*InitPts*RedBaseLot*TurtleBigValue(sym)/(Point*newTotal) );
    RedDebugPrint( 2,"RedOrderManagerBasket",
       RedDebugInt("end",end)+
       RedDebugInt("newTotal",newTotal)+
       RedDebugInt("type",redOpType[end])+
       RedDebugDbl("lots",redOpLots[end])+
       RedDebugDbl("OpenPrice",redOpOpenPrice[end],5)+
-      RedDebugDbl("calcSL",calcSL,5)+
-      RedDebugDbl("calcTP",calcTP,5),
+      RedDebugDbl("redCalcSL",redCalcSL,5)+
+      RedDebugDbl("redCalcTP",redCalcTP,5),
       false, 1 );
 
 //--- Assert Modify basket with calculated TP and SL
-   RedOrderModifyBasket( mgc, sym, calcSL, calcTP, 0, maxTrades);
+   RedOrderModifyBasket( mgc, sym, redCalcSL, redCalcTP, 0, maxTrades);
 
-   return( calcTP );
+   return( redCalcTP );
 }
 
 //|-----------------------------------------------------------------------------------------|
@@ -373,7 +378,7 @@ int RedLoadBuffers(int mgc, string sym)
    
    return( totalOp );
 }
-double RedCalcBreakEvenBasket(int type, string sym, double dd)
+double RedCalcBreakEvenBasket(int type, string sym, double bufferPip=0)
 {
    double   val;
    double   lots;
@@ -408,10 +413,20 @@ double RedCalcBreakEvenBasket(int type, string sym, double dd)
          val = val + redOpOpenPrice[j] * redOpLots[j];
       }
    }
+   RedDebugPrint( 2,"RedCalcBreakEvenBasket",
+      RedDebugInt("type",type)+
+      RedDebugStr("sym",sym)+
+      RedDebugInt("bufferPip",bufferPip)+
+      RedDebugDbl("lots",lots,2)+
+      RedDebugDbl("val",val/lots,5)+
+      RedDebugDbl("+/-",bufferPip*InitPts,5),
+      false, 1 );
    if( type == OP_BUY )
-      val = ( val - dd*pts/TurtleBigValue(sym) ) / lots;
+      //val = ( val - dd*pts/TurtleBigValue(sym) ) / lots;
+      val = ( val / lots ) + bufferPip * InitPts;
    if( type == OP_SELL )
-      val = ( val + dd*pts/TurtleBigValue(sym) ) / lots;
+      //val = ( val + dd*pts/TurtleBigValue(sym) ) / lots;
+      val = ( val / lots ) - bufferPip * InitPts;
       
    return(val);
 }
@@ -450,7 +465,12 @@ bool RedIsOkTakeProfitBasket(double TP)
             aOk = false;
             break;
          }
-         else if( TP != 0 && redOpTakeProfit[j] > TP )
+         if( TP != 0 && redOpType[j]==OP_BUY && redOpTakeProfit[j] > TP )
+         {
+            aOk = false;
+            break;
+         }
+         if( TP != 0 && redOpType[j]==OP_SELL && redOpTakeProfit[j] < TP )
          {
             aOk = false;
             break;
@@ -623,7 +643,9 @@ string RedComment(string cmt="", string basket1="Basket1", string basket2="Baske
       strtmp=strtmp+"\n    "+basket1+": Basket Level reached.";
    else
    {
-      strtmp=strtmp+"\n    "+basket1+": Expected orders:";
+      strtmp=strtmp+"\n    "+basket1+": ";
+      if( total1Magic > 0 )
+         strtmp=strtmp+"SL="+DoubleToStr( redCyclePip*3, 0 )+" TP="+DoubleToStr( redCyclePip/(total1Magic+1), 0 );
       for(i=0; i<ArraySize(redPoTicket); i++)
       {
          strtmp=strtmp+"\n      "+DoubleToStr(i+total1Magic+1,0)+": lots="+DoubleToStr( redPoLots[i], 2 );
@@ -636,7 +658,9 @@ string RedComment(string cmt="", string basket1="Basket1", string basket2="Baske
       strtmp=strtmp+"\n    "+basket2+": Basket Level reached.";
    else
    {
-      strtmp=strtmp+"\n    "+basket2+": Expected orders:";
+      strtmp=strtmp+"\n    "+basket2+": ";
+      if( total2Magic > 0 )
+         strtmp=strtmp+"SL="+DoubleToStr( redCyclePip*3, 0 )+" TP="+DoubleToStr( redCyclePip/(total1Magic+1), 0 );
       for(i=0; i<ArraySize(redPoTicket); i++)
       {
          strtmp=strtmp+"\n      "+DoubleToStr(i+total2Magic+1,0)+": lots="+DoubleToStr( redPoLots[i], 2 );
@@ -696,8 +720,13 @@ int RedCycleGap(int n, string sym, int period)
       if( range > maxRange ) maxRange = range;
    }
    RedDebugPrint(0,"RedCycleGap",
-      RedDebugInt("InitPts",InitPts) );
-   return( MathRound( maxRange/InitPts ) );
+      RedDebugStr("sym",sym)+
+      RedDebugInt("period",period)+
+      RedDebugDbl("maxRange",maxRange,5)+
+      RedDebugDbl("InitPts",InitPts,5) );
+   maxRange = MathRound(maxRange/InitPts);
+   if( maxRange < 5 ) maxRange = 5;
+   return( maxRange );
 }
 
 //|-----------------------------------------------------------------------------------------|
