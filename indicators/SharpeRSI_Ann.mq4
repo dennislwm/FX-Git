@@ -2,6 +2,7 @@
 //|                                                                       SharpeRSI_Ann.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.11    Set global variable to NN value, e.g. USDCAD_M30=33.33                          |
 //| 1.10    Fixed repainting code by using the Sharpe MACD AlleeH4 4.43.                    |
 //| 1.00    Standalone SharpeRSI indicator with Neural Net wave signal. The length of the   |
 //|            wave indicates the validity length in bars. E.g. 10 means SELL with a 10-bar |
@@ -28,7 +29,7 @@ extern int       EmaSlow=26;
 extern int       EmaSignal=9;
 //---- Assert indicator name and version
 string IndName="SharpeRSI_Ann";
-string IndVer="1.10";
+string IndVer="1.11";
 //---- Assert indicators for outputs (1) and calculations (7)
 double ExtMapBuffer1[];    // wave signal by Neural Net
 double ExtMapBuffer2[];    // rsi of sharpe
@@ -108,7 +109,8 @@ bool isNewBar()
 int deinit()
   {
 //----
-   
+   string gFredStr = StringConcatenate( Symbol(), "_", Period() );
+   GlobalVariableDel( gFredStr );
 //----
    return(0);
   }
@@ -260,7 +262,8 @@ int start()
             }
             //Print("hiHigh=", hiHigh," loHigh=", loHigh," hiLow=", hiLow," loLow=", loLow);
             //Print("hiOpen=", hiOpen," loOpen=", loOpen," hiClose=", hiClose," loClose=", loClose);
-            
+            string gFredStr = StringConcatenate( Symbol(), "_", Period() );
+            GlobalVariableSet( gFredStr, ExtMapBuffer1[0] );
          }
       }
    }
