@@ -2,6 +2,7 @@
 //|                                                                             PlusRed.mqh |
 //|                                                             Copyright  2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.12    Fixed expected open price when current price exceeds next open price.           |
 //| 1.11    Fixed RedCalcBreakEvenBasket to input profit as pips (same as VRSetka2).        |
 //|            Fixed bug in RedIsOkTakeProfitBasket for OP_SELL.                            |
 //| 1.10    Created functions OrderManagerBasket, OrderModifyBasket, CalcBreakEvenBasket,   |
@@ -35,7 +36,7 @@ extern   int      RedDebugCount  =1000;
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string   RedName="PlusRed";
-string   RedVer="1.11";
+string   RedVer="1.12";
 //--- Assert variables for Basic
 double   redSL;
 int      redCycleSL=3;
@@ -256,6 +257,7 @@ int RedLoadBuffers(int mgc, string sym)
    int      type;
    double   lots;
    double   openPrice;
+   double   curPrice;
    double   SL;
    double   TP;
    double   profit;
@@ -339,6 +341,19 @@ int RedLoadBuffers(int mgc, string sym)
       SL          = redOpStopLoss[0];
       TP          = redOpTakeProfit[0];
       cmt         = "";
+   }
+//--- Assert expected open price can be based on either the last open price or current price
+   if( type == OP_BUY )
+   {
+      curPrice = MarketInfo( sym, MODE_ASK );
+      while ( curPrice <= openPrice - redCyclePip * InitPts )
+         openPrice = openPrice - redCyclePip * InitPts;
+   }
+   else if( type == OP_SELL )
+   {
+      curPrice = MarketInfo( sym, MODE_BID );
+      while ( curPrice >= openPrice + redCyclePip * InitPts )
+         openPrice = openPrice + redCyclePip * InitPts;
    }
    
    for(i=0; i<totalPo; i++)
