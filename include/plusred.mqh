@@ -2,6 +2,8 @@
 //|                                                                             PlusRed.mqh |
 //|                                                             Copyright  2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.13    Fixed recalculating of expected prices when price moves too quickly.            |
+//|            Cycle gap can increase but not decrease.                                     |
 //| 1.12    Fixed expected open price when current price exceeds next open price.           |
 //| 1.11    Fixed RedCalcBreakEvenBasket to input profit as pips (same as VRSetka2).        |
 //|            Fixed bug in RedIsOkTakeProfitBasket for OP_SELL.                            |
@@ -36,7 +38,7 @@ extern   int      RedDebugCount  =1000;
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string   RedName="PlusRed";
-string   RedVer="1.12";
+string   RedVer="1.13";
 //--- Assert variables for Basic
 double   redSL;
 int      redCycleSL=3;
@@ -264,6 +266,21 @@ int RedLoadBuffers(int mgc, string sym)
    string   cmt;
    
    totalOp=EasyOrdersBasket(mgc,sym);
+//--- Assert if total opened orders is the same as array size, then do not reload buffers
+//       This is to prevent recalculating expected orders, which may affect the order send when price
+//       moves quickly.
+   if( totalOp > 0 && ArraySize(redOpTicket) == totalOp ) 
+      return( totalOp );
+//--- Assert cycle gap can increase but not decrease.
+   if( RedShortCycle )
+      redCyclePip = NormalizeDouble( MathMax( redCyclePip, RedCycleGap(60,Symbol(),RedShortPeriod) ), 0);
+   else
+      redCyclePip = NormalizeDouble( MathMax( redCyclePip, RedCycleGap(60,Symbol(),RedLongPeriod) ), 0);
+//--- Increase hard SL proportionately
+   if( redSL < redCyclePip * redCycleSL )
+   {
+      redSL = redCyclePip * redCycleSL;
+   }
 //--- Assert 7: Dynamically resize arrays for OrderSelect #1
    ArrayResize(redOpTicket,     totalOp);
    ArrayResize(redOpType,       totalOp);
@@ -273,7 +290,6 @@ int RedLoadBuffers(int mgc, string sym)
    ArrayResize(redOpTakeProfit, totalOp);
    ArrayResize(redOpProfit,     totalOp);
    ArrayResize(redOpComment,    totalOp);
-   
 //--- Assert 1: Init OrderSelect #1
    int total=GhostOrdersTotal();
    int i, end;
@@ -457,7 +473,13 @@ bool RedIsOkStopLossBasket(double SL)
          aOk = false;
          break;
       }
-      else if( SL != 0 && redOpStopLoss[j] != SL )
+   //--- Assert SL can be moved lower but not higher
+      if( SL != 0 && redOpType[j]==OP_BUY && redOpStopLoss[j] > SL )
+      {
+         aOk = false;
+         break;
+      }
+      if( SL != 0 && redOpType[j]==OP_SELL && redOpStopLoss[j] < SL )
       {
          aOk = false;
          break;
@@ -480,6 +502,7 @@ bool RedIsOkTakeProfitBasket(double TP)
             aOk = false;
             break;
          }
+      //--- Assert TP can be moved lower but not higher
          if( TP != 0 && redOpType[j]==OP_BUY && redOpTakeProfit[j] > TP )
          {
             aOk = false;
@@ -734,7 +757,7 @@ int RedCycleGap(int n, string sym, int period)
       range = iHigh(sym,period,i) - iLow(sym,period,i);
       if( range > maxRange ) maxRange = range;
    }
-   RedDebugPrint(0,"RedCycleGap",
+   RedDebugPrint(2,"RedCycleGap",
       RedDebugStr("sym",sym)+
       RedDebugInt("period",period)+
       RedDebugDbl("maxRange",maxRange,5)+
