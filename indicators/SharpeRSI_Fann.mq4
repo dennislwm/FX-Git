@@ -2,6 +2,8 @@
 //|                                                                      SharpeRSI_Fann.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.01    Fixed bug to disable signal when delta is larger than FIVE (5) and average bar  |
+//|            in trend is smaller than THREE (3). Added DebugPrint and basic stats.        |
 //| 1.00    Originated from standalone SharpeRSI_Ann 1.11 indicator with Neural Net, and    |
 //|            adapted to incorporate PlusFann.                                             |
 //|-----------------------------------------------------------------------------------------|
@@ -26,7 +28,10 @@ extern int       EmaSlow=26;
 extern int       EmaSignal=9;
 //---- Assert indicator name and version
 string IndName="SharpeRSI_Fann";
-string IndVer="1.00";
+string IndVer="1.01";
+extern int       IndDebug=1;
+extern int       IndDebugCount=1000;
+int    IndCount;
 //---- Assert indicators for outputs (1) and calculations (7)
 double ExtMapBuffer1[];    // wave signal by Neural Net
 double ExtMapBuffer2[];    // rsi of sharpe
@@ -50,6 +55,19 @@ double outRsi[];
 double sumRsi=0.0;
 int    posCount;
 int    negCount;
+//--- Assert variables used by statistics
+bool   bContinueUp;
+bool   bContinueDn;
+bool   bReversalUp;
+bool   bReversalDn;
+int    cContinueUp;
+int    cContinueDn;
+int    cReversalUp;
+int    cReversalDn;
+int    iContinueUp;
+int    iContinueDn;
+int    iReversalUp;
+int    iReversalDn;
 //--- Assert variables to detect new bar
 int    nextBarTime;
 
@@ -173,6 +191,57 @@ int start()
 //--- Assert Ann   
    if(isNewBar())
    {
+   //--- Assert collate past predictions
+      if( bContinueUp || bContinueDn || bReversalUp || bReversalDn )
+      {
+         if( bContinueUp && ExtMapBuffer2[1] > ExtMapBuffer2[2] )
+         {
+            Print( Symbol(),",",Period()," Last Correct Continuation Up: rsi[1]=",ExtMapBuffer2[1],">rsi[2]=",ExtMapBuffer2[2] );
+            cContinueUp ++;
+         }
+         else
+         {
+            Print( Symbol(),",",Period()," Last Incorrect Continuation Up: rsi[1]=",ExtMapBuffer2[1],"!>rsi[2]=",ExtMapBuffer2[2] );
+            iContinueUp ++;
+         }
+         if( bContinueDn && ExtMapBuffer2[1] < ExtMapBuffer2[2] )
+         {
+            Print( Symbol(),",",Period()," Last Correct Continuation Dn: rsi[1]=",ExtMapBuffer2[1],"<rsi[2]=",ExtMapBuffer2[2] );
+            cContinueDn ++;
+         }
+         else
+         {
+            Print( Symbol(),",",Period()," Last Incorrect Continuation Dn: rsi[1]=",ExtMapBuffer2[1],"!<rsi[2]=",ExtMapBuffer2[2] );
+            iContinueDn ++;
+         }
+         if( bReversalUp && ExtMapBuffer2[1] <= ExtMapBuffer2[2] )
+         {
+            Print( Symbol(),",",Period()," Last Correct Reversal Up: rsi[1]=",ExtMapBuffer2[1],"<=rsi[2]=",ExtMapBuffer2[2] );
+            cReversalUp ++;
+         }
+         else
+         {
+            Print( Symbol(),",",Period()," Last Incorrect Reversal Up: rsi[1]=",ExtMapBuffer2[1],"!<=rsi[2]=",ExtMapBuffer2[2] );
+            iReversalUp ++;
+         }
+         if( bReversalDn && ExtMapBuffer2[1] >= ExtMapBuffer2[2] )
+         {
+            Print( Symbol(),",",Period()," Last Correct Reversal Dn: rsi[1]=",ExtMapBuffer2[1],">=rsi[2]=",ExtMapBuffer2[2] );
+            cReversalDn ++;
+         }
+         else
+         {
+            Print( Symbol(),",",Period()," Last Incorrect Reversal Dn: rsi[1]=",ExtMapBuffer2[1],"!>=rsi[2]=",ExtMapBuffer2[2] );
+            iReversalDn ++;
+         }
+      }
+      int correct =  cContinueUp + cContinueDn + cReversalUp + cReversalDn;
+      int incorrect =iContinueUp + iContinueDn + iReversalUp + iReversalDn;
+      Print( Symbol(),",",Period()," Correct Total=",DoubleToStr(correct,0)," Incorrect Total=",DoubleToStr(incorrect,0),
+         " Correct Reversal=",DoubleToStr(cReversalUp+cReversalDn,0)," Incorrect Reversal=",DoubleToStr(iReversalUp+iReversalDn,0) );
+      bContinueUp=false;   bContinueDn=false;
+      bReversalUp=false;   bReversalDn=false;
+      
       FannTotalBars = CalcLookBackBar(FannMinBars,FannMaxBars,FannTotalBars);
       posCount=0; negCount=0; sumRsi=0.0; sumMse=0.0;
    //--- Assert resize dynamic input Array.
@@ -224,17 +293,41 @@ int start()
                 else
                    //Print("Continuation of DN trend");
                    ExtMapBuffer1[0]=0;
+                bContinueUp=true;
             }
             else if( hiRsi > loRsi && avg <= ExtMapBuffer2[1] )
             {
                 Print("REVERSAL up rsi[1]=", ExtMapBuffer2[1] ," AvgNN=", avg, " (validity ", hiRsi, " bars).");
-                if( MathAbs(avgLo-hiRsi) > MathAbs(avgHi-hiRsi) )
+                if( hiRsi > 5 && avgHi < 3 && avgLo < 3 )
+                   ExtMapBuffer1[0]=0;
+                else if( MathAbs(avgLo-hiRsi) > MathAbs(avgHi-hiRsi) )
                 //--- Assert smaller delta of number of bars implies greater correlation between SharpeRSI direction and OHLC trend.
                    //Print("REVERSAL of UP trend");
                    ExtMapBuffer1[0]=hiRsi;
                 else
                    //Print("REVERSAL of DN trend");
                    ExtMapBuffer1[0]=-hiRsi;
+                bReversalUp=true;
+                
+               IndDebugPrint( 1, "Reversal up rsi",
+                  IndDebugDbl("hiOpen",hiOpen)+
+                  IndDebugDbl("hiHigh",hiHigh)+
+                  IndDebugDbl("hiLow",hiLow)+
+                  IndDebugDbl("hiClose",hiClose)+
+                  IndDebugDbl("avgHi",avgHi),
+                  false, 0 );
+               IndDebugPrint( 1, "Reversal up rsi",
+                  IndDebugDbl("loOpen",loOpen)+
+                  IndDebugDbl("loHigh",loHigh)+
+                  IndDebugDbl("loLow",loLow)+
+                  IndDebugDbl("loClose",loClose)+
+                  IndDebugDbl("avgLo",avgLo),
+                  false, 0 );
+               IndDebugPrint( 1, "Reversal up rsi",
+                  IndDebugDbl("deltaLo",avgLo-hiRsi)+
+                  IndDebugDbl("deltaHi",avgHi-hiRsi)+
+                  IndDebugInt("ExtMapBuffer1",ExtMapBuffer1[0]),
+                  false, 0 );
             }
             else if( loRsi > hiRsi && ExtMapBuffer2[1] > avg )
             {
@@ -246,25 +339,47 @@ int start()
                 else
                    //Print("Continuation of DN trend");
                    ExtMapBuffer1[0]=0;
+                bContinueDn=true;
             }
             else if( loRsi > hiRsi && ExtMapBuffer2[1] <= avg )
             {
                 Print("REVERSAL dn rsi[1]=", ExtMapBuffer2[1] ," AvgNN=", avg, " (validity ", loRsi, " bars).");
-                if( MathAbs(avgLo-loRsi) > MathAbs(avgHi-loRsi) )
+                if( loRsi > 5 && avgHi < 3 && avgLo < 3 )
+                   ExtMapBuffer1[0]=0;
+                else if( MathAbs(avgLo-loRsi) > MathAbs(avgHi-loRsi) )
                 //--- Assert smaller delta of number of bars implies greater correlation between SharpeRSI direction and OHLC trend.
                    //Print("REVERSAL of UP trend");
                    ExtMapBuffer1[0]=loRsi;
                 else
                    //Print("REVERSAL of DN trend");
                    ExtMapBuffer1[0]=-loRsi;
+                bReversalDn=true;
+                
+               IndDebugPrint( 1, "Reversal dn rsi",
+                  IndDebugDbl("hiOpen",hiOpen)+
+                  IndDebugDbl("hiHigh",hiHigh)+
+                  IndDebugDbl("hiLow",hiLow)+
+                  IndDebugDbl("hiClose",hiClose)+
+                  IndDebugDbl("avgHi",avgHi),
+                  false, 0 );
+               IndDebugPrint( 1, "Reversal up rsi",
+                  IndDebugDbl("loOpen",loOpen)+
+                  IndDebugDbl("loHigh",loHigh)+
+                  IndDebugDbl("loLow",loLow)+
+                  IndDebugDbl("loClose",loClose)+
+                  IndDebugDbl("avgLo",avgLo),
+                  false, 0 );
+               IndDebugPrint( 1, "Reversal up rsi",
+                  IndDebugDbl("deltaLo",avgLo-loRsi)+
+                  IndDebugDbl("deltaHi",avgHi-loRsi)+
+                  IndDebugInt("ExtMapBuffer1",ExtMapBuffer1[0]),
+                  false, 0 );
             }
             else
             {
                 Print("Indeterminate trend for last ", hiRsi, " bars.");
                 ExtMapBuffer1[0]=0;
             }
-            //Print("hiHigh=", hiHigh," loHigh=", loHigh," hiLow=", hiLow," loLow=", loLow);
-            //Print("hiOpen=", hiOpen," loOpen=", loOpen," hiClose=", hiClose," loClose=", loClose);
             string gFredStr = StringConcatenate( Symbol(), "_", Period() );
             GlobalVariableSet( gFredStr, ExtMapBuffer1[0] );
          }
@@ -343,5 +458,39 @@ int CalcSeqBackBar(double& indicator[], int max, bool lo=false, int shift=1)
         next=prev;
     }
     return(seq);
+}
+void IndDebugPrint(int dbg, string fn, string msg, bool incr=true, int mod=0)
+{
+   if(IndDebug>=dbg)
+   {
+      if(dbg>=2 && IndDebugCount>0)
+      {
+         if( MathMod(IndCount,IndDebugCount) == mod )
+            Print(IndDebug,"-",IndCount,":",fn,"(): ",msg);
+         if( incr )
+            IndCount ++;
+      }
+      else
+         Print(IndDebug,":",fn,"(): ",msg);
+   }
+}
+string IndDebugInt(string key, int val)
+{
+   return( StringConcatenate(";",key,"=",val) );
+}
+string IndDebugDbl(string key, double val, int dgt=5)
+{
+   return( StringConcatenate(";",key,"=",NormalizeDouble(val,dgt)) );
+}
+string IndDebugStr(string key, string val)
+{
+   return( StringConcatenate(";",key,"=\"",val,"\"") );
+}
+string IndDebugBln(string key, bool val)
+{
+   string valType;
+   if( val )   valType="true";
+   else        valType="false";
+   return( StringConcatenate(";",key,"=",valType) );
 }
 //+------------------------------------------------------------------+
