@@ -2,8 +2,17 @@
 //|                                                                      SharpeRSI_Fann.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.10    A wave signal generated has the following characteristics:                      |
+//|            a) NN committee has to agree on a reversal of SharpeRSI;                     |
+//|            b) length of SharpeRsi cannot exceed 5, if average length of trend below 3;  |
+//|            c) a smaller delta between length of uptrend and length of SharpeRsi implies |
+//|               a sell signal;                                                            |
+//|            d) a smaller delta between length of downtrend and length of SharpeRsi       |
+//|               implies a buy signal;                                                     |
+//|            e) validity of wave signal is the minimum of either the length of SharpeRsi  |
+//|               or the longest length of trend's OHLC.                                    |
 //| 1.02    Fixed bug in shift, MetaTrader's OHLC[0] begins from bar 1, when passed as a    |
-//|            parameter. Changed validity to the minimum of rsi and average bars.          |                                                                  |
+//|            parameter. Changed validity to the minimum of rsi and average bars.          |
 //| 1.01    Fixed bug to disable signal when delta is larger than FIVE (5) and average bar  |
 //|            in trend is smaller than THREE (3). Added DebugPrint and basic stats.        |
 //| 1.00    Originated from standalone SharpeRSI_Ann 1.11 indicator with Neural Net, and    |
@@ -317,10 +326,10 @@ int start()
                 else if( MathAbs(avgLo-hiRsi) > MathAbs(avgHi-hiRsi) )
                 //--- Assert smaller delta of number of bars implies greater correlation between SharpeRSI direction and OHLC trend.
                    //Print("REVERSAL of UP trend");
-                   ExtMapBuffer1[0]=MathMin( hiRsi, NormalizeDouble(avgHi,0) );
+                   ExtMapBuffer1[0]=NormalizeDouble(MathMin( hiRsi, MathMax( hiOpen, MathMax( hiHigh, MathMax( hiLow, hiClose ) ) ) ),0);
                 else
                    //Print("REVERSAL of DN trend");
-                   ExtMapBuffer1[0]=-MathMin( hiRsi, NormalizeDouble(avgLo,0) );
+                   ExtMapBuffer1[0]=-NormalizeDouble(MathMin( hiRsi, MathMax( loOpen, MathMax( loHigh, MathMax( loLow, loClose ) ) ) ),0);
                 bReversalUp=true;
                 
                IndDebugPrint( 1, "Reversal up rsi",
@@ -363,10 +372,10 @@ int start()
                 else if( MathAbs(avgLo-loRsi) > MathAbs(avgHi-loRsi) )
                 //--- Assert smaller delta of number of bars implies greater correlation between SharpeRSI direction and OHLC trend.
                    //Print("REVERSAL of UP trend");
-                   ExtMapBuffer1[0]=MathMin( loRsi, NormalizeDouble(avgHi,0) );
+                   ExtMapBuffer1[0]=NormalizeDouble(MathMin( loRsi, MathMax( hiOpen, MathMax( hiHigh, MathMax( hiLow, hiClose ) ) ) ),0);
                 else
                    //Print("REVERSAL of DN trend");
-                   ExtMapBuffer1[0]=-MathMin( loRsi, NormalizeDouble(avgLo,0) );
+                   ExtMapBuffer1[0]=-NormalizeDouble(MathMin( loRsi, MathMax( loOpen, MathMax( loHigh, MathMax( loLow, loClose ) ) ) ),0);
                 bReversalDn=true;
                 
                IndDebugPrint( 1, "Reversal dn rsi",
