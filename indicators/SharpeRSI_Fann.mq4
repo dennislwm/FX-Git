@@ -2,6 +2,8 @@
 //|                                                                      SharpeRSI_Fann.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.02    Fixed bug in shift, MetaTrader's OHLC[0] begins from bar 1, when passed as a    |
+//|            parameter. Changed validity to the minimum of rsi and average bars.          |                                                                  |
 //| 1.01    Fixed bug to disable signal when delta is larger than FIVE (5) and average bar  |
 //|            in trend is smaller than THREE (3). Added DebugPrint and basic stats.        |
 //| 1.00    Originated from standalone SharpeRSI_Ann 1.11 indicator with Neural Net, and    |
@@ -28,7 +30,7 @@ extern int       EmaSlow=26;
 extern int       EmaSignal=9;
 //---- Assert indicator name and version
 string IndName="SharpeRSI_Fann";
-string IndVer="1.01";
+string IndVer="1.02";
 extern int       IndDebug=1;
 extern int       IndDebugCount=1000;
 int    IndCount;
@@ -267,20 +269,32 @@ int start()
             double avg=sumRsi/FannCommitteeSize;
             int hiRsi   =CalcSeqBackBar(ExtMapBuffer2,FannTotalBars);
             int loRsi   =CalcSeqBackBar(ExtMapBuffer2,FannTotalBars,true);
-            populateArray(High,aHigh,FannTotalBars);
-            int hiHigh  =CalcSeqBackBar(aHigh,FannTotalBars);
-            int loHigh  =CalcSeqBackBar(aHigh,FannTotalBars,true);
-            populateArray(Low,aLow,FannTotalBars);
-            int hiLow   =CalcSeqBackBar(aLow,FannTotalBars);
-            int loLow   =CalcSeqBackBar(aLow,FannTotalBars,true);
-            populateArray(Close,aClose,FannTotalBars);
-            int hiClose =CalcSeqBackBar(aClose,FannTotalBars);
-            int loClose =CalcSeqBackBar(aClose,FannTotalBars,true);
             populateArray(Open,aOpen,FannTotalBars);
-            int hiOpen  =CalcSeqBackBar(aOpen,FannTotalBars);
-            int loOpen  =CalcSeqBackBar(aOpen,FannTotalBars,true);
+            int hiOpen  =CalcSeqBackBar(aOpen,FannTotalBars,false,0);
+            int loOpen  =CalcSeqBackBar(aOpen,FannTotalBars,true,0);
+            populateArray(High,aHigh,FannTotalBars);
+            int hiHigh  =CalcSeqBackBar(aHigh,FannTotalBars,false,0);
+            int loHigh  =CalcSeqBackBar(aHigh,FannTotalBars,true,0);
+            populateArray(Low,aLow,FannTotalBars);
+            int hiLow   =CalcSeqBackBar(aLow,FannTotalBars,false,0);
+            int loLow   =CalcSeqBackBar(aLow,FannTotalBars,true,0);
+            populateArray(Close,aClose,FannTotalBars);
+            int hiClose =CalcSeqBackBar(aClose,FannTotalBars,false,0);
+            int loClose =CalcSeqBackBar(aClose,FannTotalBars,true,0);
             double avgLo= ( loOpen+loHigh+loLow+loClose )/4;
             double avgHi= ( hiOpen+hiHigh+hiLow+hiClose )/4;
+            /*IndDebugPrint( 0, "start",
+               IndDebugDbl("Open[0]",Open[0])+
+               IndDebugDbl("High[0]",High[0])+
+               IndDebugDbl("Low[0]",Low[0])+
+               IndDebugDbl("Close[0]",Close[0]),
+               false, 0 );
+            IndDebugPrint( 0, "start",
+               IndDebugDbl("Open[1]",Open[1])+
+               IndDebugDbl("High[1]",High[1])+
+               IndDebugDbl("Low[1]",Low[1])+
+               IndDebugDbl("Close[1]",Close[1]),
+               false, 0 );*/
    
          //--- Assert find the closest OHLC bars to the validity bars.
             if( hiRsi > loRsi && avg > ExtMapBuffer2[1] )
@@ -303,10 +317,10 @@ int start()
                 else if( MathAbs(avgLo-hiRsi) > MathAbs(avgHi-hiRsi) )
                 //--- Assert smaller delta of number of bars implies greater correlation between SharpeRSI direction and OHLC trend.
                    //Print("REVERSAL of UP trend");
-                   ExtMapBuffer1[0]=hiRsi;
+                   ExtMapBuffer1[0]=MathMin( hiRsi, NormalizeDouble(avgHi,0) );
                 else
                    //Print("REVERSAL of DN trend");
-                   ExtMapBuffer1[0]=-hiRsi;
+                   ExtMapBuffer1[0]=-MathMin( hiRsi, NormalizeDouble(avgLo,0) );
                 bReversalUp=true;
                 
                IndDebugPrint( 1, "Reversal up rsi",
@@ -349,10 +363,10 @@ int start()
                 else if( MathAbs(avgLo-loRsi) > MathAbs(avgHi-loRsi) )
                 //--- Assert smaller delta of number of bars implies greater correlation between SharpeRSI direction and OHLC trend.
                    //Print("REVERSAL of UP trend");
-                   ExtMapBuffer1[0]=loRsi;
+                   ExtMapBuffer1[0]=MathMin( loRsi, NormalizeDouble(avgHi,0) );
                 else
                    //Print("REVERSAL of DN trend");
-                   ExtMapBuffer1[0]=-loRsi;
+                   ExtMapBuffer1[0]=-MathMin( loRsi, NormalizeDouble(avgLo,0) );
                 bReversalDn=true;
                 
                IndDebugPrint( 1, "Reversal dn rsi",
@@ -382,6 +396,9 @@ int start()
             }
             string gFredStr = StringConcatenate( Symbol(), "_", Period() );
             GlobalVariableSet( gFredStr, ExtMapBuffer1[0] );
+            IndDebugPrint( 0, IndName,
+               IndDebugDbl(gFredStr,ExtMapBuffer1[0]),
+               false, 0 );
          }
       }
    }
@@ -442,19 +459,45 @@ int CalcLookBackBar(int min, int max, int bar)
 }
 int CalcSeqBackBar(double& indicator[], int max, bool lo=false, int shift=1)
 {
-    int seq=shift;
+    int seq=0;
     double next, prev;
+    
+    /*IndDebugPrint( 1, "CalcSeqBackBar",
+       IndDebugDbl("indicator[0]",indicator[0])+
+       false, 0 );*/
     
     next=indicator[0+shift];
     for(int i=1; i<max; i++)
     {
         prev=indicator[i+shift];
         if(lo)
-            if(next<prev) seq++;
+        {
+            if(next<prev)
+            {  
+               IndDebugPrint( 2, "CalcSeqBackBar",
+                  IndDebugInt("i",i)+
+                  IndDebugDbl("next",next)+"<"+
+                  IndDebugDbl("prev",prev)+
+                  IndDebugInt("seq",seq),
+                  false, 0 );
+               seq++;
+            }
             else break;
+        }
         else
-            if(next>prev) seq++;
+        {
+            if(next>prev)
+            {
+               IndDebugPrint( 2, "CalcSeqBackBar",
+                  IndDebugInt("i",i)+
+                  IndDebugDbl("next",next)+">"+
+                  IndDebugDbl("prev",prev)+
+                  IndDebugInt("seq",seq),
+                  true, 0 );
+               seq++;
+            }
             else break;
+        }
         next=prev;
     }
     return(seq);
