@@ -2,6 +2,8 @@
 //|                                                                             PlusRed.mqh |
 //|                                                             Copyright  2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.14    Rollback fix of expected open price when current price exceeds next open price. |
+//|            Fixed calcTP after ChildOrderSend has been called.                           |
 //| 1.13    Fixed recalculating of expected prices when price moves too quickly.            |
 //|            Cycle gap can increase but not decrease.                                     |
 //| 1.12    Fixed expected open price when current price exceeds next open price.           |
@@ -38,7 +40,7 @@ extern   int      RedDebugCount  =1000;
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string   RedName="PlusRed";
-string   RedVer="1.13";
+string   RedVer="1.14";
 //--- Assert variables for Basic
 double   redSL;
 int      redCycleSL=3;
@@ -174,16 +176,19 @@ void RedOrderManagerBasket(int mgc, string sym, int maxTrades)
    double drawdown;
    double pts = MarketInfo( sym, MODE_POINT );
 //--- Assert Load buffers with existing trades
+   //Print("1");
    redCalcSL=0; redCalcTP=0;
    oldTotal = RedLoadBuffers(mgc,sym);
    if( oldTotal < 1 ) return(0);
 //--- Assert calculate drawdown for child trade
+   //Print("2");
    for(int j=0; j<oldTotal; j++)
    {
       drawdown = drawdown + redOpProfit[j];
    }
 //--- Assert drawdown is always <= 0;
    drawdown=MathMin(drawdown,0);
+   //Print("3");
    RedDebugPrint( 2,"RedOrderManagerBasket",
       RedDebugInt("mgc",mgc)+
       RedDebugStr("sym",sym)+
@@ -193,6 +198,7 @@ void RedOrderManagerBasket(int mgc, string sym, int maxTrades)
       false, 1 );
    
 //--- Assert calculate SL and TP
+   //Print("4");
    if( redOpType[end] == OP_BUY )
    {
       redCalcSL   = redOpOpenPrice[end] - redCycleSL * redCyclePip * InitPts;
@@ -218,21 +224,26 @@ void RedOrderManagerBasket(int mgc, string sym, int maxTrades)
       false, 1 );
 //--- Assert Ok StopLoss basket
    beg = 0; end = oldTotal - 1;
+   //Print("5");
    if( !RedIsOkStopLossBasket(redCalcSL) || !RedIsOkTakeProfitBasket(redCalcTP) )
    {
       RedOrderModifyBasket( mgc, sym, redCalcSL, redCalcTP, 0, maxTrades );
       oldTotal = RedLoadBuffers(mgc,sym);
    }
 //--- Assert max Basket level has not been reached
+   //Print("6");
    if( oldTotal >= RedBasketLevel ) return(0);
    
 //--- Assert Check if child trade can be opened
+   //Print("7");
    newTotal = RedChildOrderSend( mgc, sym, redSL, 0, maxTrades );
    if( newTotal == oldTotal ) return(0);
+   //Print("8");
 //--- Assert calculate Stop Loss for child trade
    beg = 0; end = newTotal - 1;
    redCalcSL = redOpStopLoss[end];
-   redCalcTP = RedCalcBreakEvenBasket( redOpType[end], sym, drawdown - redCyclePip*InitPts*RedBaseLot*TurtleBigValue(sym)/(Point*newTotal) );
+   redCalcTP = RedCalcBreakEvenBasket( redOpType[end], sym, redCyclePip / (newTotal + 1) );
+   //redCalcTP = RedCalcBreakEvenBasket( redOpType[end], sym, drawdown - redCyclePip*InitPts*RedBaseLot*TurtleBigValue(sym)/(Point*newTotal) );
    RedDebugPrint( 2,"RedOrderManagerBasket",
       RedDebugInt("end",end)+
       RedDebugInt("newTotal",newTotal)+
@@ -242,6 +253,7 @@ void RedOrderManagerBasket(int mgc, string sym, int maxTrades)
       RedDebugDbl("redCalcSL",redCalcSL,5)+
       RedDebugDbl("redCalcTP",redCalcTP,5),
       false, 1 );
+   //Print("9");
 
 //--- Assert Modify basket with calculated TP and SL
    RedOrderModifyBasket( mgc, sym, redCalcSL, redCalcTP, 0, maxTrades);
@@ -359,7 +371,7 @@ int RedLoadBuffers(int mgc, string sym)
       cmt         = "";
    }
 //--- Assert expected open price can be based on either the last open price or current price
-   if( type == OP_BUY )
+   /*if( type == OP_BUY )
    {
       curPrice = MarketInfo( sym, MODE_ASK );
       while ( curPrice <= openPrice - redCyclePip * InitPts )
@@ -370,7 +382,7 @@ int RedLoadBuffers(int mgc, string sym)
       curPrice = MarketInfo( sym, MODE_BID );
       while ( curPrice >= openPrice + redCyclePip * InitPts )
          openPrice = openPrice + redCyclePip * InitPts;
-   }
+   }*/
    
    for(i=0; i<totalPo; i++)
    {
@@ -525,30 +537,45 @@ int RedChildOrderSend(int mgc, string sym, double SL, double TP, int maxTrades)
    int ticket=-1;
    int total=ArraySize(redOpTicket);
    int newLevel=total;
+   //Print("1.1");
 //--- Assert optimize function check total > 0
    if( total <= 0 ) return(0);
+   //Print("1.2");
 //--- Assert optimize function check pending orders > 0
    if( ArraySize(redPoTicket) <= 0 ) return(0);
+   //Print("1.3");
 //--- Assert copy values to child order   
    double   curPrice;
 //--- Assert populate values for child order
+   //Print("1.4:",redPoType[0]);
    if( redPoType[0] == OP_BUY )
    {
       curPrice = MarketInfo( sym, MODE_ASK );
+      //Print("1.41:",curPrice,"<",redPoOpenPrice[0]);
       if( curPrice <= redPoOpenPrice[0] )
+      {
          ticket=EasyOrderBuy( mgc, sym, redPoLots[0], 0, 0, redPoComment[0] );
+      }
+      //Print("1.42:",ticket);
    }
+   //Print("1.5");
    if( redPoType[0] == OP_SELL )
    {
       curPrice = MarketInfo( sym, MODE_BID );
+      //Print("1.51:",curPrice,">",redPoOpenPrice[0]);
       if( curPrice >= redPoOpenPrice[0] )
+      {
          ticket=EasyOrderBuy( mgc, sym, redPoLots[0], 0, 0, redPoComment[0] );
+      }
+      //Print("1.52:",ticket);
    }
+   //Print("1.6");
    if( ticket > 0 ) 
    {
       RedOrderModifyBasket( mgc, sym, redPoStopLoss[0], 0, 0, maxTrades );
       total = RedLoadBuffers(mgc,sym);
    }
+   //Print("1.7:",total);
    return(total);
 }
 
