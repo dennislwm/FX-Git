@@ -2,6 +2,7 @@
 //|                                                                             PlusRed.mqh |
 //|                                                             Copyright  2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.15    Fixed ChildOrderSend to open a sell trade correctly (was a typo).               |
 //| 1.14    Rollback fix of expected open price when current price exceeds next open price. |
 //|            Fixed calcTP after ChildOrderSend has been called.                           |
 //| 1.13    Fixed recalculating of expected prices when price moves too quickly.            |
@@ -40,7 +41,7 @@ extern   int      RedDebugCount  =1000;
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string   RedName="PlusRed";
-string   RedVer="1.14";
+string   RedVer="1.15";
 //--- Assert variables for Basic
 double   redSL;
 int      redCycleSL=3;
@@ -565,7 +566,7 @@ int RedChildOrderSend(int mgc, string sym, double SL, double TP, int maxTrades)
       //Print("1.51:",curPrice,">",redPoOpenPrice[0]);
       if( curPrice >= redPoOpenPrice[0] )
       {
-         ticket=EasyOrderBuy( mgc, sym, redPoLots[0], 0, 0, redPoComment[0] );
+         ticket=EasyOrderSell( mgc, sym, redPoLots[0], 0, 0, redPoComment[0] );
       }
       //Print("1.52:",ticket);
    }
