@@ -2,6 +2,8 @@
 //|                                                                            ForexRed.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.02    Use global variable NewBar, i.e. USDCAD_M30_NewBar, to flag when a new value    |
+//|            is available, as the NN results may be delayed by several ticks.             |
 //| 1.01    Fixed EMPTY_VALUE returned from Custom indicators.                              |
 //|            Valid TDSetup signal is either 4 or -4.                                      |
 //| 1.00    Originated from RedAuto 1.00. This EA is a Martingale Swing EA that uses        |
@@ -33,7 +35,7 @@ extern   string   s4             ="-->PlusGhost Settings<--";
 //|                           I N T E R N A L   V A R I A B L E S                            |
 //|------------------------------------------------------------------------------------------|
 string   EaName   ="ForexRed";
-string   EaVer    ="1.01";
+string   EaVer    ="1.02";
 int      EaDebugCount;
 
 // ------------------------------------------------------------------------------------------|
@@ -84,13 +86,18 @@ int start()
 
 //--- Assert there are NO opened trades.   
    int total=EasyOrdersBasket(Fred1Magic, Symbol());
+   if( total > 0 ) return(0);
    EaDebugPrint( 2,"start",
       EaDebugInt("total",total),
       true, 0 );
-   if( total > 0 ) return(0);
 
-   if( isNewBar() )
+   string gFredNewBarStr = StringConcatenate( Symbol(), "_", period, "_NewBar" );
+   bool newBar = GlobalVariableGet( gFredNewBarStr );
+   if( isNewBar() || newBar )
    {
+   //--- Assert reset global boolean variable NewBar to false.
+      GlobalVariableSet( gFredNewBarStr, FALSE );
+      
    //--- Determine period based on Short or Long cycle.
       if( RedShortCycle ) period = RedShortPeriod;
       else period = RedLongPeriod;
@@ -102,7 +109,8 @@ int start()
          EaDebugStr("sym",Symbol())+
          EaDebugInt("period",period)+
          EaDebugInt("total",total)+
-         EaDebugInt("shWave",shWave),
+         EaDebugInt("shWave",shWave)+
+         EaDebugBln(gFredNewBarStr,newBar),
          false, 1 );
       if( shWave == 0 || shWave == EMPTY_VALUE ) return(0);
       
@@ -112,20 +120,19 @@ int start()
       
       for(int i=0; i<n; i++)
       {
-         tdWave = iCustom( NULL, 0, "TDSetup", 5, 30, 0, i );
+         tdWave = iCustom( NULL, 0, "TDSetup", 3, 50, 0, i );
          EaDebugPrint( 2,"start",
             EaDebugInt("i",i)+
             EaDebugInt("tdWave",tdWave),
             false, 1 );
+         Print(i,": tdWave=",tdWave," shWave=",shWave);
          if( tdWave!= EMPTY_VALUE && tdWave <= -4 && shWave < 0 ) 
          {
-            Print(i,": tdWave=",tdWave," shWave=",shWave);
             wave = -1;
             break;
          }
          if( tdWave!= EMPTY_VALUE && tdWave >= 4 && shWave > 0 )
          {
-            Print(i,": tdWave=",tdWave," shWave=",shWave);
             wave = 1;
             break;
          }
