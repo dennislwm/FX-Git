@@ -2,6 +2,8 @@
 //|                                                                      SharpeRSI_Fann.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.11    Added a global boolean variable to indicate when a new signal has formed. The   |
+//|            variable is named NewBar, with a prefix, i.e. USDCAD_M30_NewBar.             |
 //| 1.10    A wave signal generated has the following characteristics:                      |
 //|            a) NN committee has to agree on a reversal of SharpeRSI;                     |
 //|            b) length of SharpeRsi cannot exceed 5, if average length of trend below 3;  |
@@ -39,7 +41,7 @@ extern int       EmaSlow=26;
 extern int       EmaSignal=9;
 //---- Assert indicator name and version
 string IndName="SharpeRSI_Fann";
-string IndVer="1.02";
+string IndVer="1.11";
 extern int       IndDebug=1;
 extern int       IndDebugCount=1000;
 int    IndCount;
@@ -404,9 +406,13 @@ int start()
                 ExtMapBuffer1[0]=0;
             }
             string gFredStr = StringConcatenate( Symbol(), "_", Period() );
+            string gFredNewBarStr = StringConcatenate( Symbol(), "_", Period(), "_NewBar" );
             GlobalVariableSet( gFredStr, ExtMapBuffer1[0] );
+            GlobalVariableSet( gFredNewBarStr, TRUE );
+            bool newBar = GlobalVariableGet( gFredNewBarStr );
             IndDebugPrint( 0, IndName,
-               IndDebugDbl(gFredStr,ExtMapBuffer1[0]),
+               IndDebugDbl(gFredStr,ExtMapBuffer1[0]) +
+               IndDebugBln(gFredNewBarStr,newBar),
                false, 0 );
          }
       }
