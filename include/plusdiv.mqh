@@ -2,6 +2,7 @@
 //|                                                                             PlusDiv.mqh |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.10    Added ShowArrows, BullishColor and BearishColor.                                |
 //| 1.00    Created PlusDiv for divergence functions.                                       |
 //|-----------------------------------------------------------------------------------------|
 #property   copyright "Copyright © 2012, Dennis Lee"
@@ -12,13 +13,16 @@
 //|-----------------------------------------------------------------------------------------|
 extern bool   DivShowIndicatorTrendLines = true;
 extern bool   DivShowPriceTrendLines = true;
+extern bool   DivShowArrows = false;
+extern color  DivBullishColor = Blue;
+extern color  DivBearishColor = Red;
 
 //|-----------------------------------------------------------------------------------------|
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 #define  arrowsDisplacement 0.0001
 string   DivName="PlusDiv";
-string   DivVer="1.00";
+string   DivVer="1.10";
 string   DivWinName;
 
 //|-----------------------------------------------------------------------------------------|
@@ -33,7 +37,7 @@ void DivInit(string win)
 //|-----------------------------------------------------------------------------------------|
 //|                               M A I N   P R O C E D U R E                               |
 //|-----------------------------------------------------------------------------------------|
-void DivCatchBullishDivergence(double& buf[], double x[], double y[], double lo[], int shift)
+void DivCatchBullishDivergence(double x[], double y[], double lo[], double& buf[], int shift=0)
 {
    if( !DivIsIndicatorTrough(x, shift) ) return;
    int currentTrough = shift;
@@ -41,37 +45,39 @@ void DivCatchBullishDivergence(double& buf[], double x[], double y[], double lo[
 //----   
    if( x[currentTrough] > x[lastTrough] && lo[currentTrough] < lo[lastTrough] )
    {
-      buf[currentTrough] = x[currentTrough] - arrowsDisplacement;
+      if( DivShowArrows )
+         buf[currentTrough] = x[currentTrough] - arrowsDisplacement;
    //----
       if( DivShowPriceTrendLines )
          DivDrawPriceTrendLine( Time[currentTrough], Time[lastTrough], 
                                lo[currentTrough], lo[lastTrough], 
-                               Green, STYLE_SOLID );
+                               DivBullishColor, STYLE_SOLID );
    //----
       if( DivShowIndicatorTrendLines )
          DivDrawIndicatorTrendLine( DivWinName,
                                    Time[currentTrough], Time[lastTrough], 
                                    x[currentTrough], x[lastTrough], 
-                                   Green, STYLE_SOLID );
+                                   DivBullishColor, STYLE_SOLID );
    }
 //----   
    if( x[currentTrough] < x[lastTrough] && lo[currentTrough] > lo[lastTrough] )
    {
-      buf[currentTrough] = x[currentTrough] - arrowsDisplacement;
+      if( DivShowArrows )
+         buf[currentTrough] = x[currentTrough] - arrowsDisplacement;
    //----
       if( DivShowPriceTrendLines )
          DivDrawPriceTrendLine( Time[currentTrough], Time[lastTrough], 
                                lo[currentTrough], lo[lastTrough], 
-                               Green, STYLE_DOT );
+                               DivBearishColor, STYLE_SOLID );
    //----
       if( DivShowIndicatorTrendLines )
          DivDrawIndicatorTrendLine( DivWinName,
                                    Time[currentTrough], Time[lastTrough], 
                                    x[currentTrough], x[lastTrough], 
-                                   Green, STYLE_DOT );
+                                   DivBearishColor, STYLE_SOLID );
    }      
 }
-void DivCatchBearishDivergence(double& buf[], double x[], double y[], double hi[], int shift)
+void DivCatchBearishDivergence(double x[], double y[], double hi[], double& buf[], int shift=0)
 {
    if( !DivIsIndicatorPeak(x, shift) ) return;
    int currentPeak = shift;
@@ -79,33 +85,35 @@ void DivCatchBearishDivergence(double& buf[], double x[], double y[], double hi[
 //----   
    if( x[currentPeak] < x[lastPeak] && hi[currentPeak] > hi[lastPeak] )
    {
-      buf[currentPeak] = x[currentPeak] + arrowsDisplacement;
+      if( DivShowArrows )
+         buf[currentPeak] = x[currentPeak] + arrowsDisplacement;
    //----
       if( DivShowPriceTrendLines )
          DivDrawPriceTrendLine( Time[currentPeak], Time[lastPeak], 
                                hi[currentPeak], hi[lastPeak], 
-                               Red, STYLE_SOLID );
+                               DivBearishColor, STYLE_DOT );
    //----
       if( DivShowIndicatorTrendLines )
          DivDrawIndicatorTrendLine( DivWinName,
                                    Time[currentPeak], Time[lastPeak], 
                                    x[currentPeak], x[lastPeak], 
-                                   Red, STYLE_SOLID );
+                                   DivBearishColor, STYLE_DOT );
    }
    if( x[currentPeak] > x[lastPeak] && hi[currentPeak] < hi[lastPeak] )
    {
-      buf[currentPeak] = x[currentPeak] + arrowsDisplacement;
+      if( DivShowArrows )
+         buf[currentPeak] = x[currentPeak] + arrowsDisplacement;
    //----
       if( DivShowPriceTrendLines )
          DivDrawPriceTrendLine( Time[currentPeak], Time[lastPeak], 
                                hi[currentPeak], hi[lastPeak], 
-                               Red, STYLE_DOT );
+                               DivBullishColor, STYLE_DOT );
    //----
       if( DivShowIndicatorTrendLines )
          DivDrawIndicatorTrendLine( DivWinName,
                                    Time[currentPeak], Time[lastPeak], 
                                    x[currentPeak], x[lastPeak], 
-                                   Red, STYLE_DOT );
+                                   DivBullishColor, STYLE_DOT );
    }   
 }
 
