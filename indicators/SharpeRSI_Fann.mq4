@@ -2,6 +2,12 @@
 //|                                                                      SharpeRSI_Fann.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.21    Added Strategy #2 (default is false) that has the following characteristics:    |
+//|            a) UseStrategy2 is true;                                                     |
+//|            b) Divergence line on main chart is found;                                   |
+//|            c) Cycle pip > 5;                                                            |
+//|            d) Range of divergence line pip >= Cycle pip;                                |
+//|            e) Validity of divergence line > validity of Strategy #1.                    |
 //| 1.20    Draw divergence line on main chart.                                             |
 //| 1.11    Added a global boolean variable to indicate when a new signal has formed. The   |
 //|            variable is named NewBar, with a prefix, i.e. USDCAD_M30_NewBar.             |
@@ -34,19 +40,21 @@
 #property indicator_color4 Black
 #property indicator_color5 Black
 
-#include    <PlusFann.mqh>
-#include    <PlusDiv.mqh>
 //|-----------------------------------------------------------------------------------------|
 //|                           E X T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
+extern bool      UseStrategy2=false;
 extern int       EmaFast=12;
 extern int       EmaSlow=26;
 extern int       EmaSignal=9;
+#include    <PlusInit.mqh>
+#include    <PlusFann.mqh>
+#include    <PlusDiv.mqh>
 //|-----------------------------------------------------------------------------------------|
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string IndName="SharpeRSI_Fann";
-string IndVer="1.20";
+string IndVer="1.21";
 extern int       IndDebug=1;
 extern int       IndDebugCount=1000;
 int    IndCount;
@@ -125,8 +133,8 @@ int init()
    SetIndexBuffer(7,ExtMapBuffer8);
 //----
    IndicatorShortName(IndName+" "+IndVer);
+   InitInit();
    DivInit(IndName+" "+IndVer);
-
    FannInit();
    return(0);
   }
@@ -163,6 +171,7 @@ int start()
    int unused_bars;
    int used_bars=IndicatorCounted();
 
+   string trendName;
    double sumMse;
    string debug;
    
@@ -337,10 +346,10 @@ int start()
                   ExtMapBuffer1[0]=0;
                   if( avgHi > avgLo )
                   //--- Assert draw trend lines on main chart
-                     DivDrawPriceTrendLine(Time[1], Time[hiRsi+1], High[1], High[hiRsi+1], Green, STYLE_SOLID, 3);
+                     trendName=DivDrawPriceTrendLine(Time[1], Time[hiRsi+1], High[1], High[hiRsi+1], Green, STYLE_SOLID, 3);
                   else
                   //--- Assert draw trend lines on main chart
-                     DivDrawPriceTrendLine(Time[1], Time[hiRsi+1], Low[1], Low[hiRsi+1], Green, STYLE_SOLID, 3);
+                     trendName=DivDrawPriceTrendLine(Time[1], Time[hiRsi+1], Low[1], Low[hiRsi+1], Green, STYLE_SOLID, 3);
                }
                else if( MathAbs(avgLo-hiRsi) > MathAbs(avgHi-hiRsi) )
                {
@@ -349,14 +358,14 @@ int start()
                   /*Print("REVERSAL of UP trend");*/
                   ExtMapBuffer1[0]=NormalizeDouble(MathMin( hiRsi, MathMax( hiOpen, MathMax( hiHigh, MathMax( hiLow, hiClose ) ) ) ),0);
                //--- Assert draw trend lines on main chart
-                  DivDrawPriceTrendLine(Time[1], Time[hiRsi+1], High[1], High[hiRsi+1], Green, STYLE_SOLID, 3);
+                  trendName=DivDrawPriceTrendLine(Time[1], Time[hiRsi+1], High[1], High[hiRsi+1], Green, STYLE_SOLID, 3);
                }
                else
                {
                   /*Print("REVERSAL of DN trend");*/
                   ExtMapBuffer1[0]=-NormalizeDouble(MathMin( hiRsi, MathMax( loOpen, MathMax( loHigh, MathMax( loLow, loClose ) ) ) ),0);
                //--- Assert draw trend lines on main chart
-                  DivDrawPriceTrendLine(Time[1], Time[hiRsi+1], Low[1], Low[hiRsi+1], Green, STYLE_SOLID, 3);
+                  trendName=DivDrawPriceTrendLine(Time[1], Time[hiRsi+1], Low[1], Low[hiRsi+1], Green, STYLE_SOLID, 3);
                }
                bReversalUp=true;
                 
@@ -400,23 +409,23 @@ int start()
                   ExtMapBuffer1[0]=0;
                   if( avgHi > avgLo )
                   //--- Assert draw trend lines on main chart
-                     DivDrawPriceTrendLine(Time[1], Time[loRsi+1], High[1], High[loRsi+1], Green, STYLE_SOLID, 3);
+                     trendName=DivDrawPriceTrendLine(Time[1], Time[loRsi+1], High[1], High[loRsi+1], Green, STYLE_SOLID, 3);
                   else
                   //--- Assert draw trend lines on main chart
-                     DivDrawPriceTrendLine(Time[1], Time[loRsi+1], Low[1], Low[loRsi+1], Green, STYLE_SOLID, 3);
+                     trendName=DivDrawPriceTrendLine(Time[1], Time[loRsi+1], Low[1], Low[loRsi+1], Green, STYLE_SOLID, 3);
                }
                else if( MathAbs(avgLo-loRsi) > MathAbs(avgHi-loRsi) )
                {
                //--- Assert smaller delta of number of bars implies greater correlation between SharpeRSI direction and OHLC trend.
                   /*Print("REVERSAL of UP trend");*/
                   ExtMapBuffer1[0]=NormalizeDouble(MathMin( loRsi, MathMax( hiOpen, MathMax( hiHigh, MathMax( hiLow, hiClose ) ) ) ),0);
-                  DivDrawPriceTrendLine(Time[1], Time[loRsi+1], High[1], High[loRsi+1], Green, STYLE_SOLID, 3);
+                  trendName=DivDrawPriceTrendLine(Time[1], Time[loRsi+1], High[1], High[loRsi+1], Green, STYLE_SOLID, 3);
                }
                else
                {
                   /*Print("REVERSAL of DN trend");*/
                   ExtMapBuffer1[0]=-NormalizeDouble(MathMin( loRsi, MathMax( loOpen, MathMax( loHigh, MathMax( loLow, loClose ) ) ) ),0);
-                  DivDrawPriceTrendLine(Time[1], Time[loRsi+1], Low[1], Low[loRsi+1], Green, STYLE_SOLID, 3);
+                  trendName=DivDrawPriceTrendLine(Time[1], Time[loRsi+1], Low[1], Low[loRsi+1], Green, STYLE_SOLID, 3);
                }
                bReversalDn=true;
                 
@@ -445,6 +454,68 @@ int start()
                Print("Indeterminate trend for last ", hiRsi, " bars.");
                ExtMapBuffer1[0]=0;
             }
+         //--- Assert use Strategy #2 divergence (if true) and Strategy #1 reversal is true
+            if( UseStrategy2 && StringLen(trendName)>0 )
+            {
+               bool     bFound=true;
+               double   price0, price1;
+               double   range;
+               int      sign;
+               double   time0, time1;
+               int      validityBar;
+            //--- Assert find the slope of the trend line on main chart
+               if( ObjectFind(trendName)<0 )
+               {
+                  bFound = false;
+               }
+               else
+               {
+                  if( bReversalUp ) validityBar = hiRsi+1;
+                  if( bReversalDn ) validityBar = loRsi+1;
+                  
+                  price0 = ObjectGetValueByShift(trendName, 1);
+                  price1 = ObjectGetValueByShift(trendName, validityBar);
+                  if( price0 > price1)
+                  {
+                     range = High[1] - Low[validityBar];
+                     sign  = 1;
+                  }
+                  else
+                  {
+                     range = High[validityBar] - Low[1];
+                     sign  = -1;
+                  }
+               }
+            //-- Assert if range of trend line is greater than cycle then generate wave signal
+               if( bFound )
+               {
+                  int      cyclePip = CycleGap(60, Symbol(), Period());
+                  int      rangePip = MathRound(range/InitPts);
+               //--- Print Strategy #2 divergence
+                  IndDebugPrint( 1, "Strategy #2 Divergence",
+                     IndDebugDbl("price0",price0)+
+                     IndDebugDbl("price1",price1)+
+                     IndDebugInt("validityBar",validityBar)+
+                     IndDebugInt("cyclePip",cyclePip)+
+                     IndDebugInt("rangePip",rangePip)+
+                     IndDebugInt("sign",sign),
+                     false, 0 );
+               
+                  if( cyclePip >= 5 )
+                     if( rangePip >= cyclePip )
+                        if( validityBar > MathAbs(ExtMapBuffer1[0]) )
+                        {
+                        //--- Print Strategy #2 divergence
+                           IndDebugPrint( 1, "Strategy #2 Divergence overwrites Strategy #1",
+                              IndDebugInt("validityBar",validityBar)+
+                              IndDebugInt("ExtMapBuffer1",ExtMapBuffer1[0])+
+                              IndDebugInt("new wave",sign*validityBar),
+                              false, 0 );
+                           ExtMapBuffer1[0] = sign*validityBar;
+                        }
+               }
+            }
+            
             string gFredStr = StringConcatenate( Symbol(), "_", Period() );
             string gFredNewBarStr = StringConcatenate( Symbol(), "_", Period(), "_NewBar" );
             GlobalVariableSet( gFredStr, ExtMapBuffer1[0] );
@@ -559,6 +630,18 @@ int CalcSeqBackBar(double& indicator[], int max, bool lo=false, int shift=1)
       next=prev;
    }
    return(seq);
+}
+int CycleGap(int n, string sym, int period)
+{
+   double range, maxRange;
+   for(int i=0; i<n; i++)
+   {
+      range = iHigh(sym,period,i) - iLow(sym,period,i);
+      if( range > maxRange ) maxRange = range;
+   }
+   maxRange = MathRound(maxRange/InitPts);
+   if( maxRange < 5 ) maxRange = 5;
+   return( maxRange );
 }
 void IndDebugPrint(int dbg, string fn, string msg, bool incr=true, int mod=0)
 {
