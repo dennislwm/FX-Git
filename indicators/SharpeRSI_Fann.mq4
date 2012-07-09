@@ -2,6 +2,7 @@
 //|                                                                      SharpeRSI_Fann.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.20    Draw divergence line on main chart.                                             |
 //| 1.11    Added a global boolean variable to indicate when a new signal has formed. The   |
 //|            variable is named NewBar, with a prefix, i.e. USDCAD_M30_NewBar.             |
 //| 1.10    A wave signal generated has the following characteristics:                      |
@@ -34,14 +35,18 @@
 #property indicator_color5 Black
 
 #include    <PlusFann.mqh>
-
-//--- input parameters
+#include    <PlusDiv.mqh>
+//|-----------------------------------------------------------------------------------------|
+//|                           E X T E R N A L   V A R I A B L E S                           |
+//|-----------------------------------------------------------------------------------------|
 extern int       EmaFast=12;
 extern int       EmaSlow=26;
 extern int       EmaSignal=9;
-//---- Assert indicator name and version
+//|-----------------------------------------------------------------------------------------|
+//|                           I N T E R N A L   V A R I A B L E S                           |
+//|-----------------------------------------------------------------------------------------|
 string IndName="SharpeRSI_Fann";
-string IndVer="1.11";
+string IndVer="1.20";
 extern int       IndDebug=1;
 extern int       IndDebugCount=1000;
 int    IndCount;
@@ -84,9 +89,9 @@ int    iReversalDn;
 //--- Assert variables to detect new bar
 int    nextBarTime;
 
-//+------------------------------------------------------------------+
-//| Custom indicator initialization function                         |
-//+------------------------------------------------------------------+
+//|-----------------------------------------------------------------------------------------|
+//|                             I N I T I A L I Z A T I O N                                 |
+//|-----------------------------------------------------------------------------------------|
 int init()
   {
 //---- indicators
@@ -119,6 +124,9 @@ int init()
    SetIndexBuffer(6,ExtMapBuffer7);
    SetIndexBuffer(7,ExtMapBuffer8);
 //----
+   IndicatorShortName(IndName+" "+IndVer);
+   DivInit(IndName+" "+IndVer);
+
    FannInit();
    return(0);
   }
@@ -132,21 +140,22 @@ bool isNewBar()
    return(true);
 }
 
-//+------------------------------------------------------------------+
-//| Custom indicator deinitialization function                       |
-//+------------------------------------------------------------------+
+//|-----------------------------------------------------------------------------------------|
+//|                             D E I N I T I A L I Z A T I O N                             |
+//|-----------------------------------------------------------------------------------------|
 int deinit()
   {
 //----
    string gFredStr = StringConcatenate( Symbol(), "_", Period() );
    GlobalVariableDel( gFredStr );
 //----
+   DivDeInit();
    FannDeInit();
    return(0);
   }
-//+------------------------------------------------------------------+
-//| Custom indicator iteration function                              |
-//+------------------------------------------------------------------+
+//|-----------------------------------------------------------------------------------------|
+//|                               M A I N   P R O C E D U R E                               |
+//|-----------------------------------------------------------------------------------------|
 int start()
 {
 //---- Assert variables used by count from last bar
@@ -310,29 +319,46 @@ int start()
          //--- Assert find the closest OHLC bars to the validity bars.
             if( hiRsi > loRsi && avg > ExtMapBuffer2[1] )
             {
-                //Print("Continuation up rsi[1]=", ExtMapBuffer2[1] ," AvgNN=", avg, " (validity ", hiRsi, " bars).");
-                if( MathAbs(avgLo-hiRsi) > MathAbs(avgHi-hiRsi) )
-                //--- Assert smaller delta of number of bars implies greater correlation between SharpeRSI direction and OHLC trend.
-                   //Print("Continuation of UP trend");
-                   ExtMapBuffer1[0]=0;
-                else
-                   //Print("Continuation of DN trend");
-                   ExtMapBuffer1[0]=0;
-                bContinueUp=true;
+               /*Print("Continuation up rsi[1]=", ExtMapBuffer2[1] ," AvgNN=", avg, " (validity ", hiRsi, " bars).");*/
+               if( MathAbs(avgLo-hiRsi) > MathAbs(avgHi-hiRsi) )
+               //--- Assert smaller delta of number of bars implies greater correlation between SharpeRSI direction and OHLC trend.
+                  /*Print("Continuation of UP trend");*/
+                  ExtMapBuffer1[0]=0;
+               else
+                  /*Print("Continuation of DN trend");*/
+                  ExtMapBuffer1[0]=0;
+               bContinueUp=true;
             }
             else if( hiRsi > loRsi && avg <= ExtMapBuffer2[1] )
             {
-                Print("REVERSAL up rsi[1]=", ExtMapBuffer2[1] ," AvgNN=", avg, " (validity ", hiRsi, " bars).");
-                if( hiRsi > 5 && avgHi < 3 && avgLo < 3 )
-                   ExtMapBuffer1[0]=0;
-                else if( MathAbs(avgLo-hiRsi) > MathAbs(avgHi-hiRsi) )
-                //--- Assert smaller delta of number of bars implies greater correlation between SharpeRSI direction and OHLC trend.
-                   //Print("REVERSAL of UP trend");
-                   ExtMapBuffer1[0]=NormalizeDouble(MathMin( hiRsi, MathMax( hiOpen, MathMax( hiHigh, MathMax( hiLow, hiClose ) ) ) ),0);
-                else
-                   //Print("REVERSAL of DN trend");
-                   ExtMapBuffer1[0]=-NormalizeDouble(MathMin( hiRsi, MathMax( loOpen, MathMax( loHigh, MathMax( loLow, loClose ) ) ) ),0);
-                bReversalUp=true;
+               Print("REVERSAL up rsi[1]=", ExtMapBuffer2[1] ," AvgNN=", avg, " (validity ", hiRsi, " bars).");
+               if( hiRsi > 5 && avgHi < 3 && avgLo < 3 )
+               {
+                  ExtMapBuffer1[0]=0;
+                  if( avgHi > avgLo )
+                  //--- Assert draw trend lines on main chart
+                     DivDrawPriceTrendLine(Time[1], Time[hiRsi+1], High[1], High[hiRsi+1], Green, STYLE_SOLID, 3);
+                  else
+                  //--- Assert draw trend lines on main chart
+                     DivDrawPriceTrendLine(Time[1], Time[hiRsi+1], Low[1], Low[hiRsi+1], Green, STYLE_SOLID, 3);
+               }
+               else if( MathAbs(avgLo-hiRsi) > MathAbs(avgHi-hiRsi) )
+               {
+               //--- Assert smaller delta of number of bars implies greater correlation 
+               //       between SharpeRSI direction and OHLC trend.
+                  /*Print("REVERSAL of UP trend");*/
+                  ExtMapBuffer1[0]=NormalizeDouble(MathMin( hiRsi, MathMax( hiOpen, MathMax( hiHigh, MathMax( hiLow, hiClose ) ) ) ),0);
+               //--- Assert draw trend lines on main chart
+                  DivDrawPriceTrendLine(Time[1], Time[hiRsi+1], High[1], High[hiRsi+1], Green, STYLE_SOLID, 3);
+               }
+               else
+               {
+                  /*Print("REVERSAL of DN trend");*/
+                  ExtMapBuffer1[0]=-NormalizeDouble(MathMin( hiRsi, MathMax( loOpen, MathMax( loHigh, MathMax( loLow, loClose ) ) ) ),0);
+               //--- Assert draw trend lines on main chart
+                  DivDrawPriceTrendLine(Time[1], Time[hiRsi+1], Low[1], Low[hiRsi+1], Green, STYLE_SOLID, 3);
+               }
+               bReversalUp=true;
                 
                IndDebugPrint( 1, "Reversal up rsi",
                   IndDebugDbl("hiOpen",hiOpen)+
@@ -356,29 +382,43 @@ int start()
             }
             else if( loRsi > hiRsi && ExtMapBuffer2[1] > avg )
             {
-                //Print("Continuation dn rsi[1]=", ExtMapBuffer2[1] ," AvgNN=", avg, " (validity ", loRsi, " bars).");
-                if( MathAbs(avgLo-loRsi) > MathAbs(avgHi-loRsi) )
-                //--- Assert smaller delta of number of bars implies greater correlation between SharpeRSI direction and OHLC trend.
-                   //Print("Continuation of UP trend");
-                   ExtMapBuffer1[0]=0;
-                else
-                   //Print("Continuation of DN trend");
-                   ExtMapBuffer1[0]=0;
-                bContinueDn=true;
+               /*Print("Continuation dn rsi[1]=", ExtMapBuffer2[1] ," AvgNN=", avg, " (validity ", loRsi, " bars).");*/
+               if( MathAbs(avgLo-loRsi) > MathAbs(avgHi-loRsi) )
+               //--- Assert smaller delta of number of bars implies greater correlation between SharpeRSI direction and OHLC trend.
+                  /*Print("Continuation of UP trend");*/
+                  ExtMapBuffer1[0]=0;
+               else
+                  /*Print("Continuation of DN trend");*/
+                  ExtMapBuffer1[0]=0;
+               bContinueDn=true;
             }
             else if( loRsi > hiRsi && ExtMapBuffer2[1] <= avg )
             {
-                Print("REVERSAL dn rsi[1]=", ExtMapBuffer2[1] ," AvgNN=", avg, " (validity ", loRsi, " bars).");
-                if( loRsi > 5 && avgHi < 3 && avgLo < 3 )
-                   ExtMapBuffer1[0]=0;
-                else if( MathAbs(avgLo-loRsi) > MathAbs(avgHi-loRsi) )
-                //--- Assert smaller delta of number of bars implies greater correlation between SharpeRSI direction and OHLC trend.
-                   //Print("REVERSAL of UP trend");
-                   ExtMapBuffer1[0]=NormalizeDouble(MathMin( loRsi, MathMax( hiOpen, MathMax( hiHigh, MathMax( hiLow, hiClose ) ) ) ),0);
-                else
-                   //Print("REVERSAL of DN trend");
-                   ExtMapBuffer1[0]=-NormalizeDouble(MathMin( loRsi, MathMax( loOpen, MathMax( loHigh, MathMax( loLow, loClose ) ) ) ),0);
-                bReversalDn=true;
+               Print("REVERSAL dn rsi[1]=", ExtMapBuffer2[1] ," AvgNN=", avg, " (validity ", loRsi, " bars).");
+               if( loRsi > 5 && avgHi < 3 && avgLo < 3 )
+               {
+                  ExtMapBuffer1[0]=0;
+                  if( avgHi > avgLo )
+                  //--- Assert draw trend lines on main chart
+                     DivDrawPriceTrendLine(Time[1], Time[loRsi+1], High[1], High[loRsi+1], Green, STYLE_SOLID, 3);
+                  else
+                  //--- Assert draw trend lines on main chart
+                     DivDrawPriceTrendLine(Time[1], Time[loRsi+1], Low[1], Low[loRsi+1], Green, STYLE_SOLID, 3);
+               }
+               else if( MathAbs(avgLo-loRsi) > MathAbs(avgHi-loRsi) )
+               {
+               //--- Assert smaller delta of number of bars implies greater correlation between SharpeRSI direction and OHLC trend.
+                  /*Print("REVERSAL of UP trend");*/
+                  ExtMapBuffer1[0]=NormalizeDouble(MathMin( loRsi, MathMax( hiOpen, MathMax( hiHigh, MathMax( hiLow, hiClose ) ) ) ),0);
+                  DivDrawPriceTrendLine(Time[1], Time[loRsi+1], High[1], High[loRsi+1], Green, STYLE_SOLID, 3);
+               }
+               else
+               {
+                  /*Print("REVERSAL of DN trend");*/
+                  ExtMapBuffer1[0]=-NormalizeDouble(MathMin( loRsi, MathMax( loOpen, MathMax( loHigh, MathMax( loLow, loClose ) ) ) ),0);
+                  DivDrawPriceTrendLine(Time[1], Time[loRsi+1], Low[1], Low[loRsi+1], Green, STYLE_SOLID, 3);
+               }
+               bReversalDn=true;
                 
                IndDebugPrint( 1, "Reversal dn rsi",
                   IndDebugDbl("hiOpen",hiOpen)+
@@ -402,8 +442,8 @@ int start()
             }
             else
             {
-                Print("Indeterminate trend for last ", hiRsi, " bars.");
-                ExtMapBuffer1[0]=0;
+               Print("Indeterminate trend for last ", hiRsi, " bars.");
+               ExtMapBuffer1[0]=0;
             }
             string gFredStr = StringConcatenate( Symbol(), "_", Period() );
             string gFredNewBarStr = StringConcatenate( Symbol(), "_", Period(), "_NewBar" );
@@ -430,30 +470,33 @@ int start()
    return(0);
 }
 
+//|-----------------------------------------------------------------------------------------|
+//|                           I N T E R N A L   F U N C T I O N S                           |
+//|-----------------------------------------------------------------------------------------|
 void populateRsi(int n)
 {
 //--- Assert resize dynamic input Array.
-    ArrayResize(inRsi, n);
+   ArrayResize(inRsi, n);
     
 //--- Assert populate inputs for Max bars.
-    for(int i=0; i<n; i++)
-    {
-    //--- Assert first element of Array is the last Bar
-    //      Last element of inRsi[] is Bar[1].
-        if(ExtMapBuffer2[ n - i ]!=0) inRsi[ i ] = ExtMapBuffer2[ n - i ]/100;
-        else inRsi[ i ]=0;
+   for(int i=0; i<n; i++)
+   {
+   //--- Assert first element of Array is the last Bar
+   //      Last element of inRsi[] is Bar[1].
+      if(ExtMapBuffer2[ n - i ]!=0) inRsi[ i ] = ExtMapBuffer2[ n - i ]/100;
+      else inRsi[ i ]=0;
         
-        /*if(i==n-1) Print("inRsi[",i,"]=",DoubleToStr(inRsi[i],5),"; ExtMapBuffer2[",n-i,"]=",DoubleToStr(ExtMapBuffer2[n-i],5));*/
-    }
-    /*Print("ArraySize=",ArraySize(inRsi));*/
+      /*if(i==n-1) Print("inRsi[",i,"]=",DoubleToStr(inRsi[i],5),"; ExtMapBuffer2[",n-i,"]=",DoubleToStr(ExtMapBuffer2[n-i],5));*/
+   }
+   /*Print("ArraySize=",ArraySize(inRsi));*/
 }
 void populateArray(double srcArray[], double& dstArray[], int n, int shift=1)
 {
 //--- Assert resize dynamic input Array.
-    ArrayResize(dstArray, n);
+   ArrayResize(dstArray, n);
 //--- Assert populate inputs for Max bars.
-    for(int i=0; i<n; i++)
-        dstArray[i]  = srcArray[i+shift];
+   for(int i=0; i<n; i++)
+      dstArray[i]  = srcArray[i+shift];
 }
 int CalcLookBackBar(int min, int max, int bar)
 {
@@ -474,48 +517,48 @@ int CalcLookBackBar(int min, int max, int bar)
 }
 int CalcSeqBackBar(double& indicator[], int max, bool lo=false, int shift=1)
 {
-    int seq=0;
-    double next, prev;
+   int seq=0;
+   double next, prev;
     
-    /*IndDebugPrint( 1, "CalcSeqBackBar",
-       IndDebugDbl("indicator[0]",indicator[0])+
-       false, 0 );*/
+   /*IndDebugPrint( 1, "CalcSeqBackBar",
+      IndDebugDbl("indicator[0]",indicator[0])+
+      false, 0 );*/
     
-    next=indicator[0+shift];
-    for(int i=1; i<max; i++)
-    {
-        prev=indicator[i+shift];
-        if(lo)
-        {
-            if(next<prev)
-            {  
-               IndDebugPrint( 2, "CalcSeqBackBar",
-                  IndDebugInt("i",i)+
-                  IndDebugDbl("next",next)+"<"+
-                  IndDebugDbl("prev",prev)+
-                  IndDebugInt("seq",seq),
-                  false, 0 );
-               seq++;
-            }
-            else break;
-        }
-        else
-        {
-            if(next>prev)
-            {
-               IndDebugPrint( 2, "CalcSeqBackBar",
-                  IndDebugInt("i",i)+
-                  IndDebugDbl("next",next)+">"+
-                  IndDebugDbl("prev",prev)+
-                  IndDebugInt("seq",seq),
-                  true, 0 );
-               seq++;
-            }
-            else break;
-        }
-        next=prev;
-    }
-    return(seq);
+   next=indicator[0+shift];
+   for(int i=1; i<max; i++)
+   {
+      prev=indicator[i+shift];
+      if(lo)
+      {
+         if(next<prev)
+         {  
+            IndDebugPrint( 2, "CalcSeqBackBar",
+               IndDebugInt("i",i)+
+               IndDebugDbl("next",next)+"<"+
+               IndDebugDbl("prev",prev)+
+               IndDebugInt("seq",seq),
+               false, 0 );
+            seq++;
+         }
+         else break;
+      }
+      else
+      {
+         if(next>prev)
+         {
+            IndDebugPrint( 2, "CalcSeqBackBar",
+               IndDebugInt("i",i)+
+               IndDebugDbl("next",next)+">"+
+               IndDebugDbl("prev",prev)+
+               IndDebugInt("seq",seq),
+               true, 0 );
+            seq++;
+         }
+         else break;
+      }
+      next=prev;
+   }
+   return(seq);
 }
 void IndDebugPrint(int dbg, string fn, string msg, bool incr=true, int mod=0)
 {
