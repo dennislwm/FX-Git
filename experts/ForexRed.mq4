@@ -2,6 +2,9 @@
 //|                                                                            ForexRed.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.10    Added extern Fifo (default: true). If false, ForexRed will use Magic1 for sell  |
+//|            trades and Magic2 for buy trades independently. Otherwise, it will use       |
+//|            Magic1 and trades in ONE (1) direction only.                                 |
 //| 1.02    Use global variable NewBar, i.e. USDCAD_M30_NewBar, to flag when a new value    |
 //|            is available, as the NN results may be delayed by several ticks.             |
 //| 1.01    Fixed EMPTY_VALUE returned from Custom indicators.                              |
@@ -16,6 +19,7 @@
 #include <plusinit.mqh>
 extern   int      Fred1Magic     = 11000;
 extern   int      Fred2Magic     = 12000;
+extern   bool     FredFifo       = true;
 extern   int      FredDebug      = 1;
 extern   int      FredDebugCount = 1000;
 extern   string   s1             ="-->PlusRed Settings<--";
@@ -35,7 +39,7 @@ extern   string   s4             ="-->PlusGhost Settings<--";
 //|                           I N T E R N A L   V A R I A B L E S                            |
 //|------------------------------------------------------------------------------------------|
 string   EaName   ="ForexRed";
-string   EaVer    ="1.02";
+string   EaVer    ="1.10";
 int      EaDebugCount;
 
 // ------------------------------------------------------------------------------------------|
@@ -85,8 +89,19 @@ int start()
    Comment(EaComment());
 
 //--- Assert there are NO opened trades.   
-   int total=EasyOrdersBasket(Fred1Magic, Symbol());
-   if( total > 0 ) return(0);
+   int total1 = EasyOrdersBasket(Fred1Magic, Symbol());
+   int total2 = EasyOrdersBasket(Fred2Magic, Symbol());
+   int total = total1 + total2;
+
+//--- Assert Fifo trades in one direction only.
+   if( FredFifo ) 
+   {
+      if( total > 0 ) return(0);
+   }
+   else
+   {
+      if( total1 > 0 && total2 > 0 ) return(0);
+   }
    EaDebugPrint( 2,"start",
       EaDebugInt("total",total),
       true, 0 );
@@ -144,22 +159,32 @@ int start()
          false, 1 );
    }
 
+//--- Assert Fifo has no trades opened
+   if( !FredFifo )
+   {
+   //--- Always use Fred1Magic for sell and Fred2Magic for buy, if Fifo is false.
+      if( total1 > 0 && wave > 0 ) return(0);
+      if( total2 > 0 && wave < 0 ) return(0);
+      
+      if( wave == -1 ) wave = -2;
+   }
+
    switch(wave)
    {
       case 1:  
-         ticket = EasyOrderSell(Fred1Magic,Symbol(),RedBaseLot,EasySL,EasyTP,EaName,EasyMaxAccountTrades);
+         ticket = EasyOrderSell(Fred1Magic,Symbol(),RedBaseLot,EasySL,EasyTP,EaName+" "+Fred1Magic+" "+Symbol()+" "+Period(),EasyMaxAccountTrades);
          if(ticket>0) strtmp = EaName+": "+Fred1Magic+" "+Symbol()+" "+ticket+" sell at " + DoubleToStr(Close[0],Digits);   
          break;
       case -1: 
-         ticket = EasyOrderBuy(Fred1Magic,Symbol(),RedBaseLot,EasySL,EasyTP,EaName,EasyMaxAccountTrades); 
+         ticket = EasyOrderBuy(Fred1Magic,Symbol(),RedBaseLot,EasySL,EasyTP,EaName+" "+Fred1Magic+" "+Symbol()+" "+Period(),EasyMaxAccountTrades); 
          if(ticket>0) strtmp = EaName+": "+Fred1Magic+" "+Symbol()+" "+ticket+" buy at " + DoubleToStr(Close[0],Digits);   
          break;
       case 2:  
-         ticket = EasyOrderSell(Fred2Magic,Symbol(),RedBaseLot,EasySL,EasyTP,EaName,EasyMaxAccountTrades);
+         ticket = EasyOrderSell(Fred2Magic,Symbol(),RedBaseLot,EasySL,EasyTP,EaName+" "+Fred2Magic+" "+Symbol()+" "+Period(),EasyMaxAccountTrades);
          if(ticket>0) strtmp = EaName+": "+Fred2Magic+" "+Symbol()+" "+ticket+" sell at " + DoubleToStr(Close[0],Digits);   
          break;
       case -2:  
-         ticket = EasyOrderBuy(Fred2Magic,Symbol(),RedBaseLot,EasySL,EasyTP,EaName,EasyMaxAccountTrades);
+         ticket = EasyOrderBuy(Fred2Magic,Symbol(),RedBaseLot,EasySL,EasyTP,EaName+" "+Fred2Magic+" "+Symbol()+" "+Period(),EasyMaxAccountTrades);
          if(ticket>0) strtmp = EaName+": "+Fred2Magic+" "+Symbol()+" "+ticket+" buy at " + DoubleToStr(Close[0],Digits);   
          break;
    }
