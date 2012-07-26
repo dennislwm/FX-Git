@@ -2,6 +2,8 @@
 //|                                                                             PlusRed.mqh |
 //|                                                             Copyright  2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.16    Added parameter fifo to RedInit. If fifo is false, Magic2 is enabled and        |
+//|            RedLoadBuffer executes on every tick.                                        |
 //| 1.15    Fixed ChildOrderSend to open a sell trade correctly (was a typo).               |
 //| 1.14    Rollback fix of expected open price when current price exceeds next open price. |
 //|            Fixed calcTP after ChildOrderSend has been called.                           |
@@ -41,12 +43,13 @@ extern   int      RedDebugCount  =1000;
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string   RedName="PlusRed";
-string   RedVer="1.15";
+string   RedVer="1.16";
 //--- Assert variables for Basic
 double   redSL;
 int      redCycleSL=3;
 int      red1Magic;
 int      red2Magic;
+bool     redFifo;
 //--- Assert variables for Opened Positions
 int      redOpTicket[];
 int      redOpType[];
@@ -80,7 +83,7 @@ int      RedCount;
 //|-----------------------------------------------------------------------------------------|
 //|                             I N I T I A L I Z A T I O N                                 |
 //|-----------------------------------------------------------------------------------------|
-void RedInit(double SL, int mgc1, int mgc2)
+void RedInit(double SL, int mgc1, int mgc2, bool fifo)
 {
 //-- Assert Excel or SQL files are created.
 //--- Assert Mode <= 2 and BasketLevel <= 12
@@ -160,6 +163,7 @@ void RedInit(double SL, int mgc1, int mgc2)
    }
    red1Magic = mgc1;
    red2Magic = mgc2;
+   redFifo = fifo;
 }
 
 //|-----------------------------------------------------------------------------------------|
@@ -168,6 +172,7 @@ void RedInit(double SL, int mgc1, int mgc2)
 void RedOrderManager()
 {
    RedOrderManagerBasket(red1Magic, Symbol(), RedBasketLevel);
+   if( redFifo ) return(0);
    RedOrderManagerBasket(red2Magic, Symbol(), RedBasketLevel);
 }
 void RedOrderManagerBasket(int mgc, string sym, int maxTrades)
@@ -282,8 +287,7 @@ int RedLoadBuffers(int mgc, string sym)
 //--- Assert if total opened orders is the same as array size, then do not reload buffers
 //       This is to prevent recalculating expected orders, which may affect the order send when price
 //       moves quickly.
-   if( totalOp > 0 && ArraySize(redOpTicket) == totalOp ) 
-      return( totalOp );
+   if( redFifo ) if( totalOp > 0 && ArraySize(redOpTicket) == totalOp ) return( totalOp );
 //--- Assert cycle gap can increase but not decrease.
    if( RedShortCycle )
       redCyclePip = NormalizeDouble( MathMax( redCyclePip, RedCycleGap(60,Symbol(),RedShortPeriod) ), 0);
@@ -718,6 +722,11 @@ string RedComment(string cmt="", string basket1="Basket1", string basket2="Baske
          if( total1Magic > 0 )
             strtmp=strtmp+" price="+DoubleToStr( redPoOpenPrice[i],5 );
       }
+   }
+   if( redFifo )
+   {
+      strtmp=strtmp+"\n";
+      return(strtmp);
    }
    int total2Magic = RedLoadBuffers( red2Magic, Symbol() );
    if( total2Magic >= RedBasketLevel )
