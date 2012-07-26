@@ -2,6 +2,9 @@
 //|                                                                      SharpeRSI_Fann.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.22    Added multiplier. Change Strategy #2 to use Close price instead of HL prices.   |
+//|            Multiplier works only when validity > 20, then factor is 1.1, 1.2, etc. when |
+//|            validity is 21, 22, etc respectively. Otherwise, factor is 1.0 * cyclePip.   |
 //| 1.21    Added Strategy #2 (default is false) that has the following characteristics:    |
 //|            a) UseStrategy2 is true;                                                     |
 //|            b) Divergence line on main chart is found;                                   |
@@ -54,7 +57,7 @@ extern int       EmaSignal=9;
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string IndName="SharpeRSI_Fann";
-string IndVer="1.21";
+string IndVer="1.22";
 extern int       IndDebug=1;
 extern int       IndDebugCount=1000;
 int    IndCount;
@@ -477,12 +480,12 @@ int start()
                   price1 = ObjectGetValueByShift(trendName, validityBar);
                   if( price0 > price1)
                   {
-                     range = High[1] - Low[validityBar];
+                     range = Close[1] - Low[validityBar];
                      sign  = 1;
                   }
                   else
                   {
-                     range = High[validityBar] - Low[1];
+                     range = High[validityBar] - Close[1];
                      sign  = -1;
                   }
                }
@@ -505,13 +508,25 @@ int start()
                      if( rangePip >= cyclePip )
                         if( validityBar > MathAbs(ExtMapBuffer1[0]) )
                         {
+                           double   factor = MathMax( 1.0, (validityBar/10) - 1 );
                         //--- Print Strategy #2 divergence
-                           IndDebugPrint( 1, "Strategy #2 Divergence overwrites Strategy #1",
+                           IndDebugPrint( 1, "Strategy #2 Divergence passed cyclePip",
                               IndDebugInt("validityBar",validityBar)+
-                              IndDebugInt("ExtMapBuffer1",ExtMapBuffer1[0])+
-                              IndDebugInt("new wave",sign*validityBar),
+                              IndDebugDbl("factor",factor)+
+                              IndDebugDbl("new cyclePip",factor*cyclePip),
                               false, 0 );
-                           ExtMapBuffer1[0] = sign*validityBar;
+                              
+                           if( rangePip >= factor*cyclePip )
+                           {
+                           //--- Print Strategy #2 divergence
+                              IndDebugPrint( 1, "Strategy #2 Divergence overwrites Strategy #1",
+                                 IndDebugInt("validityBar",validityBar)+
+                                 IndDebugInt("ExtMapBuffer1",ExtMapBuffer1[0])+
+                                 IndDebugInt("new wave",sign*validityBar),
+                                 false, 0 );
+                              
+                              ExtMapBuffer1[0] = sign*validityBar;
+                           }
                         }
                }
             }
