@@ -2,6 +2,8 @@
 //|                                                                            ForexRed.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.11    Added parameter fifo to RedInit. If fifo is false, Magic2 is enabled and        |
+//|            RedLoadBuffer executes on every tick. Works with PlusRed 1.16+.              |
 //| 1.10    Added extern Fifo (default: true). If false, ForexRed will use Magic1 for sell  |
 //|            trades and Magic2 for buy trades independently. Otherwise, it will use       |
 //|            Magic1 and trades in ONE (1) direction only.                                 |
@@ -39,7 +41,7 @@ extern   string   s4             ="-->PlusGhost Settings<--";
 //|                           I N T E R N A L   V A R I A B L E S                            |
 //|------------------------------------------------------------------------------------------|
 string   EaName   ="ForexRed";
-string   EaVer    ="1.10";
+string   EaVer    ="1.11";
 int      EaDebugCount;
 
 // ------------------------------------------------------------------------------------------|
@@ -48,7 +50,7 @@ int      EaDebugCount;
 int init()
 {
    InitInit();
-   RedInit(EasySL,Fred1Magic,Fred2Magic);
+   RedInit(EasySL,Fred1Magic,Fred2Magic,FredFifo);
    EasyInit();
    TurtleInit();
    GhostInit();
@@ -199,6 +201,11 @@ int start()
 string EaComment(string cmt="")
 {
    string strtmp = cmt+"-->"+EaName+" "+EaVer+"<--";
+//--- Assert Basic info in comment
+   /*string strFifo;
+   if( FredFifo ) strFifo = "true";
+   else           strFifo = "false";
+   strtmp=strtmp+"\n  Fifo="+strFifo;*/
    strtmp=strtmp+"\n";
    
 //--- Assert additional comments here
