@@ -1,24 +1,30 @@
-//+------------------------------------------------------------------+
-//|                                  Cointegration Search Engine.mq4 |
-//|                                                   © Mediator     |
-//+------------------------------------------------------------------+
-
-/** @file
-* This code is released under Gnu General Public License (GPL) V3
-* You know what this means. Otherwise don't use it or buy a license.
-*/
-
-#property copyright "Copyright © 2011 Mediator"
-#property link      "mediator@online.de"
+//|-----------------------------------------------------------------------------------------|
+//|                                                  Cointegration Search Engine_SqLite.mq4 |
+//|                                                            Copyright © 2012, Dennis Lee |
+//| Assert History                                                                          |
+//| 1.10    Added PlusGhost. (Note: EA does not use MagicNumber.)                           |
+//| 1.00    Originated from Steve Hopwood Co-Integration System downloaded on 11 July 2012. |
+//|-----------------------------------------------------------------------------------------|
+#property copyright "Copyright © 2012, Dennis Lee"
+#property link      ""
 
 //#define RPATH "E:/Appz/R/R-2.12.0/bin/i386/Rterm.exe --no-save"
 #define RDEBUG 1
 
+//--- Assert 2: Plus include files
+#include <PlusTurtle.mqh>
+#include <PlusGhost.mqh>
 #include <mt4R.mqh>                // <-- its on forexfactory. need version 1.3
 //#include <common_functions.mqh> 
 #include <stderror.mqh>  
 #include <stdlib.mqh> 
 
+//|-----------------------------------------------------------------------------------------|
+//|                           E X T E R N A L   V A R I A B L E S                           |
+//|-----------------------------------------------------------------------------------------|
+extern int MaxAccountTrades = 4;
+extern int EaViewDebug = 0;
+extern int EaViewDebugNoStack = 1000;
 extern int back_bars = 576;
 extern int base_units = 1000;
 extern double Lots = 0.1;
@@ -41,21 +47,27 @@ extern bool StopOpenNewOrders = false;
 extern bool ReentryInsteadExit = true;
 extern string info0 = "Set Spread to 0(zero) for no limiting";
 extern double SpreadLimiter = 100;
- bool trend = false;
- bool Rplot = false;
- string Symbol1 = "";
- string Symbol2 = "";
- string Symbol3 = "";
- string Symbol4 = "";
- string Symbol5 = "";
- string Symbol6 = "";
- string Symbol7 = "";
- double pair1[];
-double pair2[];
-extern string RPATH = "I:/Programme/Appz/R-2.14.0/bin/i386/Rterm.exe --no-save";
+extern string RPATH = "C:/Program Files/R/R-2.15.1/bin/i386/Rterm.exe --no-save";
 extern color clr_spreadline = Yellow;
 extern color clr_above = FireBrick;
 extern color clr_below = DarkGreen;
+
+//|-----------------------------------------------------------------------------------------|
+//|                           I N T E R N A L   V A R I A B L E S                           |
+//|-----------------------------------------------------------------------------------------|
+string EaName = "Cointegration Search Engine_SqLite";
+string EaVer = "1.10";
+bool trend = false;
+bool Rplot = false;
+string Symbol1 = "";
+string Symbol2 = "";
+string Symbol3 = "";
+string Symbol4 = "";
+string Symbol5 = "";
+string Symbol6 = "";
+string Symbol7 = "";
+double pair1[];
+double pair2[];
 
 #define GLOBALNAME "arb-o-mat" // prefix for global variable names
 static color CLR_BUY_ARROW = Blue;
@@ -86,6 +98,9 @@ string AllPairs[];
 double LevelEntry[];
 double LevelReentry[];
 
+//|-----------------------------------------------------------------------------------------|
+//|                            I N I T I A L I S A T I O N                                  |
+//|-----------------------------------------------------------------------------------------|
 int init(){
    int i;
    int x = 0;
@@ -158,8 +173,14 @@ int init(){
    if(Digits == 6) GlobalPipsMultiplier = 100;   
    if(Digits == 7) GlobalPipsMultiplier = 1000;
    SpreadLimiter *= GlobalPipsMultiplier;
+//--- Assert 2: Init Plus   
+   TurtleInit();
+   GhostInit();
 }
 
+//|-----------------------------------------------------------------------------------------|
+//|                               M A I N   P R O C E D U R E                               |
+//|-----------------------------------------------------------------------------------------|
 int start()
 {
    string cmd="";
@@ -178,8 +199,6 @@ int start()
          closeOrders(Sym);
          GlobalVariableDel(Sym);
       }
-      
-      
    }
    int count = ArraySize(s);
    if(Time[0] < StrToTime(datum)) return(0);
@@ -223,9 +242,16 @@ int start()
       }
    }
    time_last = Time[0];
+//--- Assert 2: Refresh Plus   
+   GhostRefresh();
+   Comment(GhostComment(""));
+   
    return(0);
 }
 
+//|-----------------------------------------------------------------------------------------|
+//|                           I N T E R N A L   F U N C T I O N S                           |
+//|-----------------------------------------------------------------------------------------|
 void append(string symbol){
    pairs++;
    ArrayResize(symb, pairs);
@@ -644,7 +670,12 @@ void TradeLevel(double Level)
    }
 }
 
+//|-----------------------------------------------------------------------------------------|
+//|                            D E - I N I T I A L I S A T I O N                            |
+//|-----------------------------------------------------------------------------------------|
 int deinit(){
+//--- Assert 1: DeInit Plus
+   GhostDeInit();
    //Rx("save.image('c:/Programme/BestDirectMT4/experts/files/arbomat.R')");
    plotRemove("others");
    plotRemove("spread");
@@ -677,8 +708,6 @@ double   cp(string Symbol1,string Symbol2,int TimeFrame, int periods)
    
    return(Co);
 }
-
-
 
 //+------------------------------------------------------------------+
 //| Correlation Coefficient R														|
@@ -720,10 +749,9 @@ double Correlation(double x[], double y[], int x_shift = 0, int y_shift = 0, int
 	return(-3);
 }
 
-
-
 bool IsThisPairTradable(string sym)
 {
+   bool cannotTrade;
    //Checks to see if either of the currencies in the pair is already being traded twice.
    //If not, then return true to show that the pair can be traded, else return false
    
@@ -731,10 +759,13 @@ bool IsThisPairTradable(string sym)
    string c2 = StringSubstr(sym, 3, 3);//Second currency in the pair
    int c1open = 0, c2open = 0;
    //CanTradeThisPair = true;
-   for (int cc = OrdersTotal() - 1; cc >= 0; cc--)
+//--- Assert 2: Init OrderSelect #1
+   int total = GhostOrdersTotal();
+   GhostInitSelect(false,0,SELECT_BY_POS,MODE_TRADES);
+   for (int cc = total - 1; cc >= 0; cc--)
    {
-      if (!OrderSelect(cc, SELECT_BY_POS) ) continue;
-      if (OrderSymbol() != sym ) continue;
+      if (!GhostOrderSelect(cc, SELECT_BY_POS) ) continue;
+      if (GhostOrderSymbol() != sym ) continue;
       int index = StringFind(sym, c1);
       if (index > -1)
       {
@@ -750,30 +781,37 @@ bool IsThisPairTradable(string sym)
       if (c1open == 1 && c2open == 1) 
       {
          //CanTradeThisPair = false;
-         return(false);   
+         cannotTrade = true;
+         break;
+         /*return(false);*/
       }//if (c1open == 1 && c2open == 1) 
    }//for (int cc = OrdersTotal() - 1; cc >= 0; cc--)
+//--- Assert 1: Free OrderSelect #1   
+   GhostFreeSelect(false);
 
+   if( cannotTrade ) return(false);
    //Got this far, so ok to trade
    return(true);
    
 }//End bool IsThisPairTradable()   
 
-
 double GetProfit(string cmd)
 {
    int cnt;
    double AccProfit =0;
-   int total=OrdersTotal();
+//--- Assert 2: Init OrderSelect #2
+   int total = GhostOrdersTotal();
+   GhostInitSelect(true,0,SELECT_BY_POS,MODE_TRADES);
    for(cnt=0; cnt<=total; cnt++){
-      OrderSelect(cnt, SELECT_BY_POS, MODE_TRADES);
-      if(OrderComment() == cmd)
+      GhostOrderSelect(cnt, SELECT_BY_POS, MODE_TRADES);
+      if(GhostOrderComment() == cmd)
       {
-         AccProfit = AccProfit + (OrderProfit()+OrderCommission()+OrderSwap());
-         
-        
+         AccProfit = AccProfit + (GhostOrderProfit()+GhostOrderCommission()+GhostOrderSwap());
       }
    }
+//--- Assert 1: Free OrderSelect #2
+   GhostFreeSelect(false);
+   
    return(AccProfit);
 }
 
@@ -781,31 +819,72 @@ bool closeOrders(string comment)
 {
    int ticket=0;
    bool done=false;
+//--- Assert 5: Declare variables for OrderSelect #3
+//       1-OrderDelete BUY; 2-OrderClose BUY; 3-OrderDelete SELL; 4-OrderClose SELL;
+   int      aCommand[];    
+   int      aTicket[];
+   double   aLots[];
+   bool     aOk;
+   int      aCount;
    while (IsTradeContextBusy())
    {
       Print("closeOpenOrders(): waiting for trade context.");
       Sleep(MathRand()/10);
    }
    RefreshRates();
-   
-      for(int cnt=OrdersTotal(); cnt>=0; cnt--)
+//--- Assert 3: Dynamically resize arrays
+   ArrayResize(aCommand,MaxAccountTrades);
+   ArrayResize(aTicket,MaxAccountTrades);
+   ArrayResize(aLots,MaxAccountTrades);
+//--- Assert 2: Init OrderSelect #3
+   int total = GhostOrdersTotal();
+   GhostInitSelect(false,0,SELECT_BY_POS,MODE_TRADES);
+   for(int cnt=total-1; cnt>=0; cnt--)
+   {
+      GhostOrderSelect(cnt, SELECT_BY_POS, MODE_TRADES);
+   //--- Assert 3: Populate selected #3
+      aCommand[aCount]     = 0;
+      aTicket[aCount]      = GhostOrderTicket();
+      aLots[aCount]        = GhostOrderLots();
+      if(GhostOrderComment() == comment || comment == "")
       {
-         OrderSelect(cnt, SELECT_BY_POS, MODE_TRADES);
-         if(OrderComment() == comment || comment == "")
+         //Print(comment);
+         if(GhostOrderType()==OP_BUY)
          {
-            //Print(comment);
-            
-            if(OrderType()==OP_BUY)
-            {
-               double price = MarketInfo(OrderSymbol(), MODE_BID);
-            } else
-            {
-               price = MarketInfo(OrderSymbol(), MODE_ASK);
-            }
-           OrderClose(OrderTicket(), OrderLots(),price,999,CLR_NONE);
-            
+         //--- Assert 3: Populate selected #3
+            aCommand[aCount]  = 2;
+            double price = MarketInfo(GhostOrderSymbol(), MODE_BID);
+         } else
+         {
+         //--- Assert 3: Populate selected #3
+            aCommand[aCount]  = 4;
+            price = MarketInfo(GhostOrderSymbol(), MODE_ASK);
          }
+      //--- Assert 3: Populate selected #3
+         aCount ++;
+         if( aCount >= MaxAccountTrades ) break;
+         /*OrderClose(OrderTicket(), OrderLots(),price,999,CLR_NONE);*/
       }
+   }
+//--- Assert 1: Free OrderSelect #3
+   GhostFreeSelect(false);
+//--- Assert for: process array of commands
+   for(int i=0; i<aCount; i++)
+   {
+      switch( aCommand[i] )
+      {
+         case 1:  // OrderDelete 
+            break;
+         case 2:  // OrderClose Buy
+            GhostOrderClose( aTicket[i], aLots[i], price, 10, Red );
+            break;
+         case 3:  // OrderDelete 
+            break;
+         case 4:  // OrderClose Sell
+            GhostOrderClose( aTicket[i], aLots[i], price, 10, Green );
+            break;
+      }
+   }
    return(true);
 }
 
@@ -826,8 +905,6 @@ bool closeOrders(string comment)
    }
    return(False);
 }*/
-
-
 
 void plot(){
    static int last_back;
@@ -878,9 +955,6 @@ void plot(){
    }
 }
 
-
-
-
 /*void createOandaTicket(string symbol, int units){
    string first = StringSubstr(symbol, 0, 3);
    string last = StringSubstr(symbol, 3, 3);
@@ -890,7 +964,6 @@ void plot(){
    FileWrite(F, command);
    FileClose(F);
 }*/
-
 
 // plotting functions
 
@@ -1009,7 +1082,6 @@ void plot(){
    ObjectSet(name + i, OBJPROP_COLOR, Red);
    ObjectSet(name + i, OBJPROP_STYLE, STYLE_SOLID);
 }*/
-
 
 void plotRemove(string name, int len=0){
    int i;
@@ -1222,6 +1294,17 @@ int orderSendReliable(
 ){
    int ticket;
    int err;
+//--- Assert 5: Init OrderSelect #4
+   int total = GhostOrdersTotal();
+   int aCount;
+   GhostInitSelect(true,0,SELECT_BY_POS,MODE_TRADES);
+   for(int cnt=0; cnt<total; cnt++){
+      if( GhostOrderSelect(cnt, SELECT_BY_POS, MODE_TRADES) ) aCount ++;
+   }
+//--- Assert 1: Free OrderSelect #4
+   GhostFreeSelect(false);
+   if( aCount >= MaxAccountTrades ) return(-1);
+   
    Print("orderSendReliable(" 
       + symbol + "," 
       + cmd + "," 
@@ -1248,7 +1331,7 @@ int orderSendReliable(
          price = MarketInfo(symbol,MODE_BID);
       }
       if (!IsTradeContextBusy()){
-         ticket = OrderSend(
+         ticket = GhostOrderSend(
             symbol,
             cmd,
             volume,
@@ -1299,7 +1382,7 @@ bool orderModifyReliable(
          Print("OrderModifyReliable(): Waiting for trade context.");
          Sleep(MathRand()/10);
       }
-      success = OrderModify(
+      success = GhostOrderModify(
           ticket,
           NormalizeDouble(price, Digits),
           NormalizeDouble(stoploss, Digits),
@@ -1339,3 +1422,7 @@ bool isTemporaryError(int error){
       error == ERR_TRADE_CONTEXT_BUSY
     );
 }
+
+//|-----------------------------------------------------------------------------------------|
+//|                       E N D   O F   E X P E R T   A D V I S O R                         |
+//|-----------------------------------------------------------------------------------------|
