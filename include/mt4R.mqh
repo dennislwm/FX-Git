@@ -1,4 +1,13 @@
-#property copyright "© 2010 Bernd Kreuss"
+//|-----------------------------------------------------------------------------------------|
+//|                                                                                mt4R.mqh |
+//|                                                            Copyright © 2012, Dennis Lee |
+//| Assert History                                                                          |
+//| 1.10    Added function RIsStopped. Renamed RInit to Rinit.                              |
+//|            Allow for short names with meaning, but kept shorthand notation for backward |
+//|            compatibility.                                                               |
+//| 1.00    Originated from 7bit's R for MetaTrader downloaded on 11 July 2012.             |
+//|-----------------------------------------------------------------------------------------|
+#property   copyright "Copyright © 2012, Dennis Lee"
 #define MT4R_VERSION_MAJOR 1
 #define MT4R_VERSION_MINOR 3  // must change to 4
 
@@ -277,7 +286,7 @@
 * will check the version of the dll against the version of this header file and
 * if there is a mismatch it will report an error and refuse to initialize R.
 */
-int RInit(string commandline, int debuglevel){
+int Rinit(string commandline, int debuglevel){
    int dll_version;
    int dll_major;
    int dll_minor;
@@ -303,57 +312,100 @@ int RInit(string commandline, int debuglevel){
 
 int hR;
 
-void StartR(string path, int debug=1){
-   hR = RInit(path, debug);
+bool RIsStopped(){
+   if( hR == 0 ) return(true);
+   return(false);
 }
 
+void RBgn(string path, int debug=1){
+   hR = Rinit(path, debug);
+}
+void StartR(string path, int debug=1){
+   hR = Rinit(path, debug);
+}
+
+void REnd(){
+   RDeinit(hR);
+}
 void StopR(){
    RDeinit(hR);
 }
 
+void RExeStr(string code){
+   RExecute(hR, code);
+}
 void Rx(string code){
    RExecute(hR, code);
 }
 
+void RSetStr(string var, string s){
+   RAssignString(hR, var, s);
+}
 void Rs(string var, string s){
    RAssignString(hR, var, s);
 }
 
+void RSetInt(string var, int i){
+   RAssignInteger(hR, var, i);
+}
 void Ri(string var, int i){
    RAssignInteger(hR, var, i);
 }
 
+void RSetDbl(string var, double d){
+   RAssignDouble(hR, var, d);
+}
 void Rd(string var, double d){
    RAssignDouble(hR, var, d);
 }
 
+void RSetVtr(string var, double v[]){
+   RAssignVector(hR, var, v, ArraySize(v));
+}
 void Rv(string var, double v[]){
    RAssignVector(hR, var, v, ArraySize(v));
 }
 
+void RSetFtr(string name, string factor[]){
+   RAssignStringVector(hR, name, factor, ArraySize(factor));
+   Rx(name + " <- as.factor(" + name + ")");
+}
 void Rf(string name, string factor[]){
    RAssignStringVector(hR, name, factor, ArraySize(factor));
    Rx(name + " <- as.factor(" + name + ")");
 }
 
+void RSetMtx(string var, double matrix[], int rows, int cols){
+   RAssignMatrix(hR, var, matrix, rows, cols);
+}
 void Rm(string var, double matrix[], int rows, int cols){
    RAssignMatrix(hR, var, matrix, rows, cols);
 }
 
+int RGetInt(string var){
+   return(RGetInteger(hR, var));
+}
 int Rgi(string var){
    return(RGetInteger(hR, var));
 }
 
+double RGetDbl(string var){
+   return(RGetDouble(hR, var));
+}
 double Rgd(string var){
    return(RGetDouble(hR, var));
 }
 
+void RGetVtr(string var, double &v[]){
+   RGetVector(hR, var, v, ArraySize(v));
+}
 void Rgv(string var, double &v[]){
    RGetVector(hR, var, v, ArraySize(v));
 }
 
+void RPrt(string expression){
+   RPrint(hR, expression);
+}
 void Rp(string expression){
    RPrint(hR, expression);
 }
-
-
