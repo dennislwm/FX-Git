@@ -2,6 +2,7 @@
 //|                                                                       ImportDrawHst.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.10    Added PlusR. Import CSV file is optional (default: Use R).                      |
 //| 1.00    Import CSV file into a chart and export to history file.                        |
 //|            1) For the CSV file, if EOF is not correct, file will not be read;           |
 //|            2) For the HST file, version must be 400, or offline chart cannot be viewed; |
@@ -15,19 +16,23 @@
 #property indicator_chart_window
 #property indicator_buffers 5
 
+#include <PlusR.mqh>
+
 //|------------------------------------------------------------------------------------------|
 //|                           E X T E R N A L   V A R I A B L E S                            |
 //|------------------------------------------------------------------------------------------|
-extern   string   FileNameCsv    = "";
-extern   int      Delimiter      = ',';
 extern   string   s1             = " UseCustom: set Symbol and Period.";
 extern   string   s1_1           = " Period: 15-M15, 30-M30,.. 1440-D1";
 extern   bool     UseCustom      = true;
-extern   string   CustomSymbol   = "";
+extern   string   CustomSymbol   = "GLD";
 extern   int      CustomPeriod   = 1440;
+extern   string   s2             = " UseFileCsv: set Name and Delimiter.";
+extern   bool     UseFileCsv     = false;
+extern   string   FileName       = "";
+extern   int      FileDelim      = ',';
 extern   color    BullishBar     = White;
 extern   color    BearishBar     = Black;
-extern   int      IndDebug       = 2;
+extern   int      IndDebug       = 1;
 extern   int      IndDebugMod    = 1000;
 
 //|------------------------------------------------------------------------------------------|
@@ -43,7 +48,7 @@ double ExtMapBuffer5[];    // Volume
 //|                           I N T E R N A L   V A R I A B L E S                            |
 //|------------------------------------------------------------------------------------------|
 string   IndName   ="ImportDrawHst";
-string   IndVer    ="1.00";
+string   IndVer    ="1.10";
 string   IndCopyr  ="Copyright © 2012, Dennis Lee";
 string   IndSymbol;
 int      IndPeriod;
@@ -69,15 +74,20 @@ int init()
       IndSymbol = Symbol();
       IndPeriod = Period();
    }
+   if( IndSymbol == "" )
+   {
+      IndDebugPrint( 1, "init", "Symbol cannot be empty. Set Symbol='GLD'");
+      IndSymbol = "GLD";
+   }
    if( IndPeriod <= 0 )
    {
       IndDebugPrint( 1, "init", "Period cannot be negative or zero. Set Period=1440");
       IndPeriod = PERIOD_D1;
    }
-   if( Delimiter <= 0 )
+   if( FileDelim <= 0 )
    {
-      IndDebugPrint( 1, "init", "Delimiter cannot be empty. Set Delimiter=';'");
-      Delimiter = ',';
+      IndDebugPrint( 1, "init", "Delimiter cannot be empty. Set FileDelim=','");
+      FileDelim = ',';
    }
    
 //--- Assert initialize internal variables
@@ -86,21 +96,25 @@ int init()
    int i_unused[13];
    
 //--- Assert file csv is opened.
-   FileHandleCsv   = FileOpen( FileNameCsv, FILE_CSV|FILE_READ, Delimiter );
-   if( FileHandleCsv < 0)
+   if( UseFileCsv )
    {
-      IndDebugPrint( 1, "init", "Cannot open csv file "+FileNameCsv+". Check file or EOF.");
-      int handle=FileOpen("test", FILE_CSV|FILE_WRITE, ',');
-      if(handle>0)
+      FileHandleCsv   = FileOpen( FileName, FILE_CSV|FILE_READ, FileDelim );
+      if( FileHandleCsv < 0)
       {
-         FileWrite(handle, 1.0);
-         FileWrite(handle, 1.0);
-         FileWrite(handle, 1.0);
-         FileClose(handle);
+         IndDebugPrint( 1, "init", "Cannot open csv file "+FileName+". Check file or EOF.");
+         int handle=FileOpen("test", FILE_CSV|FILE_WRITE, ',');
+         if(handle>0)
+         {
+            FileWrite(handle, 1.0);
+            FileWrite(handle, 1.0);
+            FileWrite(handle, 1.0);
+            FileClose(handle);
+         }
+         IndDebugPrint( 1, "init", "File test contains the correct EOF character.");
       }
-      IndDebugPrint( 1, "init", "File test contains the correct EOF character.");
    }
-   
+   else RInit();
+      
 //--- Assert file history is opened.
    FileHandleHst   = FileOpenHistory( FileNameHst, FILE_BIN|FILE_WRITE);
    if( FileHandleHst < 0)
@@ -157,6 +171,9 @@ int init()
 //|------------------------------------------------------------------------------------------|
 int deinit()
 {
+//--- Assert deinit include
+   RDeInit();
+   
 //--- Assert close handles
    if( FileHandleHst >= 0 )
    {
@@ -188,7 +205,10 @@ int start()
 
 //---- Assert files are opened   
    if( FileHandleHst < 0) return(-1);
-   if( FileHandleCsv < 0) return(-1);
+   if( UseFileCsv )
+      if( FileHandleCsv < 0) return(-1);
+   else
+      if( RIsStopped() ) return(-1);
 
 //---- Assert run once only
    if( IsDone ) return(0);
@@ -207,34 +227,68 @@ int start()
    double   wLow;
    double   wClose;
    double   wVolume;
+   
+//--- Assert declare arrays used to store R data
+   string   zTime[];
+   double   zOpen[];
+   double   zHigh[];
+   double   zLow[];
+   double   zClose[];
+   double   zVolume[];
 
 //---- Assert read csv file
-   while( !FileIsEnding(FileHandleCsv) )
+   if( UseFileCsv )
    {
-      rTime    = FileReadString(FileHandleCsv);
-      wOpen    = FileReadNumber(FileHandleCsv);
-      wHigh    = FileReadNumber(FileHandleCsv);
-      wLow     = FileReadNumber(FileHandleCsv);
-      wClose   = FileReadNumber(FileHandleCsv);
-      wVolume  = FileReadNumber(FileHandleCsv);
-      count ++;
+      while( !FileIsEnding(FileHandleCsv) )
+      {
+         rTime    = FileReadString(FileHandleCsv);
+         wOpen    = FileReadNumber(FileHandleCsv);
+         wHigh    = FileReadNumber(FileHandleCsv);
+         wLow     = FileReadNumber(FileHandleCsv);
+         wClose   = FileReadNumber(FileHandleCsv);
+         wVolume  = FileReadNumber(FileHandleCsv);
+         count ++;
+      }
+   
+      FileSeek(FileHandleCsv,0,SEEK_SET);
+      unused_bars=count-1;
+   
+      for (i=unused_bars-1;i>=0;i--)
+      {
+         rTime             = FileReadString(FileHandleCsv);
+         ExtMapBuffer1[i]  = FileReadNumber(FileHandleCsv);
+         ExtMapBuffer2[i]  = FileReadNumber(FileHandleCsv);
+         ExtMapBuffer3[i]  = FileReadNumber(FileHandleCsv);
+         ExtMapBuffer4[i]  = FileReadNumber(FileHandleCsv);
+         ExtMapBuffer5[i]  = FileReadNumber(FileHandleCsv);
+      }
+      IndDebugPrint( 1, "start", count+" line(s) read.");
+      IsDone = true;
    }
-   IndDebugPrint( 1, "start", count+" line(s) read.");
-   IsDone = true;
-   
-   FileSeek(FileHandleCsv,0,SEEK_SET);
-   unused_bars=count-1;
-   
-   for (i=unused_bars-1;i>=0;i--)
+   else
    {
-      rTime             = FileReadString(FileHandleCsv);
-      ExtMapBuffer1[i]  = FileReadNumber(FileHandleCsv);
-      ExtMapBuffer2[i]  = FileReadNumber(FileHandleCsv);
-      ExtMapBuffer3[i]  = FileReadNumber(FileHandleCsv);
-      ExtMapBuffer4[i]  = FileReadNumber(FileHandleCsv);
-      ExtMapBuffer5[i]  = FileReadNumber(FileHandleCsv);
+      count = RYahooImport( IndSymbol, zOpen, zHigh, zLow, zClose, zVolume );
+      unused_bars=count-1;
+   
+      for (i=unused_bars-1;i>=0;i--)
+      {
+         ExtMapBuffer1[i]  = zOpen[i];
+         ExtMapBuffer2[i]  = zHigh[i];
+         ExtMapBuffer3[i]  = zLow[i];
+         ExtMapBuffer4[i]  = zClose[i];
+         ExtMapBuffer5[i]  = zVolume[i];
+         
+         IndDebugPrint( 2, "start",
+            IndDebugInt("i", i) +
+            IndDebugDbl("zOpen",    zOpen[i]) +
+            IndDebugDbl("zHigh",    zHigh[i]) +
+            IndDebugDbl("zLow",     zLow[i]) +
+            IndDebugDbl("zClose",   zClose[i]) +
+            IndDebugDbl("zVolume",   zVolume[i]) );
+      }
+      IndDebugPrint( 1, "start", count+" line(s) read.");
+      IsDone = true;
    }
-   IndDebugPrint( 1, "start", unused_bars+" record(s) drawn.");
    
 //---- Assert count from last bar (function Bars) to current bar (0)
    count=0;
