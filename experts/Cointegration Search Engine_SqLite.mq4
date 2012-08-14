@@ -2,6 +2,7 @@
 //|                                                  Cointegration Search Engine_SqLite.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.11    Added externs symbol 1-8, and debug functions.                                  |
 //| 1.10    Added PlusGhost. (Note: EA does not use MagicNumber.)                           |
 //| 1.00    Originated from Steve Hopwood Co-Integration System downloaded on 11 July 2012. |
 //|-----------------------------------------------------------------------------------------|
@@ -23,8 +24,15 @@
 //|                           E X T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 extern int MaxAccountTrades = 4;
-extern int EaViewDebug = 0;
-extern int EaViewDebugNoStack = 1000;
+extern string e1 = "Set symbol to empty to exclude currency.";
+extern string Symbol1 = "AUD";
+extern string Symbol2 = "CAD";
+extern string Symbol3 = "EUR";
+extern string Symbol4 = "GBP";
+extern string Symbol5 = "USD";
+extern string Symbol6 = "JPY";
+extern string Symbol7 = "CHF";
+extern string Symbol8 = "NZD";
 extern int back_bars = 576;
 extern int base_units = 1000;
 extern double Lots = 0.1;
@@ -51,21 +59,20 @@ extern string RPATH = "C:/Program Files/R/R-2.15.1/bin/i386/Rterm.exe --no-save"
 extern color clr_spreadline = Yellow;
 extern color clr_above = FireBrick;
 extern color clr_below = DarkGreen;
+extern string d1 = "0-No debug; 1-Debug minimal; 2-Debug stack";
+extern int EaViewDebug = 0;
+extern string d2 = "No stacking of debug messages; View every n";
+extern int EaViewDebugNoStack = 1000;
+extern string d3 = "View debug every n ... n+m";
+extern int EaViewDebugNoStackEnd = 0;
 
 //|-----------------------------------------------------------------------------------------|
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string EaName = "Cointegration Search Engine_SqLite";
-string EaVer = "1.10";
+string EaVer = "1.11";
 bool trend = false;
 bool Rplot = false;
-string Symbol1 = "";
-string Symbol2 = "";
-string Symbol3 = "";
-string Symbol4 = "";
-string Symbol5 = "";
-string Symbol6 = "";
-string Symbol7 = "";
 double pair1[];
 double pair2[];
 
@@ -105,14 +112,22 @@ int init(){
    int i;
    int x = 0;
    string Pair;
-   PairArray[0]= "AUD";
+   PairArray[0]= Symbol1;
+   PairArray[1]= Symbol2;
+   PairArray[2]= Symbol3;
+   PairArray[3]= Symbol4;
+   PairArray[4]= Symbol5;
+   PairArray[5]= Symbol6;
+   PairArray[6]= Symbol7;
+   PairArray[7]= Symbol8;
+   /*PairArray[0]= "AUD";
    PairArray[1]= "CAD";
    PairArray[2]= "CHF";
    PairArray[3]= "EUR";
    PairArray[4]= "GBP";
    PairArray[5]= "JPY";
    PairArray[6]= "NZD";
-   PairArray[7]= "USD";
+   PairArray[7]= "USD";*/
    for( i=0;i<=8;i++)
       {
          for(int j=0;j<=8;j++)
@@ -124,7 +139,9 @@ int init(){
             {
                s[x] = Pair;//FileWrite(handle, Pair);
                x++;
-               //Print(Pairs[x]);
+               EaDebugPrint( 1, "init",
+                  EaDebugInt("x",x)+
+                  EaDebugStr("Pair",Pair) );
             }
          }
       }
@@ -218,7 +235,6 @@ int start()
                this = 0;
                append(s[fp]);
                append(s[sp]);
-               //Print(pairs);
                if( ( (MarketInfo(s[sp], MODE_SPREAD) + MarketInfo(s[fp], MODE_SPREAD)) <= SpreadLimiter) || (SpreadLimiter == 0) )
                {
                   if(UseCorrelation)
@@ -235,8 +251,14 @@ int start()
                      onTick();
                   }
                }
-            
-            //Print(s[sp] + "|" + s[fp] + " Spread: " + pred[0]+ " StdDev: "+(2*stddev));
+               EaDebugPrint( 2, "start",
+                  EaDebugInt("sp",sp)+
+                  EaDebugInt("fp",fp)+
+                  EaDebugStr("s[sp]",s[sp])+
+                  EaDebugStr("s[fp]",s[fp])+
+                  EaDebugDbl("spread (pred[0])",pred[0])+
+                  EaDebugDbl("stddev",stddev)+
+                  EaDebugDbl("2*stddev",2*stddev) );
             }
          }
       }
@@ -288,7 +310,11 @@ void onOpen(){
       for (j=0; j<pairs; j++){
          ishift = iBarShift(symb[j], 0, Time[i]);
          regressors[i * pairs + j] = iClose(symb[j], 0, ishift);
-         //Print(regressors[i * pairs + j]);
+         EaDebugPrint( 2, "onOpen",
+            EaDebugInt("i",i)+
+            EaDebugInt("j",j)+
+            EaDebugInt("x (i*pairs+j)",i*pairs+j)+
+            EaDebugDbl("regressors[x]",regressors[i*pairs+j]) );
       }
    }
    Rm("regressors", regressors, back, pairs);
@@ -318,8 +344,8 @@ void onOpen(){
    Rgv("coef(model)[-1]", coef);   // remove the first one (the constant term)
    Rx("stddev <- sd(resid(model))");
    stddev = Rgd("stddev");
-   //Print(stddev);
-
+   EaDebugPrint( 2, "onOpen",
+      EaDebugDbl("stddev",stddev) );
 
    // convert the coefficients to usable hege ratios by multiplying
    // xxx/usd pairs with their quote. The results can then be
@@ -327,6 +353,7 @@ void onOpen(){
    // also take care of the special case when fitting a spread 
    // instead a trend
    string s;
+   double cc;
    for (i=0; i<pairs; i++){
       // if we fit a spread then all pairs except this one are on the other 
       // side (negative) and this one (the regressand) is 1 by definition
@@ -339,19 +366,16 @@ void onOpen(){
       }
       
       // convert to units
-     coef[i] = coef[i] * 1/ConvertCurrency(1,symb[i],"USD",iOpen(symb[i],0,0),s);
-      
-      
+      cc = ConvertCurrency(1,symb[i],"USD",iOpen(symb[i],0,0),s);
+      if( cc != 0 ) coef[i] = coef[i] * 1/cc;
       
       // The following makes sure that if the first pair is an USD/XXX pair
       // it is normalized to 1 again and the lot sizes of the other ones 
       // instead made smaller by the same factor.
       if (!trend){
-         
-            coef[i] = coef[i] /ConvertCurrency(1,symb[i],"USD",iOpen(symb[i],0,0),s);
-         
+         cc = ConvertCurrency(1,symb[i],"USD",iOpen(symb[i],0,0),s);
+         if( cc!= 0 ) coef[i] = coef[i] / cc;
       }
-
    }
    
    // format a string that presents the hedge ratios
@@ -432,7 +456,7 @@ void onTick(){
                closeOrders(symset);
                if (UseExitAlert) Alert(symset + " " + Period() + " exit "+(absexit));
                GlobalVariableDel(symset);
-               //Print("Close with neg. Level");
+               EaDebugPrint( 1, "onTick", "Close with neg. Level" );
             }
          }
          // Reentry or Exit Section with negativ Level
@@ -484,8 +508,9 @@ void onTick(){
    for(int Lvl=StdDevEntryLevel+8;Lvl>=StdDevEntryLevel;Lvl--)
    {
       StddevOrders(Lvl);
-      //Print("Entry check");
-      
+      EaDebugPrint( 2, "onTick",
+         EaDebugInt("Lvl",Lvl)+
+         " Entry check" );
    }   
 }
 
@@ -557,7 +582,12 @@ void TradeLevel(double Level)
       coefratio = maxcoef / mincoef;
       if(coefratio <= CoefThresh)
       {
-         //Print(s[fp]+s[sp] + " ratio: "+coefratio);
+         EaDebugPrint( 2, "TradeLevel",
+            EaDebugInt("sp",sp)+
+            EaDebugInt("fp",fp)+
+            EaDebugStr("s[sp]",s[sp])+
+            EaDebugStr("s[fp]",s[fp])+
+            EaDebugDbl("coefratio",coefratio) );
          if(units0 > units1)
          {
             units0 = Lots;
@@ -597,14 +627,24 @@ void TradeLevel(double Level)
          
          if( (pred[1] > StdDevEntryLevel*stddev) && (pval<=pthresh) && (pval !=0))
          {
-             GlobalVariableSet(s[fp]+s[sp],NormalizeDouble(StdDevEntryLevel-1,2));
-             Print(s[fp]+s[sp] + " pval: "+pval);
+            GlobalVariableSet(s[fp]+s[sp],NormalizeDouble(StdDevEntryLevel-1,2));
+            EaDebugPrint( 2, "TradeLevel",
+               EaDebugInt("sp",sp)+
+               EaDebugInt("fp",fp)+
+               EaDebugStr("s[sp]",s[sp])+
+               EaDebugStr("s[fp]",s[fp])+
+               EaDebugDbl("pval",pval) );
          }
              
          if( (pred[1] < -StdDevEntryLevel*stddev)&& (pval<=pthresh) && (pval !=0))
          {
-             GlobalVariableSet(s[fp]+s[sp],NormalizeDouble(-StdDevEntryLevel+1,2));
-             Print(s[fp]+s[sp] + " pval: "+pval);
+            GlobalVariableSet(s[fp]+s[sp],NormalizeDouble(-StdDevEntryLevel+1,2));
+            EaDebugPrint( 2, "TradeLevel",
+               EaDebugInt("sp",sp)+
+               EaDebugInt("fp",fp)+
+               EaDebugStr("s[sp]",s[sp])+
+               EaDebugStr("s[fp]",s[fp])+
+               EaDebugDbl("pval",pval) );
          }
       }  
    }
@@ -613,7 +653,17 @@ void TradeLevel(double Level)
       if( (GlobalVariableCheck(s[fp]+s[sp]) == false && GlobalVariableCheck(s[sp]+s[fp]) == false && StopOpenNewOrders == false && UseADF == false && tradecoef0 == true && tradecoef1 ==true) 
          || (Level > GlobalVariableGet(s[fp]+s[sp]) && GlobalVariableGet(s[fp]+s[sp]) > 0 && tradecoef0 == true && tradecoef1 == true) )
       {
-            //Print(units0 + "-" + units1 + ":" + coef[0] + "-" + coef[1] +":"+ DoubleToStr(coefratio,2)+":"+s[fp]+s[sp]);
+            EaDebugPrint( 2, "TradeLevel",
+               EaDebugDbl("units0",units0)+
+               EaDebugDbl("units1",units1)+
+               EaDebugDbl("coef[0]",coef[0],2)+
+               EaDebugDbl("coef[1]",coef[1],2)+
+               EaDebugDbl("coefratio",coefratio,2)+
+               EaDebugInt("sp",sp)+
+               EaDebugInt("fp",fp)+
+               EaDebugStr("s[sp]",s[sp])+
+               EaDebugStr("s[fp]",s[fp]) );
+            
             if (Level > GlobalVariableGet(s[fp]+s[sp]) && GlobalVariableGet(s[fp]+s[sp]) > 0 && tradecoef0 == true && tradecoef1 == true)
             {
                 if (UseExitAlert) Alert(s[fp]+"|"+s[sp] + " " + Period() + " reentry "+Level+" * stddev");
@@ -645,7 +695,16 @@ void TradeLevel(double Level)
       if( (GlobalVariableCheck(s[fp]+s[sp]) == false && GlobalVariableCheck(s[sp]+s[fp]) == false && StopOpenNewOrders == false && UseADF == false && tradecoef0 == true && tradecoef1 ==true) ||
          (-Level < GlobalVariableGet(s[fp]+s[sp]) && GlobalVariableGet(s[fp]+s[sp]) < 0 && tradecoef0 == true && tradecoef1 == true) )
       {
-         //Print(units0 + "-" + units1 + ":" + coef[0] + "-" + coef[1] +":"+ DoubleToStr(coefratio,2)+":"+s[fp]+s[sp]);
+         EaDebugPrint( 2, "TradeLevel",
+            EaDebugDbl("units0",units0)+
+            EaDebugDbl("units1",units1)+
+            EaDebugDbl("coef[0]",coef[0],2)+
+            EaDebugDbl("coef[1]",coef[1],2)+
+            EaDebugDbl("coefratio",coefratio,2)+
+            EaDebugInt("sp",sp)+
+            EaDebugInt("fp",fp)+
+            EaDebugStr("s[sp]",s[sp])+
+            EaDebugStr("s[fp]",s[fp]) );
          if (-Level < GlobalVariableGet(s[fp]+s[sp]) && GlobalVariableGet(s[fp]+s[sp]) < 0 && tradecoef0 == true && tradecoef1 == true)
          {
              if (UseExitAlert) Alert(s[fp]+"|"+s[sp] + " " + Period() + " reentry -"+Level+" * stddev");
@@ -848,7 +907,9 @@ bool closeOrders(string comment)
       aLots[aCount]        = GhostOrderLots();
       if(GhostOrderComment() == comment || comment == "")
       {
-         //Print(comment);
+         EaDebugPrint( 1, "closeOrders",
+            EaDebugStr("comment",comment) );
+         
          if(GhostOrderType()==OP_BUY)
          {
          //--- Assert 3: Populate selected #3
@@ -1421,6 +1482,45 @@ bool isTemporaryError(int error){
       error == ERR_TRADE_TIMEOUT ||
       error == ERR_TRADE_CONTEXT_BUSY
     );
+}
+
+//|-----------------------------------------------------------------------------------------|
+//|                                     C O M M E N T                                       |
+//|-----------------------------------------------------------------------------------------|
+void EaDebugPrint(int dbg, string fn, string msg)
+{
+   static int noStackCount;
+   if(EaViewDebug>=dbg)
+   {
+      if(dbg>=2 && EaViewDebugNoStack>0)
+      {
+         if( MathMod(noStackCount,EaViewDebugNoStack) <= EaViewDebugNoStackEnd )
+            Print(EaViewDebug,"-",noStackCount,":",fn,"(): ",msg);
+            
+         noStackCount ++;
+      }
+      else
+         Print(EaViewDebug,":",fn,"(): ",msg);
+   }
+}
+string EaDebugInt(string key, int val)
+{
+   return( StringConcatenate(";",key,"=",val) );
+}
+string EaDebugDbl(string key, double val, int dgt=5)
+{
+   return( StringConcatenate(";",key,"=",NormalizeDouble(val,dgt)) );
+}
+string EaDebugStr(string key, string val)
+{
+   return( StringConcatenate(";",key,"=\"",val,"\"") );
+}
+string EaDebugBln(string key, bool val)
+{
+   string valType;
+   if( val )   valType="true";
+   else        valType="false";
+   return( StringConcatenate(";",key,"=",valType) );
 }
 
 //|-----------------------------------------------------------------------------------------|
