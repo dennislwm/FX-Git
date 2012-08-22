@@ -2,6 +2,10 @@
 //|                                                                             PlusRed.mqh |
 //|                                                             Copyright  2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.17    Added CalcStopLossBasket function to fix major bug where StopLoss moves closer  |
+//|            to OpenPrice. Fixed IsOkTakeProfitBasket and IsOkStopLossBasket to use       |
+//|            actual trades instead of buffer trades. Fixed missing brackets in            |
+//|            OrderModifyBasket.                                                           |
 //| 1.16    Added parameter fifo to RedInit. If fifo is false, Magic2 is enabled and        |
 //|            RedLoadBuffer executes on every tick.                                        |
 //| 1.15    Fixed ChildOrderSend to open a sell trade correctly (was a typo).               |
@@ -43,7 +47,7 @@ extern   int      RedDebugCount  =1000;
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string   RedName="PlusRed";
-string   RedVer="1.16";
+string   RedVer="1.17";
 //--- Assert variables for Basic
 double   redSL;
 int      redCycleSL=3;
@@ -207,14 +211,14 @@ void RedOrderManagerBasket(int mgc, string sym, int maxTrades)
    //Print("4");
    if( redOpType[end] == OP_BUY )
    {
-      redCalcSL   = redOpOpenPrice[end] - redCycleSL * redCyclePip * InitPts;
+      redCalcSL   = RedCalcStopLossBasket( mgc, sym );
       redCalcTP   = RedCalcBreakEvenBasket( OP_BUY, sym, redCyclePip / (oldTotal + 1) );
       //redCalcTP   = RedCalcBreakEvenBasket( OP_BUY, sym, drawdown - redCyclePip*InitPts*RedBaseLot*TurtleBigValue(sym)/(Point*oldTotal) );
       //redCalcTP   = redCalcTP + redCyclePip * InitPts;
    }
    if( redOpType[end] == OP_SELL )
    {
-      redCalcSL   = redOpOpenPrice[end] + redCycleSL * redCyclePip * InitPts;
+      redCalcSL   = RedCalcStopLossBasket( mgc, sym );
       redCalcTP   = RedCalcBreakEvenBasket( OP_SELL, sym, redCyclePip / (oldTotal + 1) );
       //redCalcTP   = RedCalcBreakEvenBasket( OP_SELL, sym, drawdown - redCyclePip*InitPts*RedBaseLot*TurtleBigValue(sym)/(Point*oldTotal) );
       //redCalcTP   = redCalcTP - redCyclePip * InitPts;
@@ -231,7 +235,7 @@ void RedOrderManagerBasket(int mgc, string sym, int maxTrades)
 //--- Assert Ok StopLoss basket
    beg = 0; end = oldTotal - 1;
    //Print("5");
-   if( !RedIsOkStopLossBasket(redCalcSL) || !RedIsOkTakeProfitBasket(redCalcTP) )
+   if( !RedIsOkStopLossBasket( mgc, sym, redCalcSL ) || !RedIsOkTakeProfitBasket( mgc, sym, redCalcTP ) )
    {
       RedOrderModifyBasket( mgc, sym, redCalcSL, redCalcTP, 0, maxTrades );
       oldTotal = RedLoadBuffers(mgc,sym);
@@ -478,59 +482,123 @@ double RedCalcBreakEvenBasket(int type, string sym, double bufferPip=0)
       
    return(val);
 }
-bool RedIsOkStopLossBasket(double SL)
+double RedCalcStopLossBasket(int mgc, string sym)
 {
-   bool  aOk=true;
-   int   totalOp;
-   totalOp=ArraySize(redOpTicket);
-   for(int j=0; j<totalOp; j++)
+   double   openPrice;
+   double   calcSL;
+   int      total=GhostOrdersTotal();
+//---- Assert determine count of all trades done with this MagicNumber
+//       Init OrderSelect #6
+   GhostInitSelect(true,0,SELECT_BY_POS,MODE_TRADES);
+   for(int j=0; j<total; j++)
    {
-      if( redOpStopLoss[j] == 0 )
+      if( !GhostOrderSelect(j,SELECT_BY_POS,MODE_TRADES) ) break;
+   //--- Assert MagicNumber and Symbol is same as Order
+      if( GhostOrderMagicNumber()==mgc && GhostOrderSymbol()==sym )
       {
-         aOk = false;
-         break;
-      }
-   //--- Assert SL can be moved lower but not higher
-      if( SL != 0 && redOpType[j]==OP_BUY && redOpStopLoss[j] > SL )
-      {
-         aOk = false;
-         break;
-      }
-      if( SL != 0 && redOpType[j]==OP_SELL && redOpStopLoss[j] < SL )
-      {
-         aOk = false;
-         break;
+         if( openPrice==0 )   openPrice = GhostOrderOpenPrice();
+      //--- Assert openPrice can be cheaper but not more expensive
+      //       For a buy basket, the openPrice has to be the lowest possible.
+      //       For a sell basket, the openPrice has to be the highest possible.
+         if( GhostOrderType()==OP_BUY && openPrice >= GhostOrderOpenPrice() )
+         {
+            openPrice   = GhostOrderOpenPrice();
+            calcSL      = openPrice - redCycleSL * redCyclePip * InitPts;
+         }
+         if( GhostOrderType()==OP_SELL && openPrice <= GhostOrderOpenPrice() )
+         {
+            openPrice   = GhostOrderOpenPrice();
+            calcSL      = openPrice + redCycleSL * redCyclePip * InitPts;
+         }
+         RedDebugPrint( 2, "RedCalcStopLossBasket",
+            RedDebugInt("type",GhostOrderType())+
+            RedDebugInt("mgc",mgc)+
+            RedDebugStr("sym",sym)+
+            RedDebugInt("j",j)+
+            RedDebugDbl("openPrice",openPrice,5)+
+            RedDebugDbl("calcSL",calcSL,5),
+            false, 1 );
       }
    }
+//---- Assert 1: Free OrderSelect #6
+   GhostFreeSelect(false);
+   return( calcSL );
+}
+bool RedIsOkStopLossBasket(int mgc, string sym, double SL)
+{
+   bool  aOk=true;
+   int   total=GhostOrdersTotal();
+   /*int   totalOp;
+   totalOp=ArraySize(redOpTicket);*/
+//---- Assert determine count of all trades done with this MagicNumber
+//       Init OrderSelect #4
+   GhostInitSelect(true,0,SELECT_BY_POS,MODE_TRADES);
+   for(int j=0; j<total; j++)
+   {
+      if( !GhostOrderSelect(j,SELECT_BY_POS,MODE_TRADES) ) break;
+   //--- Assert MagicNumber and Symbol is same as Order
+      if( GhostOrderMagicNumber()==mgc && GhostOrderSymbol()==sym )
+      {
+         if( GhostOrderStopLoss()==0 )
+         {
+            aOk = false;
+            break;
+         }
+      //--- Assert SL can be moved lower but not higher
+         if( SL != 0 && GhostOrderType()==OP_BUY && GhostOrderStopLoss() > SL )
+         {
+            aOk = false;
+            break;
+         }
+         if( SL != 0 && GhostOrderType()==OP_SELL && GhostOrderStopLoss() < SL )
+         {
+            aOk = false;
+            break;
+         }
+      }
+   }
+//---- Assert 1: Free OrderSelect #4
+   GhostFreeSelect(false);
    return( aOk );
 }
-bool RedIsOkTakeProfitBasket(double TP)
+bool RedIsOkTakeProfitBasket(int mgc, string sym, double TP)
 {
    bool     aOk=true;
-   int      totalOp;
+   int      total=GhostOrdersTotal();
+   /*int      totalOp;*/
    double   gapTP;
    if( RedHardTP )
    {
-      totalOp=ArraySize(redOpTicket);
-      for(int j=0; j<totalOp; j++)
+      /*totalOp=ArraySize(redOpTicket);*/
+   //---- Assert determine count of all trades done with this MagicNumber
+   //       Init OrderSelect #5
+      GhostInitSelect(true,0,SELECT_BY_POS,MODE_TRADES);
+      for(int j=0; j<total; j++)
       {
-         if( redOpTakeProfit[j] == 0 )
+         if( !GhostOrderSelect(j,SELECT_BY_POS,MODE_TRADES) ) break;
+      //---- Assert MagicNumber and Symbol is same as Order
+         if (GhostOrderMagicNumber()==mgc && GhostOrderSymbol()==sym)
          {
-            aOk = false;
-            break;
-         }
-      //--- Assert TP can be moved lower but not higher
-         if( TP != 0 && redOpType[j]==OP_BUY && redOpTakeProfit[j] > TP )
-         {
-            aOk = false;
-            break;
-         }
-         if( TP != 0 && redOpType[j]==OP_SELL && redOpTakeProfit[j] < TP )
-         {
-            aOk = false;
-            break;
+            if( GhostOrderTakeProfit()==0 )
+            {
+               aOk = false;
+               break;
+            }
+         //--- Assert TP can be moved lower but not higher
+            if( TP != 0 && GhostOrderType()==OP_BUY && GhostOrderTakeProfit() > TP )
+            {
+               aOk = false;
+               break;
+            }
+            if( TP != 0 && GhostOrderType()==OP_SELL && GhostOrderTakeProfit() < TP )
+            {
+               aOk = false;
+               break;
+            }
          }
       }
+   //---- Assert 1: Free OrderSelect #5
+      GhostFreeSelect(false);
    }
    return( aOk );
 }
@@ -626,6 +694,7 @@ bool RedOrderModifyBasket(int mgc, string sym, double SL, double TP, datetime ex
 
    //---- Assert MagicNumber and Symbol is same as Order
       if (GhostOrderMagicNumber()==mgc && GhostOrderSymbol()==sym)
+      {
          if( GhostOrderType() == OP_BUY )
             gapTP = TP - Bid;
          if( GhostOrderType() == OP_SELL )
@@ -643,6 +712,7 @@ bool RedOrderModifyBasket(int mgc, string sym, double SL, double TP, datetime ex
             aCount ++;
             if( aCount >= maxTrades ) break;
          }
+      }
    }
 //---- Assert 1: Free OrderSelect #1
    GhostFreeSelect(false);
