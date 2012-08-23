@@ -2,6 +2,8 @@
 //|                                                                              TDLine.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 0.2.0   Added externs for Line properties and comments. Fixed function getTDArrayIndex  |
+//|            to return -1 if TDPoint not found.                                           |
 //| 0.1.0   Originated from Perl J (2008) DeMark Indicators (Chapter 4).                    |
 //|            Implemented TDPoint and TDLine. (To be implemented Disqualifier, Qualifiers, |
 //|            Objective, and exits.                                                        |
@@ -25,8 +27,14 @@ extern bool       UseWave1ReverseBreak    = true;
 extern bool       UseWave2GapBreak        = true;
 extern bool       UseWave3PressureBreak   = true;
 extern string     l2                      = "Line Properties";
-extern int        LookBackBars            = 40;
+extern int        LookBackBars            = 100;
 extern int        TDPointLevel            = 3;
+/*extern string     l2_1                    = "Style: 0-Solid, 1-Dash, 2-Dot, 3 or 4";
+extern int        TDLineStyle             = 1;*/
+extern string     l2_2                    = "Ray: 0-None, 1-Show";
+extern int        TDLineRay               = 1;
+extern int        TDLineWidth             = 2;
+extern bool       ShowComment             = false;
 extern string     d1                      = "Debug: 0-None; 1-Minimal; 2-Stack";
 extern int        IndViewDebug            = 0;
 extern string     d2                      = "No stacking of debug messages; View every n";
@@ -39,7 +47,7 @@ extern int        IndViewDebugNoStackEnd  = 0;
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string IndName="TDLine";
-string IndVer="0.1.0";
+string IndVer="0.2.0";
 //---- Assert indicators for outputs (1) and calculations (2)
 double ExtMapBuffer1[];    // wave signal
 double ExtMapBuffer2[];    // TD Demand Points
@@ -55,6 +63,10 @@ int arrSupply[];
 //--- Assert variables used by TD Line
 string trendDemandStr;
 string trendSupplyStr;
+int indexDemand0;
+int indexDemand1;
+int indexSupply0;
+int indexSupply1;
 //--- Assert variables to detect new bar
 int nextBarTime;
 
@@ -112,11 +124,12 @@ bool isNewBar()
 //|                             D E I N I T I A L I Z A T I O N                             |
 //|-----------------------------------------------------------------------------------------|
 int deinit()
-  {
+{
+   if(ShowComment) Comment("");
 //----
    DivDeInit();
    return(0);
-  }
+}
 //|-----------------------------------------------------------------------------------------|
 //|                               M A I N   P R O C E D U R E                               |
 //|-----------------------------------------------------------------------------------------|
@@ -146,20 +159,20 @@ int start()
       calcTDSupplyPoint( arrSupply, LookBackBars, TDPointLevel );
 
       DivDelete(trendDemandStr);
-      int index0 = getTDArrayIndex(arrDemand,LookBackBars,  -TDPointLevel, 1);
-      int index1 = getTDArrayIndex(arrDemand,LookBackBars,  -TDPointLevel, 2);
-      index0 += TDPointLevel;
-      index1 += TDPointLevel;
-      trendDemandStr = DivDrawPriceTrendLine(
-         Time[index1], Time[index0], Low[index1], Low[index0], Thistle, STYLE_SOLID, TDPointLevel, 1);
+      indexDemand0 = getTDArrayIndex(arrDemand,LookBackBars,  -TDPointLevel, 1);
+      indexDemand1 = getTDArrayIndex(arrDemand,LookBackBars,  -TDPointLevel, 2);
+      if( indexDemand0>=0 )   indexDemand0 += TDPointLevel;
+      if( indexDemand1>=0 )   indexDemand1 += TDPointLevel;
+      if(indexDemand0>=0 && indexDemand1>=0) trendDemandStr = DivDrawPriceTrendLine(
+         Time[indexDemand1], Time[indexDemand0], Low[indexDemand1], Low[indexDemand0], Thistle, STYLE_SOLID, TDLineWidth, TDLineRay);
 
       DivDelete(trendSupplyStr);
-      index0 = getTDArrayIndex(arrSupply,LookBackBars,   TDPointLevel,  1);
-      index1 = getTDArrayIndex(arrSupply,LookBackBars,   TDPointLevel,  2);
-      index0 += TDPointLevel;
-      index1 += TDPointLevel;
-      trendSupplyStr = DivDrawPriceTrendLine(
-         Time[index1], Time[index0], High[index1], High[index0], Red, STYLE_SOLID, TDPointLevel, 1);
+      indexSupply0 = getTDArrayIndex(arrSupply,LookBackBars,   TDPointLevel,  1);
+      indexSupply1 = getTDArrayIndex(arrSupply,LookBackBars,   TDPointLevel,  2);
+      if( indexSupply0>=0 )   indexSupply0 += TDPointLevel;
+      if( indexSupply1>=0 )   indexSupply1 += TDPointLevel;
+      if(indexSupply0>=0 && indexSupply1>=0) trendSupplyStr = DivDrawPriceTrendLine(
+         Time[indexSupply1], Time[indexSupply0], High[indexSupply1], High[indexSupply0], Red, STYLE_SOLID, TDLineWidth, TDLineRay);
    }
    
 //---- Assert count from last bar (function Bars) to current bar (0)
@@ -178,6 +191,7 @@ int start()
    }
    
 //----
+   if( ShowComment ) Comment(IndComment());
    debug=IndName+" "+IndVer;
    debug=debug+" Bars="+DoubleToStr(LookBackBars,0)+" Level="+DoubleToStr(TDPointLevel,0);
    IndicatorShortName(debug);
@@ -265,11 +279,44 @@ int getTDArrayIndex(int srcArray[], int n, int level=1, int rank=1)
       }
       if( count >= rank ) break;
    }
-   return( pos );
+   if(count>=rank) return( pos );
+   else return(-1);
 }
 //|-----------------------------------------------------------------------------------------|
 //|                                     C O M M E N T                                       |
 //|-----------------------------------------------------------------------------------------|
+string IndComment(string cmt="")
+{
+   string strtmp = cmt+"-->"+IndName+" "+IndVer+"<--";
+   strtmp=strtmp+"\n";
+
+//--- Assert wave properties here
+   strtmp=strtmp+"  Use Wave:";
+   if( UseWave1ReverseBreak )    strtmp = strtmp+"  1";
+   if( UseWave2GapBreak )        strtmp = strtmp+"  2";
+   if( UseWave3PressureBreak )   strtmp = strtmp+"  3";
+   if( !UseWave1ReverseBreak && !UseWave2GapBreak && !UseWave3PressureBreak)
+                                 strtmp = strtmp+"  None";
+   strtmp=strtmp+"\n";
+//--- Assert line properties here
+   strtmp=strtmp+"  Supply:  ";
+   if( indexSupply1>=0 )
+      strtmp=strtmp+DoubleToStr(High[indexSupply1],5)+"  ";
+   if( indexSupply0>=0 )
+      strtmp=strtmp+DoubleToStr(High[indexSupply0],5);
+   strtmp=strtmp+"\n";
+   strtmp=strtmp+"  Demand:  ";
+   if( indexDemand1>=0 )
+      strtmp=strtmp+DoubleToStr(Low[indexDemand1],5)+"  ";
+   if( indexDemand0>=0 )
+      strtmp=strtmp+DoubleToStr(Low[indexDemand0],5);
+   strtmp=strtmp+"\n";
+                                 
+//--- Assert additional comments here
+   
+   strtmp=strtmp+"\n";
+   return(strtmp);
+}
 void IndDebugPrint(int dbg, string fn, string msg)
 {
    static int noStackCount;
