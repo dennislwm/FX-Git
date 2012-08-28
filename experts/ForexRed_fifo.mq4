@@ -2,6 +2,9 @@
 //|                                                                            ForexRed.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.0.4   Added extern DebugNotify ( where Debug Level <= ONE (1) ) to notify user on     |
+//|            mobile phone. There is a limit of no more than TWO (2) notifications per     |
+//|            second, and no more than TEN (10) notifications per minute.                  |
 //| 1.0.3   Added extern DoNotTrade: 0:false, 1:sell, -1:buy.                               |
 //| 1.02    Use global variable NewBar, i.e. USDCAD_M30_NewBar, to flag when a new value    |
 //|            is available, as the NN results may be delayed by several ticks.             |
@@ -20,6 +23,7 @@ extern   int      Fred2Magic     = 12000;
 //---- Assert Uni trade direction
 extern   string   s0             = "DoNotTrade: 0:false, 1:sell, -1:buy";
 extern   int      FredDoNotTrade = 0;
+extern   bool     FredDebugNotify= false;
 extern   int      FredDebug      = 1;
 extern   int      FredDebugCount = 1000;
 extern   string   s1             ="-->PlusRed Settings<--";
@@ -39,7 +43,7 @@ extern   string   s4             ="-->PlusGhost Settings<--";
 //|                           I N T E R N A L   V A R I A B L E S                            |
 //|------------------------------------------------------------------------------------------|
 string   EaName   ="ForexRed";
-string   EaVer    ="1.0.3";
+string   EaVer    ="1.0.4";
 int      EaDebugCount;
 
 // ------------------------------------------------------------------------------------------|
@@ -158,22 +162,22 @@ int start()
    {
       case 1:  
          ticket = EasyOrderSell(Fred1Magic,Symbol(),RedBaseLot,EasySL,EasyTP,EaName,EasyMaxAccountTrades);
-         if(ticket>0) strtmp = EaName+": "+Fred1Magic+" "+Symbol()+" "+ticket+" sell at " + DoubleToStr(Close[0],Digits);   
+         if(ticket>0) strtmp = EaName+": "+Fred1Magic+" "+Symbol()+" Open "+ticket+" sell at " + DoubleToStr(Close[0],Digits);   
          break;
       case -1: 
          ticket = EasyOrderBuy(Fred1Magic,Symbol(),RedBaseLot,EasySL,EasyTP,EaName,EasyMaxAccountTrades); 
-         if(ticket>0) strtmp = EaName+": "+Fred1Magic+" "+Symbol()+" "+ticket+" buy at " + DoubleToStr(Close[0],Digits);   
+         if(ticket>0) strtmp = EaName+": "+Fred1Magic+" "+Symbol()+" Open "+ticket+" buy at " + DoubleToStr(Close[0],Digits);   
          break;
       case 2:  
          ticket = EasyOrderSell(Fred2Magic,Symbol(),RedBaseLot,EasySL,EasyTP,EaName,EasyMaxAccountTrades);
-         if(ticket>0) strtmp = EaName+": "+Fred2Magic+" "+Symbol()+" "+ticket+" sell at " + DoubleToStr(Close[0],Digits);   
+         if(ticket>0) strtmp = EaName+": "+Fred2Magic+" "+Symbol()+" Open "+ticket+" sell at " + DoubleToStr(Close[0],Digits);   
          break;
       case -2:  
          ticket = EasyOrderBuy(Fred2Magic,Symbol(),RedBaseLot,EasySL,EasyTP,EaName,EasyMaxAccountTrades);
-         if(ticket>0) strtmp = EaName+": "+Fred2Magic+" "+Symbol()+" "+ticket+" buy at " + DoubleToStr(Close[0],Digits);   
+         if(ticket>0) strtmp = EaName+": "+Fred2Magic+" "+Symbol()+" Open "+ticket+" buy at " + DoubleToStr(Close[0],Digits);   
          break;
    }
-   if (wave!=0) Print(strtmp);
+   if (wave!=0) EaDebugPrint( 0, "start", strtmp );
    
    return(0);
 }
@@ -214,7 +218,10 @@ void EaDebugPrint(int dbg, string fn, string msg, bool incr=true, int mod=0)
             EaDebugCount ++;
       }
       else
+      {
+         if(FredDebugNotify)  SendNotification( FredDebug + ":" + fn + "(): " + msg );
          Print(FredDebug,":",fn,"(): ",msg);
+      }
    }
 }
 string EaDebugInt(string key, int val)
