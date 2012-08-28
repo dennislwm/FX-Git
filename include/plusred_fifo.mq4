@@ -1,7 +1,10 @@
 //|-----------------------------------------------------------------------------------------|
 //|                                                                             PlusRed.mqh |
-//|                                                             Copyright  2012, Dennis Lee |
+//|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.2.1   Added extern DebugNotify ( where Debug Level <= ONE (1) ) to notify user on     |
+//|            mobile phone. There is a limit of no more than TWO (2) notifications per     |
+//|            second, and no more than TEN (10) notifications per minute.                  |
 //| 1.2.0   Added CalcStopLossBasket function to fix major bug where StopLoss moves closer  |
 //|            to OpenPrice. Fixed IsOkTakeProfitBasket and IsOkStopLossBasket to use       |
 //|            actual trades instead of buffer trades. Fixed missing brackets in            |
@@ -23,7 +26,7 @@
 //|            Note that the first order is never placed by this module.                    |
 //|            Created functions Init, LoadBuffer, ChildOrderSend, CycleGap, and Comment.   |
 //|-----------------------------------------------------------------------------------------|
-#property   copyright "Copyright  2012, Dennis Lee"
+#property   copyright "Copyright © 2012, Dennis Lee"
 
 //|-----------------------------------------------------------------------------------------|
 //|                           E X T E R N A L   V A R I A B L E S                           |
@@ -38,6 +41,7 @@ extern   bool     RedShortCycle  =false;
 extern   int      RedShortPeriod =PERIOD_M30;
 extern   int      RedLongPeriod  =PERIOD_H4;
 extern   bool     RedHardTP      =true;
+extern   bool     RedDebugNotify =false;
 extern   int      RedDebug       =1;
 extern   int      RedDebugCount  =1000;
 
@@ -45,7 +49,7 @@ extern   int      RedDebugCount  =1000;
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string   RedName="PlusRed";
-string   RedVer="1.2.0";
+string   RedVer="1.2.1";
 //--- Assert variables for Basic
 double   redSL;
 int      redCycleSL=3;
@@ -606,45 +610,41 @@ int RedChildOrderSend(int mgc, string sym, double SL, double TP, int maxTrades)
    int ticket=-1;
    int total=ArraySize(redOpTicket);
    int newLevel=total;
-   //Print("1.1");
 //--- Assert optimize function check total > 0
    if( total <= 0 ) return(0);
-   //Print("1.2");
 //--- Assert optimize function check pending orders > 0
    if( ArraySize(redPoTicket) <= 0 ) return(0);
-   //Print("1.3");
 //--- Assert copy values to child order   
    double   curPrice;
 //--- Assert populate values for child order
-   //Print("1.4:",redPoType[0]);
    if( redPoType[0] == OP_BUY )
    {
       curPrice = MarketInfo( sym, MODE_ASK );
-      //Print("1.41:",curPrice,"<",redPoOpenPrice[0]);
       if( curPrice <= redPoOpenPrice[0] )
       {
          ticket=EasyOrderBuy( mgc, sym, redPoLots[0], 0, 0, redPoComment[0] );
       }
-      //Print("1.42:",ticket);
    }
-   //Print("1.5");
    if( redPoType[0] == OP_SELL )
    {
       curPrice = MarketInfo( sym, MODE_BID );
-      //Print("1.51:",curPrice,">",redPoOpenPrice[0]);
       if( curPrice >= redPoOpenPrice[0] )
       {
          ticket=EasyOrderSell( mgc, sym, redPoLots[0], 0, 0, redPoComment[0] );
       }
-      //Print("1.52:",ticket);
    }
-   //Print("1.6");
    if( ticket > 0 ) 
    {
+      RedDebugPrint( 1, "RedChildOrderSend",
+         RedDebugInt("mgc",mgc)+
+         RedDebugStr("sym",sym)+
+         RedDebugInt("type",redPoType[0])+
+         RedDebugInt("ticket",ticket)+
+         RedDebugDbl("price",curPrice,5),
+         false, 1 );
       RedOrderModifyBasket( mgc, sym, redPoStopLoss[0], 0, 0, maxTrades );
       total = RedLoadBuffers(mgc,sym);
    }
-   //Print("1.7:",total);
    return(total);
 }
 
@@ -723,11 +723,12 @@ bool RedOrderModifyBasket(int mgc, string sym, double SL, double TP, datetime ex
             break;
       }
    }   
-   RedDebugPrint( 2,"RedOrderModifyBasket",
+   RedDebugPrint( 1, "RedOrderModifyBasket",
       RedDebugInt("mgc",mgc)+
       RedDebugStr("sym",sym)+
-      RedDebugInt("total",total)+
-      RedDebugInt("aCount",aCount)+
+      RedDebugStr("aCount",aCount)+
+      RedDebugDbl("SL",SL,5)+
+      RedDebugDbl("TP",TP,5)+
       RedDebugDbl("gapTP",gapTP,5)+
       RedDebugDbl("stopLevel",stopLevel,5)+
       RedDebugBln("aOk",aOk),
@@ -821,7 +822,10 @@ void RedDebugPrint(int dbg, string fn, string msg, bool incr=true, int mod=0)
             RedCount ++;
       }
       else
+      {
+         if(RedDebugNotify)   SendNotification( RedDebug + ":" + fn + "(): " + msg );
          Print(RedDebug,":",fn,"(): ",msg);
+      }
    }
 }
 string RedDebugInt(string key, int val)
