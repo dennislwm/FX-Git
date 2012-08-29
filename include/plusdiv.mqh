@@ -2,6 +2,8 @@
 //|                                                                             PlusDiv.mqh |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.13    New function DivDelete(). Added parameter ray (default: 0) in functions         |
+//|            DivDrawPriceTrendLine() and DivDrawIndicatorTrendLine().                     |
 //| 1.12    Functions that draw trend line returns the name of line (string).               |
 //| 1.11    Added parameter width (default: 1) in draw trend line functions.                |
 //| 1.10    Added ShowArrows, BullishColor and BearishColor.                                |
@@ -24,7 +26,7 @@ extern color  DivBearishColor = Red;
 //|-----------------------------------------------------------------------------------------|
 #define  arrowsDisplacement 0.0001
 string   DivName="PlusDiv";
-string   DivVer="1.12";
+string   DivVer="1.13";
 string   DivWinName;
 
 //|-----------------------------------------------------------------------------------------|
@@ -176,31 +178,39 @@ int DivGetIndicatorLastTrough(double x[], double y[], int shift)
 //|-----------------------------------------------------------------------------------------|
 //|                              C R E A T E   O B J E C T S                                |
 //|-----------------------------------------------------------------------------------------|
-string DivDrawPriceTrendLine(datetime x1, datetime x2, double y1, double y2, color lineColor, double style, double width=1)
-  {
+string DivDrawPriceTrendLine(datetime x1, datetime x2, double y1, double y2, color lineColor, double style, double width=1, int ray=0)
+{
+   if( !DivShowPriceTrendLines ) return("");
    string label = DivName+"_"+DivVer+"_Main_"+DoubleToStr(x1, 0);
    ObjectDelete(label);
    ObjectCreate(label, OBJ_TREND, 0, x1, y1, x2, y2, 0, 0);
-   ObjectSet(label, OBJPROP_RAY, 0);
-   ObjectSet(label, OBJPROP_COLOR, lineColor);
-   ObjectSet(label, OBJPROP_STYLE, style);
-   ObjectSet(label, OBJPROP_WIDTH, width);
-   return( label );
-  }
-
-string DivDrawIndicatorTrendLine(string win, datetime x1, datetime x2, double y1, double y2, color lineColor, double style, double width=1)
-{
-   int indicatorWindow = WindowFind(win);
-   if(indicatorWindow < 0) return("");
-   string label = DivName+"_"+DivVer+"_Sub_"+DoubleToStr(x1, 0);
-   ObjectDelete(label);
-   ObjectCreate(label, OBJ_TREND, indicatorWindow, x1, y1, x2, y2, 0, 0);
-   ObjectSet(label, OBJPROP_RAY, 0);
+   ObjectSet(label, OBJPROP_RAY, ray);
    ObjectSet(label, OBJPROP_COLOR, lineColor);
    ObjectSet(label, OBJPROP_STYLE, style);
    ObjectSet(label, OBJPROP_WIDTH, width);
    return( label );
 }
+
+string DivDrawIndicatorTrendLine(string win, datetime x1, datetime x2, double y1, double y2, color lineColor, double style, double width=1, int ray=0)
+{
+   if( !DivShowIndicatorTrendLines ) return("");
+   int indicatorWindow = WindowFind(win);
+   if(indicatorWindow < 0) return("");
+   string label = DivName+"_"+DivVer+"_Sub_"+DoubleToStr(x1, 0);
+   ObjectDelete(label);
+   ObjectCreate(label, OBJ_TREND, indicatorWindow, x1, y1, x2, y2, 0, 0);
+   ObjectSet(label, OBJPROP_RAY, ray);
+   ObjectSet(label, OBJPROP_COLOR, lineColor);
+   ObjectSet(label, OBJPROP_STYLE, style);
+   ObjectSet(label, OBJPROP_WIDTH, width);
+   return( label );
+}
+
+void DivDelete(string name)
+{
+   if( StringLen( name )>0 ) if( ObjectFind( name )>=0 ) ObjectDelete(name);
+}
+
 //|-----------------------------------------------------------------------------------------|
 //|                             D E I N I T I A L I Z A T I O N                             |
 //|-----------------------------------------------------------------------------------------|
