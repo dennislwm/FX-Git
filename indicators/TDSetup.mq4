@@ -2,9 +2,17 @@
 //|                                                                             TDSetup.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.1.0   Added TDST Support and Resistance lines. If market closes beneath TDST Support  |
+//|            before completing a TD Buy Setup, there is an increased probability that the |
+//|            downtrend continues toward a TD Countdown 13. Conversely, if market closes   |
+//|            above TDST Resistance before completing a TD Sell Setup, there is increased  |
+//|            probability that the uptrend continues toward a TD Countdown THIRTEEN (13).  |
+//|            TDST Support is drawn at the low of the bar, where an initiation of TD Sell  |
+//|            Setup occured (that is completed?). Conversely, TDST Resistance is at the    |
+//|            high of the bar, where an initiation of a recent TD Buy Setup occured.       |
 //| 1.00    Standalone Tom DeMark's Setup indicator (wave signal).                          |
 //|-----------------------------------------------------------------------------------------|
-#property copyright "Copyright © 2011, Dennis Lee"
+#property copyright "Copyright © 2012, Dennis Lee"
 //---- indicator settings
 #property  indicator_separate_window
 #property  indicator_buffers 3
@@ -13,20 +21,44 @@
 #property  indicator_color3  Green
 #property  indicator_maximum 4
 #property  indicator_minimum -4
+//|-----------------------------------------------------------------------------------------|
+//|                           E X T E R N A L   V A R I A B L E S                           |
+//|-----------------------------------------------------------------------------------------|
+extern string     l1                      = "Setup Properties";
+extern string     l2                      = "Line Properties";
+extern string     l2_2                    = "Ray: 0-None, 1-Show";
+extern int        TDLineRay               = 1;
+extern int        TDLineWidth             = 2;
+extern bool       IndShowComment          = false;
+extern bool       IndViewDebugNotify      = false;
+extern int        IndViewDebug            = 1;
+extern int        IndViewDebugNoStack     = 1000;
+extern int        IndViewDebugNoStackEnd  = 10;
+#include    <PlusInit.mqh>
+#include    <PlusDiv.mqh>
+//|-----------------------------------------------------------------------------------------|
+//|                           I N T E R N A L   V A R I A B L E S                           |
+//|-----------------------------------------------------------------------------------------|
+string     IndName="TDSetup";
+string     IndVer="1.1.0";
 //---- Assert indicator buffers for output(2) and calculation(1)
 double     TDSetup[];
 double     TDSetupFlip[];
 double     TDCountdownFlip[];
-//--- input parameters
-extern int Debug=3;
-extern int DebugLookBackPeriod=50;
-//--- global variables
-//+------------------------------------------------------------------+
-//| Custom indicator initialization function                         |
-//+------------------------------------------------------------------+
+//---- Assert variables used by TDST Support and Resistance
+string     TDUpLine;
+string     TDDnLine;
+int        barUpLine=-1;
+int        barDnLine=-1;
+bool       isOkUpLine=false;
+bool       isOkDnLine=false;
+//--- Assert variables to detect new bar
+int nextBarTime;
+//|-----------------------------------------------------------------------------------------|
+//|                             I N I T I A L I Z A T I O N                                 |
+//|-----------------------------------------------------------------------------------------|
 int init()
-  {
-//---- Assert indicator buffers for output(1) and calculation(4)
+{
    IndicatorBuffers(3);
    SetIndexStyle(0,DRAW_HISTOGRAM);
    SetIndexStyle(1,DRAW_NONE);
@@ -37,20 +69,108 @@ int init()
    SetIndexBuffer(1,TDSetupFlip);
    SetIndexBuffer(2,TDCountdownFlip);
 //---- name for DataWindow and indicator subwindow label
-   IndicatorShortName(StringConcatenate("TDSetupH4(",DebugLookBackPeriod,")"));
-//---- initialization done
+   IndicatorShortName(IndName+" "+IndVer);
+//---- Assert Init includes
+   InitInit();
+   DivInit(IndName+" "+IndVer);
    return(0);
-  }
-//+------------------------------------------------------------------+
-//| Custom indicator deinitialization function                       |
-//+------------------------------------------------------------------+
+}
+bool isNewBar()
+{
+   if( nextBarTime == Time[0] )
+      return(false);
+   else
+      nextBarTime = Time[0];
+   return(true);
+}
+//|-----------------------------------------------------------------------------------------|
+//|                             D E I N I T I A L I Z A T I O N                             |
+//|-----------------------------------------------------------------------------------------|
 int deinit()
-  {
+{
+   if(IndShowComment) Comment("");
 //----
-   
-//----
+   DivDeInit();
    return(0);
-  }
+}
+//|-----------------------------------------------------------------------------------------|
+//|                               M A I N   P R O C E D U R E                               |
+//|-----------------------------------------------------------------------------------------|
+int start()
+{
+//---- Assert variables used by count from last bar
+   int i;
+   int unused_bars;
+   int used_bars=IndicatorCounted();
+
+//---- check for possible errors
+   if (used_bars<0) return(-1);
+//---- last counted bar will be recounted
+   if (used_bars>0) used_bars--;
+
+//---- Assert count from last bar (function Bars) to current bar (0)
+   unused_bars=Bars-used_bars;
+
+   for (i=unused_bars-1;i>=0;i--)
+   {
+//---- Assert TD Setup Flip
+      iTDSetupFlip(TDSetupFlip,i);
+   }
+   for (i=unused_bars-1;i>=0;i--)
+   {
+//---- Assert TD Setup Flip cancel
+      iTDSetupFlipCancel(TDSetup,TDSetupFlip,i);
+   }
+   for (i=unused_bars-1;i>=0;i--)
+   {
+//---- Assert TD Setup Perfection
+      iTDSetupPerfect(TDSetup,i);
+   }
+//---- Assert calculate TDST Support and Resistance lines
+   if(isNewBar())
+   {
+      double barNinth;
+      double barFirst;
+   //---- Assert find completed TD Buy Setup (High of first bar will be resistance line)
+      barNinth    = findTDSetupIndex( TDSetup, -4, ArraySize(TDSetup)-0,         0 );
+      if( barNinth >= 0 )
+         barFirst = findTDSetupIndex( TDSetup, -2, ArraySize(TDSetup)-barNinth,  barNinth);
+      if( barNinth >= 0 && barFirst >= 0 )
+      {
+      //---- Assert that line is not the same as previous line
+         if( barFirst != barUpLine )
+         {
+            barUpLine   = barFirst;
+            DivDelete( TDUpLine );
+            TDUpLine    = DivDrawPriceTrendLine( Time[barUpLine], Time[barUpLine-1],
+               High[barUpLine], High[barUpLine], Red, STYLE_SOLID, TDLineWidth, TDLineRay);
+         }
+      }
+      isOkUpLine=isUpLineIntact( 1, barUpLine );
+   //---- Assert find completed TD Sell Setup (Low of first bar will be support line)
+      barNinth    = findTDSetupIndex( TDSetup, 4, ArraySize(TDSetup)-0,          0 );
+      if( barNinth >= 0 )
+         barFirst = findTDSetupIndex( TDSetup, 2, ArraySize(TDSetup)-barNinth,   barNinth);
+      if( barNinth >=0 && barFirst >= 0 )
+      {
+      //---- Assert that line is not the same as previous line
+         if( barFirst != barDnLine )
+         {
+            barDnLine   = barFirst;
+            DivDelete( TDDnLine );
+            TDDnLine    = DivDrawPriceTrendLine( Time[barDnLine], Time[barDnLine-1],
+               Low[barDnLine], Low[barDnLine], Thistle, STYLE_SOLID, TDLineWidth, TDLineRay);
+         }
+      }
+      isOkDnLine=isDnLineIntact( 1, barDnLine );
+   }
+
+   if(IndShowComment) Comment(IndComment());
+   return(0);
+}
+//|-----------------------------------------------------------------------------------------|
+//|                           I N T E R N A L   F U N C T I O N S                           |
+//|-----------------------------------------------------------------------------------------|
 //+------------------------------------------------------------------+
 //| Custom TDSetupFlip indicator used with TDSetup[]                 |
 //+------------------------------------------------------------------+
@@ -63,7 +183,9 @@ void iTDSetupFlip(double& setupflip[], int i)
    if (Close[i]<Close[i+4] && Close[i+1]>Close[i+5])
    {
       setupflip[i]=-2;
-      //if (Debug>=3 && i<DebugLookBackPeriod) Print("iTDSetupFlip(): Bearish TD Price Flip initiate TD Buy Setup at ",i);
+      IndDebugPrint( 2, "iTDSetupFlip", 
+         IndDebugInt("i",i)+
+         " Bearish TD Price Flip initiate TD Buy Setup" );
    }
 //       Assert exit if there is a break in consecutive closes.
    else if (Close[i]<=Close[i+4])
@@ -75,7 +197,9 @@ void iTDSetupFlip(double& setupflip[], int i)
    if (Close[i]>Close[i+4] && Close[i+1]<Close[i+5])
    {
       setupflip[i]=2;
-      //if (Debug>=3 && i<DebugLookBackPeriod) Print("iTDSetupFlip(): Bullish TD Price Flip initiate TD Sell Setup at ",i);
+      IndDebugPrint( 2, "iTDSetupFlip",
+         IndDebugInt("i",i)+
+         " Bullish TD Price Flip initiate TD Sell Setup" );
    }
 //       Assert exit if there is a break in consecutive closes.
    else if (Close[i]>=Close[i+4])
@@ -138,20 +262,30 @@ void iTDSetupPerfect(double& setup[], int i)
       high6=High[i+3];
       high7=High[i+2];
       simperfect=true;
-      if (Debug>=3 && i<DebugLookBackPeriod) Print("iTDSetupPerfect(): sell imperfection entry at ",i,". Set high6=",high6," high7=",high7);
+      IndDebugPrint( 2, "iTDSetupPerfect",
+         IndDebugInt("i",i)+
+         IndDebugDbl("high6",high6)+
+         IndDebugDbl("high7",high7)+
+         " sell imperfection initiated." );
    }
 //       Assert exit if there is a next imperfection
    else if (simperfect && setup[i]==3)
    {
       high6=High[i+3];
       high7=High[i+2];
-      if (Debug>=3 && i<DebugLookBackPeriod) Print("iTDSetupPerfect(): sell imperfection exit routed by imperfection at ",i,". Set high6=",high6," high7=",high7);
+      IndDebugPrint( 2, "iTDSetupPerfect",
+         IndDebugInt("i",i)+
+         IndDebugDbl("new high6",high6)+
+         IndDebugDbl("new high7",high7)+
+         " sell imperfection interrupted by another imperfection." );
    }
 //       Assert exit if there is a perfection
    else if (simperfect && setup[i]==4)
    {
       simperfect=false;
-      if (Debug>=3 && i<DebugLookBackPeriod) Print("iTDSetupPerfect(): sell imperfection exit routed by perfection at ",i);
+      IndDebugPrint( 2, "iTDSetupPerfect",
+         IndDebugInt("i",i)+
+         " sell imperfection interrupted by another perfection (closed).");
    }
 //       Assert imperfection becomes perfection
 //          If perfection is not met, a subsequent high must be MORE
@@ -160,7 +294,9 @@ void iTDSetupPerfect(double& setup[], int i)
    {
       setup[i]=4;
       simperfect=false;
-      if (Debug>=3 && i<DebugLookBackPeriod) Print("iTDSetupPerfect(): sell imperfection exit found perfection at ",i);
+      IndDebugPrint( 2, "iTDSetupPerfect",
+         IndDebugInt("i",i)+
+         " sell imperfection found a perfection (closed)." );
    }
 //       Assert entry if there is an imperfection
    if (!bimperfect && setup[i]==-3)
@@ -168,20 +304,30 @@ void iTDSetupPerfect(double& setup[], int i)
       low6=Low[i+3];
       low7=Low[i+2];
       bimperfect=true;
-      if (Debug>=3 && i<DebugLookBackPeriod) Print("iTDSetupPerfect(): buy imperfection entry at ",i,". Set low6=",low6," low7=",low7);
+      IndDebugPrint( 2, "iTDSetupPerfect",
+         IndDebugInt("i",i)+
+         IndDebugDbl("low6",low6)+
+         IndDebugDbl("low7",low7)+
+         " buy imperfection initiated." );
    }
 //       Assert exit if there is a next imperfection
    else if (bimperfect && setup[i]==-3)
    {
       low6=Low[i+3];
       low7=Low[i+2];
-      if (Debug>=3 && i<DebugLookBackPeriod) Print("iTDSetupPerfect(): buy imperfection exit and entry at ",i,". Set low6=",low6," low7=",low7);
+      IndDebugPrint( 2, "iTDSetupPerfect",
+         IndDebugInt("i",i)+
+         IndDebugDbl("new low6",low6)+
+         IndDebugDbl("new low7",low7)+
+         " buy imperfection interrupted by another imperfection." );
    }
 //       Assert exit if there is a perfection
    else if (bimperfect && setup[i]==-4)
    {
       bimperfect=false;
-      if (Debug>=3 && i<DebugLookBackPeriod) Print("iTDSetupPerfect(): buy imperfection exit routed by perfection at ",i);
+      IndDebugPrint( 2, "iTDSetupPerfect",
+         IndDebugInt("i",i)+
+         " buy imperfection interrupted by another perfection (closed)." );
    }
 //       Assert imperfection becomes perfection
 //          If perfection is not met, a subsequent low must be LESS
@@ -190,43 +336,140 @@ void iTDSetupPerfect(double& setup[], int i)
    {
       setup[i]=-4;
       bimperfect=false;
-      if (Debug>=3 && i<DebugLookBackPeriod) Print("iTDSetupPerfect(): buy imperfection exit found perfection at ",i);
+      IndDebugPrint( 2, "iTDSetupPerfect",
+         IndDebugInt("i",i)+
+         " buy imperfection found a perfection (closed)." );
    }
 }
-//+------------------------------------------------------------------+
-//| Custom indicator iteration function                              |
-//+------------------------------------------------------------------+
-int start()
+int findTDSetupIndex(double srcArray[], int val, int n, int start=0)
 {
-//---- Assert variables used by count from last bar
-   int i;
-   int unused_bars;
-   int used_bars=IndicatorCounted();
-
-//---- check for possible errors
-   if (used_bars<0) return(-1);
-//---- last counted bar will be recounted
-   if (used_bars>0) used_bars--;
-
-//---- Assert count from last bar (function Bars) to current bar (0)
-   unused_bars=Bars-used_bars;
-
-   for (i=unused_bars-1;i>=0;i--)
+   bool bFound = false;
+   for(int i=start; i<start+n; i++)
    {
-//---- Assert TD Setup Flip
-      iTDSetupFlip(TDSetupFlip,i);
+      if( val == srcArray[i] )
+      {
+         bFound=true;
+         break;
+      }
    }
-   for (i=unused_bars-1;i>=0;i--)
-   {
-//---- Assert TD Setup Flip cancel
-      iTDSetupFlipCancel(TDSetup,TDSetupFlip,i);
-   }
-   for (i=unused_bars-1;i>=0;i--)
-   {
-//---- Assert TD Setup Perfection
-      iTDSetupPerfect(TDSetup,i);
-   }
+   if(bFound)  return(i);
+   else        return(-1);
+}
+bool isUpLineIntact(int bar0, int bar1)
+{
+   bool     isOk        = true;
+   double   linePrice   = High[barUpLine];
 
-   Comment(StringConcatenate("TDSetupH4(",DebugLookBackPeriod,")  ",DoubleToStr(TDSetup[0],Digits)),"  Copyright © 2011, Dennis Lee");
-   return(0);
-}//+------------------------------------------------------------------+
+//--- Assert check all lows between bar0 and bar1
+   for(int i=bar0; i<=bar1; i++)
+   {
+      if( Close[i] > linePrice )
+      {
+         isOk = false;
+         break;
+      }
+   }
+   return(isOk);
+}
+bool isDnLineIntact(int bar0, int bar1)
+{
+   bool     isOk        = true;
+   double   linePrice   = Low[barDnLine];
+
+//--- Assert check all lows between bar0 and bar1
+   for(int i=bar0; i<=bar1; i++)
+   {
+      if( Close[i] < linePrice )
+      {
+         isOk = false;
+         break;
+      }
+   }
+   return(isOk);
+}
+//|-----------------------------------------------------------------------------------------|
+//|                                     C O M M E N T                                       |
+//|-----------------------------------------------------------------------------------------|
+string IndComment(string cmt="")
+{
+   string strtmp = cmt+"-->"+IndName+" "+IndVer+"<--";
+   strtmp=strtmp+"\n";
+
+//--- Assert wave properties here
+   strtmp=strtmp+"  Use Wave:";
+   strtmp=strtmp+"\n";
+//--- Assert line properties for Supply here
+   strtmp=strtmp+"  Resistance:  ";
+   if( StringLen(TDUpLine)>0 )
+   {
+      if(isOkUpLine)
+      {
+         strtmp=strtmp+"UpLine Intact  High="+DoubleToStr(High[barUpLine],5);
+         strtmp=strtmp+"\n";
+      }
+      else
+         strtmp=strtmp+"UpLine Broken\n";
+   }
+   else
+      strtmp=strtmp+"No UpLine\n";
+//--- Assert line properties for Supply here
+   strtmp=strtmp+"  Support:  ";
+   if( StringLen(TDDnLine)>0 )
+   {
+      if(isOkDnLine)   
+      {
+         strtmp=strtmp+"DnLine Intact  Low="+DoubleToStr(Low[barDnLine],5);
+         strtmp=strtmp+"\n";
+      }
+      else                 
+         strtmp=strtmp+"DnLine Broken\n";
+   }
+   else
+      strtmp=strtmp+"No DnLine\n";
+                                 
+//--- Assert additional comments here
+   
+   strtmp=strtmp+"\n";
+   return(strtmp);
+}
+void IndDebugPrint(int dbg, string fn, string msg)
+{
+   static int noStackCount;
+   if(IndViewDebug>=dbg)
+   {
+      if(dbg>=2 && IndViewDebugNoStack>0)
+      {
+         if( MathMod(noStackCount,IndViewDebugNoStack) <= IndViewDebugNoStackEnd )
+            Print(IndViewDebug,"-",noStackCount,":",fn,"(): ",msg);
+            
+         noStackCount ++;
+      }
+      else
+      {
+         if(IndViewDebugNotify)  SendNotification( IndViewDebug + ":" + fn + "(): " + msg );
+         Print(IndViewDebug,":",fn,"(): ",msg);
+      }
+   }
+}
+string IndDebugInt(string key, int val)
+{
+   return( StringConcatenate(";",key,"=",val) );
+}
+string IndDebugDbl(string key, double val, int dgt=5)
+{
+   return( StringConcatenate(";",key,"=",NormalizeDouble(val,dgt)) );
+}
+string IndDebugStr(string key, string val)
+{
+   return( StringConcatenate(";",key,"=\"",val,"\"") );
+}
+string IndDebugBln(string key, bool val)
+{
+   string valType;
+   if( val )   valType="true";
+   else        valType="false";
+   return( StringConcatenate(";",key,"=",valType) );
+}
+//|-----------------------------------------------------------------------------------------|
+//|                        E N D   O F   C U S T O M   I N D I C A T O R                    |
+//|-----------------------------------------------------------------------------------------|
