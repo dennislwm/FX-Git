@@ -2,6 +2,11 @@
 //|                                                    WallStreetForexRobot_v3.9_Sqlite.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.2.0   Added qualifier ONE (1), checks that TDST UpLine has been broken, and DnLine    |
+//|            has NOT been broken, before opening a LONG trade. Conversely, checks that    |
+//|            TDST DnLine has been broken and UpLine has NOT been broken, before opening   |
+//|            a SHORT trade. This reduces the likelihood that the market retracement       |
+//|            turns to a major reversal trend.                                             |
 //| 1.12    Fixed memory leak in OrderSelect() for SELECT_BY_TICKET mode.                   |
 //| 1.11    Added dynamic arrays to process OrderSelect.                                    |
 //| 1.10    Added PlusTurtle.mqh and PlusGhost.mqh v1.62 (SqLite v1.11).                    |
@@ -28,6 +33,22 @@
 #include <PlusTurtle.mqh>
 #include <PlusGhost.mqh>
 
+//|-----------------------------------------------------------------------------------------|
+//|                           E X T E R N A L   V A R I A B L E S                           |
+//|-----------------------------------------------------------------------------------------|
+extern string     w1                         = "Wave Properties";
+extern bool       UseWave1TDSetupBreak       = false;
+string gTDIsOkUpLineStr;
+string gTDIsOkDnLineStr;
+bool isOkUpLine = false;
+bool isOkDnLine = false;
+extern string     d1                         = "Debug Properties";
+extern bool       EaViewDebugNotify          = false;
+extern int        EaViewDebug                = 0;
+extern int        EaViewDebugNoStack         = 1000;
+extern int        EaViewDebugNoStackEnd      = 10;
+string EaName = "WallStreetForexRobot_v3.9_Sqlite";
+string EaVer = "1.2.0";
 extern int Magic = 4698523;
 extern string EA_Comment = "";
 extern int MaxSpread = 4;
@@ -56,6 +77,9 @@ extern string FE = "==== Friday Exit Rules ====";
 extern bool FridayExit = FALSE;
 extern int LastTradeHour = 19;
 extern int ExitHour = 20;
+//|-----------------------------------------------------------------------------------------|
+//|                           I N T E R N A L   V A R I A B L E S                           |
+//|-----------------------------------------------------------------------------------------|
 int gi_220 = 50;
 double gd_224 = 25.0;
 double gd_232 = 1.1;
@@ -91,6 +115,9 @@ double gd_372 = 0.0001;
 double gd_unused_380 = 0.1;
 double gd_unused_388 = 1.0;
 
+//|-----------------------------------------------------------------------------------------|
+//|                             I N I T I A L I Z A T I O N                                 |
+//|-----------------------------------------------------------------------------------------|
 int CheckWWW() {
    int li_20;
    bool li_ret_0 = TRUE;
@@ -120,6 +147,9 @@ void init() {
    GhostInit();
 }
 
+//|-----------------------------------------------------------------------------------------|
+//|                             D E I N I T I A L I Z A T I O N                             |
+//|-----------------------------------------------------------------------------------------|
 int deinit() {
 //--- Assert 1: DeInit Plus
    GhostDeInit();
@@ -133,6 +163,9 @@ int deinit() {
    return (0);
 }
 
+//|-----------------------------------------------------------------------------------------|
+//|                               M A I N   P R O C E D U R E                               |
+//|-----------------------------------------------------------------------------------------|
 int start() {
    double price_8;
    double ld_16;
@@ -339,9 +372,10 @@ int start() {
    ArrayResize(aOpenPrice,MaxAccountTrades);
    ArrayResize(aStopLoss,MaxAccountTrades);
    ArrayResize(aTakeProfit,MaxAccountTrades);
-//--- Assert 1: Init OrderSelect #1
+//--- Assert 2: Init OrderSelect #1
+   int      aTotal = GhostOrdersTotal();
    GhostInitSelect(false,0,SELECT_BY_POS,MODE_TRADES);
-   for (int pos_152 = GhostOrdersTotal() - 1; pos_152 >= 0; pos_152--) {
+   for (int pos_152 = aTotal - 1; pos_152 >= 0; pos_152--) {
       if (!GhostOrderSelect(pos_152, SELECT_BY_POS, MODE_TRADES)) Print("Error in OrderSelect! Position:", pos_152);
       else {
       //--- Assert 6: Populate arrays
@@ -386,7 +420,7 @@ int start() {
                      //--- 3: Assert replace OrderClose a buy trade with arrays
                         aCommand[aCount]  = 2;  // OrderClose a buy trade
                         aCount ++;
-                        break;
+                        if( aCount >= MaxAccountTrades ) break;
                         /*if (GhostOrderClose(GhostOrderTicket(), GhostOrderLots(), NormalizeDouble(Bid, Digits), Slippage, Violet)) {
                            count_128--;
                            break;
@@ -543,9 +577,61 @@ int start() {
       }
    }
    if (cmd_36 >= OP_BUY && CheckLossPause()) {
+      bool isWave1Ok = true;
       for (li_148 = 1; li_148 <= MathMax(1, gi_96); li_148++) {
-         ticket_144 = GhostOrderSend(Symbol(), cmd_36, lots_40, price_8, Slippage, 0, 0, EA_Comment, Magic, 0, color_32);
-         if (ticket_144 >= 0) break;
+         if( cmd_36 == OP_BUY )
+         {
+            gTDIsOkUpLineStr = StringConcatenate( Symbol(), "_", Period(), "_IsOkUpLine" );
+            gTDIsOkDnLineStr = StringConcatenate( Symbol(), "_", Period(), "_IsOkDnLine" );
+            if( UseWave1TDSetupBreak )
+            {
+               isOkUpLine = GlobalVariableGet( gTDIsOkUpLineStr );
+               isOkDnLine = GlobalVariableGet( gTDIsOkDnLineStr );
+            }
+            else
+         //--- Assert check for qualifier 1 (when UpLine is broken and DnLine is NOT broken, it is ok to trade)
+            {
+               isOkUpLine = false;
+               isOkDnLine = true;
+            }
+            if( isOkUpLine == false && isOkDnLine == true ) isWave1Ok = true;
+            else                                            isWave1Ok = false;
+         }
+         if( cmd_36 == OP_SELL )
+         {
+            gTDIsOkUpLineStr = StringConcatenate( Symbol(), "_", Period(), "_IsOkUpLine" );
+            gTDIsOkDnLineStr = StringConcatenate( Symbol(), "_", Period(), "_IsOkDnLine" );
+            if( UseWave1TDSetupBreak )
+            {
+               isOkUpLine = GlobalVariableGet( gTDIsOkUpLineStr );
+               isOkDnLine = GlobalVariableGet( gTDIsOkDnLineStr );
+            }
+            else
+         //--- Assert check for qualifier 1 (when DnLine is broken and UpLine is NOT broken, it is ok to trade)
+            {
+               isOkUpLine = true;
+               isOkDnLine = false;
+            }
+            if( isOkUpLine == true && isOkDnLine == false ) isWave1Ok = true;
+            else                                            isWave1Ok = false;
+         }
+         if( isWave1Ok )
+            ticket_144 = GhostOrderSend(Symbol(), cmd_36, lots_40, price_8, Slippage, 0, 0, EA_Comment, Magic, 0, color_32);
+         if (ticket_144 >= 0)
+         {
+            EaDebugPrint( 0, "start",
+               EaDebugStr("EaName", EaName)+
+               EaDebugStr("EaVer", EaVer)+
+               EaDebugStr("sym", Symbol())+
+               EaDebugInt("mgc", Magic)+
+               EaDebugInt("ticket", ticket_144)+
+               EaDebugInt("type", cmd_36)+
+               EaDebugDbl("lot", lots_40)+
+               EaDebugDbl("openPrice", price_8)+
+               EaDebugBln("isOkUpLine", isOkUpLine)+
+               EaDebugBln("isOkDnLine", isOkDnLine) );
+            break;
+         }
          Sleep(MathMax(100, 1000 * gi_100));
          RefreshRates();
          if (cmd_36 == OP_BUY) price_8 = NormalizeDouble(Ask, Digits);
@@ -581,9 +667,10 @@ double CalcLots() {
       li_36 = 0;
       ld_40 = 0;
       li_48 = 0;
-   //--- Assert 1: Init OrderSelect #3
+   //--- Assert 2: Init OrderSelect #3
+      int total = GhostOrdersHistoryTotal();
       GhostInitSelect(false,0,SELECT_BY_POS,MODE_HISTORY);
-      for (int pos_64 = GhostOrdersHistoryTotal() - 1; pos_64 >= 0; pos_64--) {
+      for (int pos_64 = total - 1; pos_64 >= 0; pos_64--) {
          if (GhostOrderSelect(pos_64, SELECT_BY_POS, MODE_HISTORY)) {
             if (GhostOrderSymbol() == Symbol() && GhostOrderMagicNumber() == Magic) {
                count_24++;
@@ -643,9 +730,10 @@ int CheckLossPause() {
    bool li_ret_0 = TRUE;
    if (gi_304 > 0 && gi_308 > 0) {
       datetime_4 = 0;
-   //--- Assert 1: Init OrderSelect #5
+   //--- Assert 2: Init OrderSelect #5
+      int total = GhostOrdersHistoryTotal();
       GhostInitSelect(false,0,SELECT_BY_POS,MODE_HISTORY);
-      for (int pos_8 = GhostOrdersHistoryTotal() - 1; pos_8 >= 0; pos_8--) {
+      for (int pos_8 = total - 1; pos_8 >= 0; pos_8--) {
          if (GhostOrderSelect(pos_8, SELECT_BY_POS, MODE_HISTORY)) {
             if (GhostOrderSymbol() == Symbol() && GhostOrderMagicNumber() == Magic) {
                if (!((GhostOrderType() == OP_BUY && (GhostOrderClosePrice() - GhostOrderOpenPrice()) / gd_372 <= (-gi_304)) || (GhostOrderType() == OP_SELL && (GhostOrderOpenPrice() - GhostOrderClosePrice()) / gd_372 <= (-gi_304)))) break;
@@ -728,3 +816,47 @@ int OpenShort(double ad_0, double ad_8, double ad_16, double ad_24) {
    li_32 = CheckOpenShort(gi_312, ad_0, ad_8, ad_16, ad_24, gi_296, Bid, Ask, gd_372);
    return (li_32);
 }
+//|-----------------------------------------------------------------------------------------|
+//|                                     C O M M E N T                                       |
+//|-----------------------------------------------------------------------------------------|
+void EaDebugPrint(int dbg, string fn, string msg)
+{
+   static int noStackCount;
+   if(EaViewDebug>=dbg)
+   {
+      if(dbg>=2 && EaViewDebugNoStack>0)
+      {
+         if( MathMod(noStackCount,EaViewDebugNoStack) <= EaViewDebugNoStackEnd )
+            Print(EaViewDebug,"-",noStackCount,":",fn,"(): ",msg);
+            
+         noStackCount ++;
+      }
+      else
+      {
+         if(EaViewDebugNotify)   SendNotification( EaViewDebug + ":" + fn + "(): " + msg );
+         Print(EaViewDebug,":",fn,"(): ",msg);
+      }
+   }
+}
+string EaDebugInt(string key, int val)
+{
+   return( StringConcatenate(";",key,"=",val) );
+}
+string EaDebugDbl(string key, double val, int dgt=5)
+{
+   return( StringConcatenate(";",key,"=",NormalizeDouble(val,dgt)) );
+}
+string EaDebugStr(string key, string val)
+{
+   return( StringConcatenate(";",key,"=\"",val,"\"") );
+}
+string EaDebugBln(string key, bool val)
+{
+   string valType;
+   if( val )   valType="true";
+   else        valType="false";
+   return( StringConcatenate(";",key,"=",valType) );
+}
+//|------------------------------------------------------------------------------------------|
+//|                       E N D   O F   E X P E R T   A D V I S O R                          |
+//|------------------------------------------------------------------------------------------|
