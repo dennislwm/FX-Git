@@ -2,6 +2,11 @@
 //|                                                                             TDSetup.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.2.1   Added TWO (2) global boolean variables to indicate when UpLine and DnLine are   |
+//|            broken. The variable names are IsOkUpLine and IsOkDnLine, with a prefix,     |
+//|            i.e. EURUSD_M15_IsOkUpLine and EURUSD_M15_IsOkDnLine.                        |
+//| 1.2.0   Generate a wave signal +/- FIVE (5) if TD Sell/Buy Setup does not break the     |
+//|            Resistance/Support lines, respectively.                                      |
 //| 1.1.0   Added TDST Support and Resistance lines. If market closes beneath TDST Support  |
 //|            before completing a TD Buy Setup, there is an increased probability that the |
 //|            downtrend continues toward a TD Countdown 13. Conversely, if market closes   |
@@ -40,7 +45,7 @@ extern int        IndViewDebugNoStackEnd  = 10;
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string     IndName="TDSetup";
-string     IndVer="1.1.0";
+string     IndVer="1.2.1";
 //---- Assert indicator buffers for output(2) and calculation(1)
 double     TDSetup[];
 double     TDSetupFlip[];
@@ -129,8 +134,8 @@ int start()
 //---- Assert calculate TDST Support and Resistance lines
    if(isNewBar())
    {
-      double barNinth;
-      double barFirst;
+      double barNinth   = -1;
+      double barFirst   = -1;
    //---- Assert find completed TD Buy Setup (High of first bar will be resistance line)
       barNinth    = findTDSetupIndex( TDSetup, -4, ArraySize(TDSetup)-0,         0 );
       if( barNinth >= 0 )
@@ -147,7 +152,12 @@ int start()
          }
       }
       isOkUpLine=isUpLineIntact( 1, barUpLine );
+   //---- Assert set global boolean variable
+      string gTDIsOkUpLineStr = StringConcatenate( Symbol(), "_", Period(), "_IsOkUpLine" );
+      GlobalVariableSet( gTDIsOkUpLineStr, isOkUpLine );
    //---- Assert find completed TD Sell Setup (Low of first bar will be support line)
+      barNinth    = -1;
+      barFirst    = -1;
       barNinth    = findTDSetupIndex( TDSetup, 4, ArraySize(TDSetup)-0,          0 );
       if( barNinth >= 0 )
          barFirst = findTDSetupIndex( TDSetup, 2, ArraySize(TDSetup)-barNinth,   barNinth);
@@ -163,9 +173,48 @@ int start()
          }
       }
       isOkDnLine=isDnLineIntact( 1, barDnLine );
+   //---- Assert set global boolean variable
+      string gTDIsOkDnLineStr = StringConcatenate( Symbol(), "_", Period(), "_IsOkDnLine" );
+      GlobalVariableSet( gTDIsOkDnLineStr, isOkDnLine );
+   }
+//---- Assert apply wave signal +/- FIVE (5) retrospectively
+   for (i=barUpLine;i>=0;i--)
+   {
+      if(isOkUpLine)
+      {
+         if( TDSetup[i]==4 )  TDSetup[i]=5;
+      }
+      else
+      {
+         if( TDSetup[i]==5 )  TDSetup[i]=4;
+      }
+   }
+   for (i=barDnLine;i>=0;i--)
+   {
+      if(isOkDnLine)
+      {
+         if( TDSetup[i]==-4 )  TDSetup[i]=-5;
+      }
+      else
+      {
+         if( TDSetup[i]==-5 )  TDSetup[i]=-4;
+      }
    }
 
-   if(IndShowComment) Comment(IndComment());
+   if(IndShowComment)   Comment(IndComment());
+   else                 
+   {
+      string strtmp  = IndName+" "+IndVer;
+      if(isOkUpLine)
+         strtmp      = strtmp + " Up Intact";
+      else
+         strtmp      = strtmp + " Up Broken";
+      if(isOkDnLine)
+         strtmp      = strtmp + " Dn Intact";
+      else
+         strtmp      = strtmp + " Dn Broken";
+      IndicatorShortName(strtmp);
+   }
    return(0);
 }
 //|-----------------------------------------------------------------------------------------|
@@ -357,6 +406,8 @@ int findTDSetupIndex(double srcArray[], int val, int n, int start=0)
 }
 bool isUpLineIntact(int bar0, int bar1)
 {
+   if( bar1 < bar0 ) return( false );
+   
    bool     isOk        = true;
    double   linePrice   = High[barUpLine];
 
@@ -373,6 +424,8 @@ bool isUpLineIntact(int bar0, int bar1)
 }
 bool isDnLineIntact(int bar0, int bar1)
 {
+   if( bar1 < bar0 ) return( false );
+   
    bool     isOk        = true;
    double   linePrice   = Low[barDnLine];
 
