@@ -2,6 +2,8 @@
 //|                                                                             TDSetup.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.2.2   Fixed minor bug to find the TD Buy / Sell Setup that is completed. A completed  |
+//|            setup is indicated by the values FOUR (4) or FIVE (5).                       |
 //| 1.2.1   Added TWO (2) global boolean variables to indicate when UpLine and DnLine are   |
 //|            broken. The variable names are IsOkUpLine and IsOkDnLine, with a prefix,     |
 //|            i.e. EURUSD_M15_IsOkUpLine and EURUSD_M15_IsOkDnLine.                        |
@@ -45,7 +47,7 @@ extern int        IndViewDebugNoStackEnd  = 10;
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string     IndName="TDSetup";
-string     IndVer="1.2.1";
+string     IndVer="1.2.2";
 //---- Assert indicator buffers for output(2) and calculation(1)
 double     TDSetup[];
 double     TDSetupFlip[];
@@ -135,9 +137,13 @@ int start()
    if(isNewBar())
    {
       double barNinth   = -1;
+      double barTenth   = -1;
       double barFirst   = -1;
    //---- Assert find completed TD Buy Setup (High of first bar will be resistance line)
       barNinth    = findTDSetupIndex( TDSetup, -4, ArraySize(TDSetup)-0,         0 );
+      barTenth    = findTDSetupIndex( TDSetup, -5, ArraySize(TDSetup)-0,         0 );
+      if( barNinth >= 0 && barTenth >= 0 )
+         barNinth = MathMin( barNinth, barTenth );
       if( barNinth >= 0 )
          barFirst = findTDSetupIndex( TDSetup, -2, ArraySize(TDSetup)-barNinth,  barNinth);
       if( barNinth >= 0 && barFirst >= 0 )
@@ -155,10 +161,14 @@ int start()
    //---- Assert set global boolean variable
       string gTDIsOkUpLineStr = StringConcatenate( Symbol(), "_", Period(), "_IsOkUpLine" );
       GlobalVariableSet( gTDIsOkUpLineStr, isOkUpLine );
-   //---- Assert find completed TD Sell Setup (Low of first bar will be support line)
       barNinth    = -1;
+      barTenth    = -1;
       barFirst    = -1;
+   //---- Assert find completed TD Sell Setup (Low of first bar will be support line)
       barNinth    = findTDSetupIndex( TDSetup, 4, ArraySize(TDSetup)-0,          0 );
+      barTenth    = findTDSetupIndex( TDSetup, 5, ArraySize(TDSetup)-0,          0 );
+      if( barNinth >= 0 && barTenth >= 0 )
+         barNinth = MathMin( barNinth, barTenth );
       if( barNinth >= 0 )
          barFirst = findTDSetupIndex( TDSetup, 2, ArraySize(TDSetup)-barNinth,   barNinth);
       if( barNinth >=0 && barFirst >= 0 )
