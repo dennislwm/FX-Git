@@ -4,7 +4,7 @@
 //|                              http://www.hopwood3.freeserve.co.uk  |
 //|                                           Copyright © 2012, Alex  |
 //+-------------------------------------------------------------------+
-#define  version "Version 1.1"
+#define  version "Version 1.2"
 
 #property copyright "Copyright © 2012, Alex"
 #property link      ""
@@ -171,6 +171,7 @@ double		   MinD1TrendTradeTpPips;
 
 //Remember to add new magic numbers to bool MagicNumberTest() and InsertTakeProfit functions
 extern string  mns="----Magic numbers and trade comments----";
+extern string  ams="----enter 0 to autocal magic number-----";
 extern int     D1TrendTradeMN=1425;
 extern string  D1TrendTradeComment="D1 trend trade";
 extern int     D1H4TrendTradeMN=1426;
@@ -296,6 +297,10 @@ extern string  pts="----Swap filter----";
 extern bool    CadPairsPositiveOnly=false;
 extern bool    AudPairsPositiveOnly=false;
 extern bool    NzdPairsPositiveOnly=false;
+
+extern string  cor="------Correlation filter-------";
+extern bool    UseCorrelationFilter=false;
+extern int     HighCorrelation=80;
 
 extern string  tmm="----Trade management module----";
 //Breakeven has to be enabled for JS and TS to work.
@@ -645,7 +650,14 @@ int init()
    //Call sq's show trades indi
    //iCustom(NULL, 0, "SQ_showTrades",Magic, 0,0);
 
+   // Auto genenerate magic number if needed
+   // added hopfi2k @ 29.08.2012
+   if (D1TrendTradeMN==0) D1TrendTradeMN=GenMagic("D1");
+   if (D1H4TrendTradeMN==0) D1H4TrendTradeMN=GenMagic("D1H4");
+   if (BbRangeTradeMN==0) BbRangeTradeMN=GenMagic("Bb");
+   if (WpcRangeTradeMN==0) WpcRangeTradeMN=GenMagic("Wpc");
    
+   Print("Magic D1=",D1TrendTradeMN," / D1H4=",D1H4TrendTradeMN," / Bb=",BbRangeTradeMN," / Wpc=",WpcRangeTradeMN);
 //----
    return(0);
 }
@@ -710,6 +722,13 @@ bool SendSingleTrade(int type, string comment, double lotsize, double price, dou
 {
    //pah (Paul) contributed the code to get around the trade context busy error. Many thanks, Paul.
    
+   if (UseCorrelationFilter==true)
+   {
+      if (IsCorrelated(Symbol())==true)
+      {
+         return (true);
+      }
+   }
    int slippage = 10;
    if (Digits == 3 || Digits == 5) slippage = 100;
    
@@ -1223,7 +1242,7 @@ double CalculateTakeProfit(int type, string origin)
          }//if (D1SlopeTrend == buyhold)
 
          //If D1 slope is not sell and hold, then set a tp based on the next full support level
-         if (D1SlopeTrend != buyhold)
+         if (D1SlopeTrend != sellhold)
          {
             //Work up through the Monthly support levels until Bid is higher than support. I have assumed that the
             //market will be below the resistance levels, and can amend this easily if not.
@@ -1493,7 +1512,7 @@ bool DetectWeeklyPivotCross(int type)
       {
          if (iLow(NULL, LowerTimeFrame, 0) < WeeklyPivot || iLow(NULL, LowerTimeFrame, 1) < WeeklyPivot)
          {
-            return(false);
+            return(true);
          }//if (iLow(NULL, LowerTimeFrame, 0) < WeeklyPivot || iLow(NULL, LowerTimeFrame, 1) < WeeklyPivot)
       }//if (Bid > WeeklyPivot)
    }//if (type = OP_BUY)
@@ -1504,14 +1523,16 @@ bool DetectWeeklyPivotCross(int type)
       {
          if (iHigh(NULL, LowerTimeFrame, 0) > WeeklyPivot || iHigh(NULL, LowerTimeFrame, 1) > WeeklyPivot)
          {
-            return(false);
+            return(true);
          }//if (iHigh(NULL, LowerTimeFrame, 0) > WeeklyPivot || iHigh(NULL, LowerTimeFrame, 1) > WeeklyPivot)
       }//if (Bid < WeeklyPivot)
    }//if (type = OP_SELL)
    
    
    //Got this far, so no pivot cross
-
+   
+   return(false);
+   
 }//End bool DetectWeeklyPivotCross(int type)
 
 void LookForD1H4TrendTrade(int type)
@@ -1568,7 +1589,7 @@ void LookForD1H4TrendTrade(int type)
       {
          if (DetectWeeklyPivotCross(OP_SELL) )
          {
-            SendLong = true;
+            SendShort = true;
             TradeOrigin = H4TrendTrade;//TradeOrigin is used by CalculateTakeProfit()
             magic = D1H4TrendTradeMN;
             comment = D1H4TrendTradeComment;
@@ -3656,6 +3677,123 @@ double PFactor(string pair)
    return (PipFactor);
 }//End double PFactor(string pair)
 
+
+//---------------------------------------------------------------------
+// IsCorrelated()
+// @desc    Calculates the correlation between a give fx pair and all open trades
+// @param   string   fx1      first fx pair       
+// @return  bool     returns true if there is a high correlation, else false
+bool IsCorrelated(string fx1)
+{
+   if (OrdersTotal()==0) return (0);      // no open trades means no correlation...
+   
+   for (int i=0;i<OrdersTotal();i++)      // loop through all open orders
+   {
+      if(OrderSelect(i,SELECT_BY_POS,MODE_TRADES)==true)    // we successfully selected an open order
+      {
+         double correlation=CalcCorrelation(fx1, OrderSymbol(), Period(), 50);
+         if (correlation>0 && correlation>HighCorrelation)
+         {
+            //Alert("Correlation between ",fx1," and ",OrderSymbol()," is: ", DoubleToStr(correlation,2));
+            return (true);
+         }
+         else if (correlation<0 && MathAbs(correlation)>HighCorrelation) 
+         {
+            //Alert("Negative correlation between ",fx1," and ",OrderSymbol()," is: ", DoubleToStr(correlation,2));
+            return (true);
+         }
+         else 
+         {
+            //Alert ("Correlation between ",fx1," and ",OrderSymbol(), " is: ", DoubleToStr(correlation,2));
+         }
+      }
+   }
+   return (false);
+}
+
+//---------------------------------------------------------------------
+// CalcCorrelation()
+// @desc    Calculates the correlation between two currency pairs
+// @param   string   fx1      first fx pair       
+// @param   string   fx2      second fx pair
+// @param   int      tf       timeframe (in minutes)
+// @param   int      periods  period to calc correlation for (e.g. last 20 bars for given tf)
+// @return  double         returns the correlation
+double CalcCorrelation(string fx1, string fx2, int tf, int periods)
+  {
+   double fx1.close[];   // get close value for first pair
+   double fx2.close[];   // get close value for second pair
+   double corr.avg1=0.0,
+          corr.avg2=0.0,
+          corr.sum=0.0,
+          corr.dev1=0.0,
+          corr.dev2=0.0,
+          corr.ro1=0.0,
+          corr.ro2=0.0,
+          corr=0.0;
+   
+   ArrayResize(fx1.close, periods);  // adjust array size
+   ArrayResize(fx2.close, periods);
+   
+   ArrayInitialize(fx1.close,0);    // initialize array with zero's
+   ArrayInitialize(fx2.close,0);
+   
+   for (int i=0;i<periods;i++)
+     {
+      while(fx1.close[i]==0)  // force mt4 to load history
+        {
+         fx1.close[i]=iClose(fx1,tf,i);
+        }
+      while(fx2.close[i]==0)
+        {
+         fx2.close[i]=iClose(fx2,tf,i);
+        }
+      
+      // sum close values for calculating average
+      corr.avg1 +=fx1.close[i];
+      corr.avg2 +=fx2.close[i];
+
+     } // end for
+   
+   corr.avg1 /= periods; // calc average close
+   corr.avg2 /= periods; 
+   
+   for (i=0;i<periods;i++)
+     {
+      corr.dev1=fx1.close[i]-corr.avg1;
+      corr.dev2=fx2.close[i]-corr.avg2;
+      corr.sum += corr.dev1*corr.dev2;
+      corr.ro1 +=corr.dev1*corr.dev1;
+      corr.ro2 +=corr.dev2*corr.dev2;
+     }
+     
+   corr = MathSqrt(corr.ro1)*MathSqrt(corr.ro2);
+   if (corr==0) return(0); // no correlation
+   
+   return ((corr.sum/corr)*100);
+  } //end CalcCorrelation
+
+
+//---------------------------------------------------------------------
+// GenMagic
+// @desc    Generates a unique magic number (hash)
+// @param   string   suffix   additional suffix to create different magics for different style trades       
+// @return  int               returns the unique magic number
+int GenMagic(string suffix="")
+{	int m;
+   string s=Symbol()+"_"+suffix;
+	for(int c=0;c<StringLen(s);c++)
+	{
+	  m+=StringGetChar(s,c);
+	  m+=(m<<10);
+	  m^=(m>>6);
+	}
+	m+=(m<<3);
+	m^=(m>>11);
+	m+=(m<<15);
+	m=MathAbs(m);
+	return(m);
+}
 
 //+------------------------------------------------------------------+
 //| expert start function                                            |
