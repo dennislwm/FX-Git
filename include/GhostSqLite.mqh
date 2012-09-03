@@ -27,6 +27,7 @@
 //| 1.19    Added function OrderOpen() and modified OrderSend() to include pending orders.  |
 //| 1.20    Minor fixes to Create, LoadBuffers, AccountFreeMargin and OrderDelete.          |
 //| 1.21    Implemented opening and expiration of stop orders in SqLiteManager.             |
+//| 1.22    Fixed OpenTime field for pending orders in function OrderSend().                |
 //|-----------------------------------------------------------------------------------------|
 
 //|-----------------------------------------------------------------------------------------|
@@ -39,7 +40,7 @@
 //|-----------------------------------------------------------------------------------------|
 //---- Assert internal variables for SQLite
 string   SqLiteName        = "";
-string   SqLiteVer         = "1.21";
+string   SqLiteVer         = "1.22";
 int      SqLiteSelectIndex;
 int      SqLiteSelectMode;
 bool     SqLiteSelectAsc;
@@ -762,7 +763,7 @@ int SqLiteOrderSend(string sym, int type, double lots, double price, int slip, d
             if( openPrice > curPrice ) return(-1);
          break;
       }
-      openTime=0;
+      openTime=TimeCurrent();
       
       return( SqLiteOrderOpen( sym, openTime, type, lots, openPrice, openSL, openTP, cmt, mgc, exp, arrow ) );
    }
