@@ -2,6 +2,7 @@
 //|                                                                            ForexRed.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.0.5   Added wave +/- FIVE (5). This is compatible with TDSetup 1.2.0+.
 //| 1.0.4   Added extern DebugNotify ( where Debug Level <= ONE (1) ) to notify user on     |
 //|            mobile phone. There is a limit of no more than TWO (2) notifications per     |
 //|            second, and no more than TEN (10) notifications per minute.                  |
@@ -43,7 +44,7 @@ extern   string   s4             ="-->PlusGhost Settings<--";
 //|                           I N T E R N A L   V A R I A B L E S                            |
 //|------------------------------------------------------------------------------------------|
 string   EaName   ="ForexRed";
-string   EaVer    ="1.0.4";
+string   EaVer    ="1.0.5";
 int      EaDebugCount;
 
 // ------------------------------------------------------------------------------------------|
@@ -134,12 +135,12 @@ int start()
             EaDebugInt("tdWave",tdWave),
             false, 1 );
          Print(i,": tdWave=",tdWave," shWave=",shWave);
-         if( tdWave!= EMPTY_VALUE && tdWave <= -4 && shWave < 0 ) 
+         if( tdWave!= EMPTY_VALUE && tdWave <= -5 && shWave < 0 ) 
          {
             wave = -1;
             break;
          }
-         if( tdWave!= EMPTY_VALUE && tdWave >= 4 && shWave > 0 )
+         if( tdWave!= EMPTY_VALUE && tdWave >= 5 && shWave > 0 )
          {
             wave = 1;
             break;
