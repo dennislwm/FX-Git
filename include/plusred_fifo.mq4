@@ -2,6 +2,8 @@
 //|                                                                             PlusRed.mqh |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.2.2   Added extern CycleSL and CycleGapFactor, which are multipliers for the SL and   |
+//|            base CycleGap, respectively.                                                 |
 //| 1.2.1   Added extern DebugNotify ( where Debug Level <= ONE (1) ) to notify user on     |
 //|            mobile phone. There is a limit of no more than TWO (2) notifications per     |
 //|            second, and no more than TEN (10) notifications per minute.                  |
@@ -31,28 +33,29 @@
 //|-----------------------------------------------------------------------------------------|
 //|                           E X T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
-extern   double   RedBaseLot     =0.01;
-extern   string   red_1          =" Mode 0-Use 1x only; BasketLevel <= 12";
-extern   string   red_2          =" 1-Envy: 1,1,2,3,5,9,17,33,65,127,245,466";
-extern   string   red_3          =" 2-Fibo: 1,1,2,3,5,8,13,21,34,55,89,144";
-extern   int      RedMode        =0;
-extern   int      RedBasketLevel =1;
-extern   bool     RedShortCycle  =false;
-extern   int      RedShortPeriod =PERIOD_M30;
-extern   int      RedLongPeriod  =PERIOD_H4;
-extern   bool     RedHardTP      =true;
-extern   bool     RedDebugNotify =false;
-extern   int      RedDebug       =1;
-extern   int      RedDebugCount  =1000;
+extern   double   RedBaseLot        =0.01;
+extern   string   red_1             =" Mode 0-Use 1x only; BasketLevel <= 12";
+extern   string   red_2             =" 1-Envy: 1,1,2,3,5,9,17,33,65,127,245,466";
+extern   string   red_3             =" 2-Fibo: 1,1,2,3,5,8,13,21,34,55,89,144";
+extern   int      RedMode           =0;
+extern   int      RedBasketLevel    =1;
+extern   double   RedCycleSL        =3.0;
+extern   double   RedCycleGapFactor =1.0;
+extern   bool     RedShortCycle     =false;
+extern   int      RedShortPeriod    =PERIOD_M30;
+extern   int      RedLongPeriod     =PERIOD_H4;
+extern   bool     RedHardTP         =true;
+extern   bool     RedDebugNotify    =false;
+extern   int      RedDebug          =1;
+extern   int      RedDebugCount     =1000;
 
 //|-----------------------------------------------------------------------------------------|
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string   RedName="PlusRed";
-string   RedVer="1.2.1";
+string   RedVer="1.2.2";
 //--- Assert variables for Basic
 double   redSL;
-int      redCycleSL=3;
 int      red1Magic;
 int      red2Magic;
 //--- Assert variables for Opened Positions
@@ -101,6 +104,11 @@ void RedInit(double SL, int mgc1, int mgc2)
    {
       Print("RedInit: BasketLevel exceeded maximum of 12. Set BasketLevel=12");
       RedBasketLevel = 12;
+   }
+   if( RedCycleGapFactor < 1 )
+   {
+      Print("RedInit: CycleFactor below minimum of 1. Set CycleFactor=1");
+      RedCycleGapFactor = 1.0;
    }
 //--- Initialize arrays
    ArrayResize(redMultiplier, 12);
@@ -157,14 +165,14 @@ void RedInit(double SL, int mgc1, int mgc2)
       RedLongPeriod = 5;
    }
    if( RedShortCycle )
-      redCyclePip = RedCycleGap(60,Symbol(),RedShortPeriod);
+      redCyclePip = RedCycleGap(60,Symbol(),RedShortPeriod) * RedCycleGapFactor;
    else
-      redCyclePip = RedCycleGap(60,Symbol(),RedLongPeriod);
+      redCyclePip = RedCycleGap(60,Symbol(),RedLongPeriod) * RedCycleGapFactor;
 //--- Initialize stop loss and take profit
-   if( SL < redCyclePip * redCycleSL )
+   if( SL < redCyclePip * RedCycleSL )
    {
-      redSL = redCyclePip * redCycleSL;
-      Print("RedInit: SL is less than ",redCycleSL,"x CyclePip=",DoubleToStr(redCyclePip,0),". Set redSL=",DoubleToStr(redSL,0));
+      redSL = redCyclePip * RedCycleSL;
+      Print("RedInit: SL is less than ",RedCycleSL,"x CyclePip=",DoubleToStr(redCyclePip,0),". Set redSL=",DoubleToStr(redSL,0));
    }
    red1Magic = mgc1;
    red2Magic = mgc2;
@@ -294,13 +302,13 @@ int RedLoadBuffers(int mgc, string sym)
       return( totalOp );
 //--- Assert cycle gap can increase but not decrease.
    if( RedShortCycle )
-      redCyclePip = NormalizeDouble( MathMax( redCyclePip, RedCycleGap(60,Symbol(),RedShortPeriod) ), 0);
+      redCyclePip = NormalizeDouble( MathMax( redCyclePip, RedCycleGap(60,Symbol(),RedShortPeriod) * RedCycleGapFactor ), 0);
    else
-      redCyclePip = NormalizeDouble( MathMax( redCyclePip, RedCycleGap(60,Symbol(),RedLongPeriod) ), 0);
+      redCyclePip = NormalizeDouble( MathMax( redCyclePip, RedCycleGap(60,Symbol(),RedLongPeriod) * RedCycleGapFactor ), 0);
 //--- Increase hard SL proportionately
-   if( redSL < redCyclePip * redCycleSL )
+   if( redSL < redCyclePip * RedCycleSL )
    {
-      redSL = redCyclePip * redCycleSL;
+      redSL = redCyclePip * RedCycleSL;
    }
 //--- Assert 7: Dynamically resize arrays for OrderSelect #1
    ArrayResize(redOpTicket,     totalOp);
@@ -405,13 +413,13 @@ int RedLoadBuffers(int mgc, string sym)
       if( type == OP_BUY )
       {
          redPoOpenPrice[i]    = openPrice - ( (i+1) * redCyclePip * InitPts );
-         redPoStopLoss[i]     = redPoOpenPrice[i] - redCycleSL * redCyclePip * InitPts;
+         redPoStopLoss[i]     = redPoOpenPrice[i] - RedCycleSL * redCyclePip * InitPts;
          redPoTakeProfit[i]   = redPoOpenPrice[i] + redCyclePip * InitPts;
       }
       if( type == OP_SELL )
       {
          redPoOpenPrice[i]    = openPrice + ( (i+1) * redCyclePip * InitPts );
-         redPoStopLoss[i]     = redPoOpenPrice[i] + redCycleSL * redCyclePip * InitPts;
+         redPoStopLoss[i]     = redPoOpenPrice[i] + RedCycleSL * redCyclePip * InitPts;
          redPoTakeProfit[i]   = redPoOpenPrice[i] - redCyclePip * InitPts;
       }
    }
@@ -503,12 +511,12 @@ double RedCalcStopLossBasket(int mgc, string sym)
          if( GhostOrderType()==OP_BUY && openPrice >= GhostOrderOpenPrice() )
          {
             openPrice   = GhostOrderOpenPrice();
-            calcSL      = openPrice - redCycleSL * redCyclePip * InitPts;
+            calcSL      = openPrice - RedCycleSL * redCyclePip * InitPts;
          }
          if( GhostOrderType()==OP_SELL && openPrice <= GhostOrderOpenPrice() )
          {
             openPrice   = GhostOrderOpenPrice();
-            calcSL      = openPrice + redCycleSL * redCyclePip * InitPts;
+            calcSL      = openPrice + RedCycleSL * redCyclePip * InitPts;
          }
          RedDebugPrint( 2, "RedCalcStopLossBasket",
             RedDebugInt("type",GhostOrderType())+
@@ -722,15 +730,15 @@ bool RedOrderModifyBasket(int mgc, string sym, double SL, double TP, datetime ex
             aOk = aOk && GhostOrderModify( aTicket[i], aOpenPrice[i], aStopLoss[i], aTakeProfit[i], aExpiration[i], arrow );
             break;
       }
-   }   
-   RedDebugPrint( 1, "RedOrderModifyBasket",
+   }
+   if(aOk) RedDebugPrint( 1, "RedOrderModifyBasket",
       RedDebugInt("mgc",mgc)+
       RedDebugStr("sym",sym)+
       RedDebugStr("aCount",aCount)+
       RedDebugDbl("SL",SL,5)+
       RedDebugDbl("TP",TP,5)+
-      RedDebugDbl("gapTP",gapTP,5)+
-      RedDebugDbl("stopLevel",stopLevel,5)+
+      RedDebugDbl("openPrice",aOpenPrice[0],5)+
+      RedDebugDbl("currPrice",Close[0],5)+
       RedDebugBln("aOk",aOk),
       false, 1 );
    return(aOk);
@@ -865,7 +873,7 @@ int RedCycleGap(int n, string sym, int period)
       RedDebugDbl("maxRange",maxRange,5)+
       RedDebugDbl("InitPts",InitPts,5) );
    maxRange = MathRound(maxRange/InitPts);
-   if( maxRange < 5 ) maxRange = 5;
+   if( maxRange < 15 ) maxRange = 15;
    return( maxRange );
 }
 
