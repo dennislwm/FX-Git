@@ -2,6 +2,20 @@
 //|                                                                             TDSetup.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.2.3   Added a second TDST Support and Resistance lines, based on TWO (2) completed    |
+//|            TD Setups, hence these lines can be sloping instead of horizontal only.      |
+//|            There are TWO (2) additional global boolean variables to indicate when       |
+//|            Up2Line and Dn2Line are broken. The variable names are IsOk2UpLine and       |
+//|            IsOk2DnLine, with a prefix, e.g. EURUSD_M15_IsOk2UpLine.                     |
+//|            When TDUseOneLineOnly is F (default: F), a wave signal of +FIVE (+5) is      |
+//|            generated when TD Sell Setup does not break the PAIR of Resistance lines.    |
+//|            Conversely, a wave -FIVE (-5) is formed when TD Buy Setup does not break the |
+//|            PAIR of Support lines.                                                       |
+//|         Added TWO (2) global boolean variables to indicate when the PAIR of UpLines     |
+//|            and DnLines are broken. The variable names are IsOkUpPair and IsOkDnPair,    |
+//|            with a prefix, e.g. EURUSD_M15_IsOkUpPair. When TDUseOneLineOnly is F        |
+//|            (default: F), the value for IsOkUpPair and IsOkDnPair is determined by       |
+//|            IsOkUpLine and IsOkDnLine respectively.                                      |
 //| 1.2.2   Fixed minor bug to find the TD Buy / Sell Setup that is completed. A completed  |
 //|            setup is indicated by the values FOUR (4) or FIVE (5).                       |
 //| 1.2.1   Added TWO (2) global boolean variables to indicate when UpLine and DnLine are   |
@@ -32,6 +46,7 @@
 //|                           E X T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 extern string     l1                      = "Setup Properties";
+extern bool       TDUseOneLineOnly        = false;
 extern string     l2                      = "Line Properties";
 extern string     l2_2                    = "Ray: 0-None, 1-Show";
 extern int        TDLineRay               = 1;
@@ -47,7 +62,7 @@ extern int        IndViewDebugNoStackEnd  = 10;
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string     IndName="TDSetup";
-string     IndVer="1.2.2";
+string     IndVer="1.2.3";
 //---- Assert indicator buffers for output(2) and calculation(1)
 double     TDSetup[];
 double     TDSetupFlip[];
@@ -55,10 +70,18 @@ double     TDCountdownFlip[];
 //---- Assert variables used by TDST Support and Resistance
 string     TDUpLine;
 string     TDDnLine;
+string     TD2UpLine;
+string     TD2DnLine;
 int        barUpLine=-1;
 int        barDnLine=-1;
+int        bar2UpLine=-1;
+int        bar2DnLine=-1;
 bool       isOkUpLine=false;
 bool       isOkDnLine=false;
+bool       isOk2UpLine=false;
+bool       isOk2DnLine=false;
+bool       isOkUpPair=false;
+bool       isOkDnPair=false;
 //--- Assert variables to detect new bar
 int nextBarTime;
 //|-----------------------------------------------------------------------------------------|
@@ -136,9 +159,12 @@ int start()
 //---- Assert calculate TDST Support and Resistance lines
    if(isNewBar())
    {
-      double barNinth   = -1;
-      double barTenth   = -1;
-      double barFirst   = -1;
+      int barNinth   = -1;
+      int barTenth   = -1;
+      int barFirst   = -1;
+      int bar2Ninth  = -1;
+      int bar2Tenth  = -1;
+      int bar2First  = -1;
    //---- Assert find completed TD Buy Setup (High of first bar will be resistance line)
       barNinth    = findTDSetupIndex( TDSetup, -4, ArraySize(TDSetup)-0,         0 );
       barTenth    = findTDSetupIndex( TDSetup, -5, ArraySize(TDSetup)-0,         0 );
@@ -146,6 +172,16 @@ int start()
          barNinth = MathMin( barNinth, barTenth );
       if( barNinth >= 0 )
          barFirst = findTDSetupIndex( TDSetup, -2, ArraySize(TDSetup)-barNinth,  barNinth);
+   //---- Assert find second completed TD Buy Setup (High of first bar will be the second point of line)
+      if( barFirst >= 0 )
+      {
+         bar2Ninth   = findTDSetupIndex( TDSetup, -4, ArraySize(TDSetup)-barFirst,  barFirst);
+         bar2Tenth   = findTDSetupIndex( TDSetup, -5, ArraySize(TDSetup)-barFirst,  barFirst);
+         if( bar2Ninth >= 0 && bar2Tenth >= 0 )
+            bar2Ninth = MathMin( bar2Ninth, bar2Tenth );
+         if( bar2Ninth >= 0 )
+            bar2First = findTDSetupIndex( TDSetup, -2, ArraySize(TDSetup)-bar2Ninth,  bar2Ninth);
+      }
       if( barNinth >= 0 && barFirst >= 0 )
       {
       //---- Assert that line is not the same as previous line
@@ -153,17 +189,37 @@ int start()
          {
             barUpLine   = barFirst;
             DivDelete( TDUpLine );
-            TDUpLine    = DivDrawPriceTrendLine( Time[barUpLine], Time[barUpLine-1],
+            TDUpLine    = DivDrawPriceTrendLine( Time[barUpLine+1], Time[barUpLine],
                High[barUpLine], High[barUpLine], Red, STYLE_SOLID, TDLineWidth, TDLineRay);
          }
       }
-      isOkUpLine=isUpLineIntact( 1, barUpLine );
+      if( !TDUseOneLineOnly && bar2First >= 0 && barFirst >= 0 )
+      {
+      //---- Assert that line is not the same as previous line
+         if( bar2First != bar2UpLine )
+         {
+            bar2UpLine  = bar2First;
+            DivDelete( TD2UpLine );
+            TD2UpLine   = DivDrawPriceTrendLine( Time[bar2UpLine], Time[barUpLine],
+               High[bar2UpLine], High[barUpLine], Red, STYLE_SOLID, TDLineWidth, TDLineRay);
+         }
+      }
+      isOkUpLine  = isUpLineIntact( TDUpLine, 1, barUpLine );
+      isOk2UpLine = isUpLineIntact( TD2UpLine, 1, barUpLine );
+      isOkUpPair  = isOkWave( TDUseOneLineOnly, isOkUpLine, isOk2UpLine );
    //---- Assert set global boolean variable
-      string gTDIsOkUpLineStr = StringConcatenate( Symbol(), "_", Period(), "_IsOkUpLine" );
-      GlobalVariableSet( gTDIsOkUpLineStr, isOkUpLine );
+      string gTDIsOkUpLineStr    = StringConcatenate( Symbol(), "_", Period(), "_IsOkUpLine" );
+      string gTDIsOk2UpLineStr   = StringConcatenate( Symbol(), "_", Period(), "_IsOk2UpLine" );
+      string gTDIsOkUpPairStr    = StringConcatenate( Symbol(), "_", Period(), "_IsOkUpPair" );
+      GlobalVariableSet( gTDIsOkUpLineStr,   isOkUpLine );
+      GlobalVariableSet( gTDIsOk2UpLineStr,  isOk2UpLine );
+      GlobalVariableSet( gTDIsOkUpPairStr,   isOkUpPair );
       barNinth    = -1;
       barTenth    = -1;
       barFirst    = -1;
+      bar2Ninth   = -1;
+      bar2Tenth   = -1;
+      bar2First   = -1;
    //---- Assert find completed TD Sell Setup (Low of first bar will be support line)
       barNinth    = findTDSetupIndex( TDSetup, 4, ArraySize(TDSetup)-0,          0 );
       barTenth    = findTDSetupIndex( TDSetup, 5, ArraySize(TDSetup)-0,          0 );
@@ -171,6 +227,16 @@ int start()
          barNinth = MathMin( barNinth, barTenth );
       if( barNinth >= 0 )
          barFirst = findTDSetupIndex( TDSetup, 2, ArraySize(TDSetup)-barNinth,   barNinth);
+   //---- Assert find second completed TD Sell Setup (Low of first bar will be the second point of line)
+      if( barFirst >= 0 )
+      {
+         bar2Ninth   = findTDSetupIndex( TDSetup, 4, ArraySize(TDSetup)-barFirst,  barFirst);
+         bar2Tenth   = findTDSetupIndex( TDSetup, 5, ArraySize(TDSetup)-barFirst,  barFirst);
+         if( bar2Ninth >= 0 && bar2Tenth >= 0 )
+            bar2Ninth = MathMin( bar2Ninth, bar2Tenth );
+         if( bar2Ninth >= 0 )
+            bar2First = findTDSetupIndex( TDSetup, 2, ArraySize(TDSetup)-bar2Ninth,  bar2Ninth);
+      }
       if( barNinth >=0 && barFirst >= 0 )
       {
       //---- Assert that line is not the same as previous line
@@ -178,19 +244,36 @@ int start()
          {
             barDnLine   = barFirst;
             DivDelete( TDDnLine );
-            TDDnLine    = DivDrawPriceTrendLine( Time[barDnLine], Time[barDnLine-1],
+            TDDnLine    = DivDrawPriceTrendLine( Time[barDnLine+1], Time[barDnLine],
                Low[barDnLine], Low[barDnLine], Thistle, STYLE_SOLID, TDLineWidth, TDLineRay);
          }
       }
-      isOkDnLine=isDnLineIntact( 1, barDnLine );
+      if( !TDUseOneLineOnly && bar2First >= 0 && barFirst >= 0 )
+      {
+      //---- Assert that line is not the same as previous line
+         if( bar2First != bar2DnLine )
+         {
+            bar2DnLine  = bar2First;
+            DivDelete( TD2DnLine );
+            TD2DnLine   = DivDrawPriceTrendLine( Time[bar2DnLine], Time[barDnLine],
+               Low[bar2DnLine], Low[barDnLine], Thistle, STYLE_SOLID, TDLineWidth, TDLineRay);
+         }
+      }
+      isOkDnLine  = isDnLineIntact( TDDnLine, 1, barDnLine );
+      isOk2DnLine = isDnLineIntact( TD2DnLine, 1, barDnLine );
+      isOkDnPair  = isOkWave( TDUseOneLineOnly, isOkDnLine, isOk2DnLine );
    //---- Assert set global boolean variable
-      string gTDIsOkDnLineStr = StringConcatenate( Symbol(), "_", Period(), "_IsOkDnLine" );
-      GlobalVariableSet( gTDIsOkDnLineStr, isOkDnLine );
+      string gTDIsOkDnLineStr    = StringConcatenate( Symbol(), "_", Period(), "_IsOkDnLine" );
+      string gTDIsOk2DnLineStr   = StringConcatenate( Symbol(), "_", Period(), "_IsOk2DnLine" );
+      string gTDIsOkDnPairStr    = StringConcatenate( Symbol(), "_", Period(), "_IsOkDnPair" );
+      GlobalVariableSet( gTDIsOkDnLineStr,   isOkDnLine );
+      GlobalVariableSet( gTDIsOk2DnLineStr,  isOk2DnLine );
+      GlobalVariableSet( gTDIsOkDnPairStr,   isOkDnPair );
    }
 //---- Assert apply wave signal +/- FIVE (5) retrospectively
    for (i=barUpLine;i>=0;i--)
    {
-      if(isOkUpLine)
+      if( isOkUpPair )
       {
          if( TDSetup[i]==4 )  TDSetup[i]=5;
       }
@@ -201,7 +284,7 @@ int start()
    }
    for (i=barDnLine;i>=0;i--)
    {
-      if(isOkDnLine)
+      if( isOkDnPair )
       {
          if( TDSetup[i]==-4 )  TDSetup[i]=-5;
       }
@@ -216,13 +299,27 @@ int start()
    {
       string strtmp  = IndName+" "+IndVer;
       if(isOkUpLine)
-         strtmp      = strtmp + " Up Intact";
+         strtmp      = strtmp + " UpOk";
       else
-         strtmp      = strtmp + " Up Broken";
+         strtmp      = strtmp + " UpBrk";
+      if( !TDUseOneLineOnly )
+      {
+         if(isOk2UpLine)
+            strtmp      = strtmp + " Up2Ok";
+         else
+            strtmp      = strtmp + " Up2Brk";
+      }
       if(isOkDnLine)
-         strtmp      = strtmp + " Dn Intact";
+         strtmp      = strtmp + " DnOk";
       else
-         strtmp      = strtmp + " Dn Broken";
+         strtmp      = strtmp + " DnBrk";
+      if( !TDUseOneLineOnly )
+      {
+         if(isOk2DnLine)
+            strtmp      = strtmp + " Dn2Ok";
+         else
+            strtmp      = strtmp + " Dn2Brk";
+      }
       IndicatorShortName(strtmp);
    }
    return(0);
@@ -414,8 +511,10 @@ int findTDSetupIndex(double srcArray[], int val, int n, int start=0)
    if(bFound)  return(i);
    else        return(-1);
 }
-bool isUpLineIntact(int bar0, int bar1)
+bool isUpLineIntact(string name, int bar0, int bar1)
 {
+   if( StringLen( name )<=0 ) return( false );
+   if( ObjectFind( name )<0 ) return( false );
    if( bar1 < bar0 ) return( false );
    
    bool     isOk        = true;
@@ -424,6 +523,7 @@ bool isUpLineIntact(int bar0, int bar1)
 //--- Assert check all lows between bar0 and bar1
    for(int i=bar0; i<=bar1; i++)
    {
+      linePrice = ObjectGetValueByShift(name, i);
       if( Close[i] > linePrice )
       {
          isOk = false;
@@ -432,8 +532,10 @@ bool isUpLineIntact(int bar0, int bar1)
    }
    return(isOk);
 }
-bool isDnLineIntact(int bar0, int bar1)
+bool isDnLineIntact(string name, int bar0, int bar1)
 {
+   if( StringLen( name )<=0 ) return( false );
+   if( ObjectFind( name )<0 ) return( false );
    if( bar1 < bar0 ) return( false );
    
    bool     isOk        = true;
@@ -442,6 +544,7 @@ bool isDnLineIntact(int bar0, int bar1)
 //--- Assert check all lows between bar0 and bar1
    for(int i=bar0; i<=bar1; i++)
    {
+      linePrice = ObjectGetValueByShift(name, i);
       if( Close[i] < linePrice )
       {
          isOk = false;
@@ -449,6 +552,13 @@ bool isDnLineIntact(int bar0, int bar1)
       }
    }
    return(isOk);
+}
+bool isOkWave(bool UseOneLineOnly, bool isOkLine, bool isOk2Line)
+{
+   if( UseOneLineOnly )
+      return( isOkLine );
+   else
+      return( isOkLine && isOk2Line );
 }
 //|-----------------------------------------------------------------------------------------|
 //|                                     C O M M E N T                                       |
@@ -466,12 +576,16 @@ string IndComment(string cmt="")
    if( StringLen(TDUpLine)>0 )
    {
       if(isOkUpLine)
-      {
-         strtmp=strtmp+"UpLine Intact  High="+DoubleToStr(High[barUpLine],5);
-         strtmp=strtmp+"\n";
-      }
+         strtmp=strtmp+"UpLine Intact  High="+DoubleToStr(High[barUpLine],5)+"\n";
       else
          strtmp=strtmp+"UpLine Broken\n";
+      if( !TDUseOneLineOnly )
+      {
+         if(isOk2UpLine)
+            strtmp=strtmp+"Up2Line Intact\n";
+         else
+            strtmp=strtmp+"Up2Line Broken\n";
+      }
    }
    else
       strtmp=strtmp+"No UpLine\n";
@@ -480,12 +594,16 @@ string IndComment(string cmt="")
    if( StringLen(TDDnLine)>0 )
    {
       if(isOkDnLine)   
-      {
-         strtmp=strtmp+"DnLine Intact  Low="+DoubleToStr(Low[barDnLine],5);
-         strtmp=strtmp+"\n";
-      }
+         strtmp=strtmp+"DnLine Intact  Low="+DoubleToStr(Low[barDnLine],5)+"\n";
       else                 
          strtmp=strtmp+"DnLine Broken\n";
+      if( !TDUseOneLineOnly )
+      {
+         if(isOk2DnLine)
+            strtmp=strtmp+"Dn2Line Intact\n";
+         else
+            strtmp=strtmp+"Dn2Line Broken\n";
+      }
    }
    else
       strtmp=strtmp+"No DnLine\n";
