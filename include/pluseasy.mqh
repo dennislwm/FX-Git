@@ -2,6 +2,9 @@
 //|                                                                            pluseasy.mqh |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.33    Added EasyOrdersBuyBasket() and EasyOrdersSellBasket() that returns count of    |
+//|            BUY trades and SELL trades, respectively. Optional parameter noPending       |
+//|            (default: T), if false pending orders will be counted.                       |
 //| 1.32    Set maxTrades=0 (optional) will use EasyMaxAccountTrades in order functions.    |
 //| 1.31    Minor fixes in functions Comment, GetFirstTicket, OrderBuy and OrderSell.       |
 //| 1.30    Replaced Order functions with GhostOrder functions.                             |
@@ -46,7 +49,7 @@ extern bool EasyDebug=0;
 double Pip;
 double Pts;
 string PlusName="PlusEasy";
-string PlusVer="1.32";
+string PlusVer="1.33";
 
 //|-----------------------------------------------------------------------------------------|
 //|                             I N I T I A L I Z A T I O N                                 |
@@ -113,7 +116,7 @@ string EasyComment(double profit, string cmt="")
 //|-----------------------------------------------------------------------------------------|
 //|                                O R D E R S   S T A T U S                                |
 //|-----------------------------------------------------------------------------------------|
-int EasyOrdersBasket(int mgc, string sym)
+int EasyOrdersBasket(int mgc, string sym, bool noPending=true)
 {
    int count=0;
    int total=GhostOrdersTotal();
@@ -128,14 +131,75 @@ int EasyOrdersBasket(int mgc, string sym)
 
    //---- Assert MagicNumber and Symbol is same as Order
       if (GhostOrderMagicNumber()==mgc && GhostOrderSymbol()==sym)
-         count++;
+      {
+         if( noPending==false ) count ++;
+         else
+            if( GhostOrderType() <= 1 ) count ++;
+      }
    }
 //---- Assert 1: Free OrderSelect #1
    GhostFreeSelect(false);
    return(count);
 }
+int EasyOrdersBuyBasket(int mgc, string sym, bool noPending=true)
+{
+   int count=0;
+   int total=GhostOrdersTotal();
+//---- Assert optimize function by checking total > 0
+   if( total<=0 ) return(count);
+//---- Assert determine count of all trades done with this MagicNumber
+//       Init OrderSelect #9
+   GhostInitSelect(true,0,SELECT_BY_POS,MODE_TRADES);
+   for(int j=0;j<total;j++)
+   {
+      GhostOrderSelect(j,SELECT_BY_POS,MODE_TRADES);
 
-double EasyProfitsBasket(int mgc, string sym)
+   //---- Assert MagicNumber and Symbol is same as Order
+      if (GhostOrderMagicNumber()==mgc && GhostOrderSymbol()==sym)
+      {
+         if( noPending==false ) 
+         {
+            if( GhostOrderType() == OP_BUY || GhostOrderType() == OP_BUYLIMIT || GhostOrderType() == OP_BUYSTOP ) 
+               count ++;
+         }
+         else
+            if( GhostOrderType() == OP_BUY ) count ++;
+      }
+   }
+//---- Assert 1: Free OrderSelect #9
+   GhostFreeSelect(false);
+   return(count);
+}
+int EasyOrdersSellBasket(int mgc, string sym, bool noPending=true)
+{
+   int count=0;
+   int total=GhostOrdersTotal();
+//---- Assert optimize function by checking total > 0
+   if( total<=0 ) return(count);
+//---- Assert determine count of all trades done with this MagicNumber
+//       Init OrderSelect #10
+   GhostInitSelect(true,0,SELECT_BY_POS,MODE_TRADES);
+   for(int j=0;j<total;j++)
+   {
+      GhostOrderSelect(j,SELECT_BY_POS,MODE_TRADES);
+
+   //---- Assert MagicNumber and Symbol is same as Order
+      if (GhostOrderMagicNumber()==mgc && GhostOrderSymbol()==sym)
+      {
+         if( noPending==false ) 
+         {
+            if( GhostOrderType() == OP_SELL || GhostOrderType() == OP_SELLLIMIT || GhostOrderType() == OP_SELLSTOP ) 
+               count ++;
+         }
+         else
+            if( GhostOrderType() == OP_SELL ) count ++;
+      }
+   }
+//---- Assert 1: Free OrderSelect #10
+   GhostFreeSelect(false);
+   return(count);
+}
+double EasyProfitsBasket(int mgc, string sym, bool noPending=true)
 {
    double profit=0.0;
    int total=GhostOrdersTotal();
@@ -150,14 +214,18 @@ double EasyProfitsBasket(int mgc, string sym)
 
    //---- Assert MagicNumber and Symbol is same as Order
       if (GhostOrderMagicNumber()==mgc && GhostOrderSymbol()==sym)
-         profit+=GhostOrderProfit();
+      {
+         if( noPending==false ) profit+=GhostOrderProfit();
+         else
+            if( GhostOrderType() <= 1 ) profit+=GhostOrderProfit();
+      }
    }
 //---- Assert 1: Free OrderSelect #2
    GhostFreeSelect(false);
    return(profit);
 }
 
-int EasyGetFirstTicket(int mgc, string sym)
+int EasyGetFirstTicket(int mgc, string sym, bool noPending=true)
 {
    int ticket=-1;
    int total=GhostOrdersTotal();
@@ -172,7 +240,11 @@ int EasyGetFirstTicket(int mgc, string sym)
 
    //---- Assert MagicNumber and Symbol is same as Order
       if (GhostOrderMagicNumber()==mgc && GhostOrderSymbol()==sym)
-         ticket=GhostOrderTicket();
+      {
+         if( noPending==false ) ticket=GhostOrderTicket();
+         else
+            if( GhostOrderType() <= 1 ) ticket=GhostOrderTicket();
+      }
    }
 //---- Assert 1: Free OrderSelect #3
    GhostFreeSelect(false);
