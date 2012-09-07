@@ -2,6 +2,14 @@
 //|                                                           ForexGrowthBot_v18_SqLite.mq4 |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.3.0   Added functions isOkWave1Buy() and isOkWave1Sell() to indicate if qualifier     |
+//|            ONE (1) allows trade to open. Qualifier 1 has EIGHT (8) parameters: FOUR (4) |
+//|            for Do Not BUY condition, and FOUR (4) for Do Not SELL condition.            |
+//|            For example, to trade a BUY only if UP line is broken (DN line irrelevant):  |
+//|               DoNotBuyUp=1 (UP is intact) and DoNotBuyDn=0 (irrelevant).                |
+//|            Conversely, to trade a SELL only if DN line is broken (UP line irrelevant):  |
+//|               DoNotSellUp=0 (irrelevant) and DoNotSellDn=1 (DN is intact).              |
+//|         Added functions LoadGlobalVars() and isSetGlobalVar().                          |
 //| 1.2.0   Added qualifier ONE (1), checks that TDST UpLine has been broken before opening |
 //|            a LONG trade. Conversely, checks that TDST DnLine has been broken before     |
 //|            opening a SHORT trade. This reduces the likelihood that the market reverses  |
@@ -14,9 +22,6 @@
 #property link      ""
 
 #include <WinUser32.mqh>
-//--- Assert 2: Plus include files
-#include <PlusTurtle.mqh>
-#include <PlusGhost.mqh>
 #import "fxgrbot.dll"
    int initQuant(int a0, int a1, int a2, double a3, double a4, double a5, int a6, int a7, double a8, int a9, string a10);
    double GetVolatilityRatio(double& a0[], double& a1[], int a2, int a3, int a4, int a5);
@@ -26,6 +31,37 @@
    int GetLicenseState(int a0);
    int getSystemID();
 #import
+
+//--- Assert 2: Plus include files
+#include <PlusTurtle.mqh>
+#include <PlusGhost.mqh>
+extern string     w1                         = "Wave Properties";
+extern bool       UseWave1TDSetup            = false;
+extern string     w1_1                       = "Period: 0-Default";
+extern int        TDPeriod                   = 0;
+extern string     w1_2                       = "DoNotBuy: 0-F; 1-Ok; 2-Brk";
+extern int        TDDoNotBuyUpLine           = 0;
+extern int        TDDoNotBuy2UpLine          = 0;
+extern int        TDDoNotBuyDnLine           = 0;
+extern int        TDDoNotBuy2DnLine          = 0;
+extern string     w1_3                       = "DoNotSell: 0-F; 1-Ok; 2-Brk";
+extern int        TDDoNotSellUpLine          = 0;
+extern int        TDDoNotSell2UpLine         = 0;
+extern int        TDDoNotSellDnLine          = 0;
+extern int        TDDoNotSell2DnLine         = 0;
+string gTDIsOkUpLineStr;
+string gTDIsOk2UpLineStr;
+string gTDIsOkDnLineStr;
+string gTDIsOk2DnLineStr;
+bool isOkUpLine   = false;
+bool isOk2UpLine  = false;
+bool isOkDnLine   = false;
+bool isOk2DnLine  = false;
+extern string     d1                         = "Debug Properties";
+extern bool       EaViewDebugNotify          = false;
+extern int        EaViewDebug                = 0;
+extern int        EaViewDebugNoStack         = 1000;
+extern int        EaViewDebugNoStackEnd      = 10;
 
 //|-----------------------------------------------------------------------------------------|
 //|                           E X T E R N A L   V A R I A B L E S                           |
@@ -50,19 +86,8 @@ double gd_152 = 0.5;
 double gd_160 = 0.2;
 int gi_168 = 50;
 extern bool       SmartExit = TRUE;
-extern string     w1                         = "Wave Properties";
-extern bool       UseWave1TDSetupBreak       = false;
-string gTDIsOkUpLineStr;
-string gTDIsOkDnLineStr;
-bool isOkUpLine = false;
-bool isOkDnLine = false;
-extern string     d1                         = "Debug Properties";
-extern bool       EaViewDebugNotify          = false;
-extern int        EaViewDebug                = 0;
-extern int        EaViewDebugNoStack         = 1000;
-extern int        EaViewDebugNoStackEnd      = 10;
 string EaName = "ForexGrowthBot_v18_SqLite";
-string EaVer = "1.2.0";
+string EaVer = "1.3.0";
 //|-----------------------------------------------------------------------------------------|
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
@@ -117,6 +142,129 @@ int g_datetime_424 = 0;
 int gi_unused_428 = 5;
 double gd_unused_432 = 3.0;
 
+//|-----------------------------------------------------------------------------------------|
+//|                           I N T E R N A L   F U N C T I O N S                           |
+//|-----------------------------------------------------------------------------------------|
+bool isOkWave1Buy(bool isOkUp, bool isOk2Up, bool isOkDn, bool isOk2Dn)
+{
+//--- Assert default is Ok to trade
+   bool ret=true;
+   if( !UseWave1TDSetup )  return(ret);
+   
+   if( TDDoNotBuyUpLine == 1 )   ret = ret && isOkUp == false;
+   if( TDDoNotBuyUpLine == 2 )   ret = ret && isOkUp == true;
+   if( TDDoNotBuy2UpLine == 1 )  ret = ret && isOk2Up == false;
+   if( TDDoNotBuy2UpLine == 2 )  ret = ret && isOk2Up == true;
+   if( TDDoNotBuyDnLine == 1 )   ret = ret && isOkDn == false;
+   if( TDDoNotBuyDnLine == 2 )   ret = ret && isOkDn == true;
+   if( TDDoNotBuy2DnLine == 1 )  ret = ret && isOk2Dn == false;
+   if( TDDoNotBuy2DnLine == 2 )  ret = ret && isOk2Dn == true;
+   return(ret);
+}
+bool isOkWave1Sell(bool isOkUp, bool isOk2Up, bool isOkDn, bool isOk2Dn)
+{
+//--- Assert default is Ok to trade
+   bool ret=true;
+   if( !UseWave1TDSetup )  return(ret);
+   
+   if( TDDoNotSellUpLine == 1 )  ret = ret && isOkUp == false;
+   if( TDDoNotSellUpLine == 2 )  ret = ret && isOkUp == true;
+   if( TDDoNotSell2UpLine == 1 ) ret = ret && isOk2Up == false;
+   if( TDDoNotSell2UpLine == 2 ) ret = ret && isOk2Up == true;
+   if( TDDoNotSellDnLine == 1 )  ret = ret && isOkDn == false;
+   if( TDDoNotSellDnLine == 2 )  ret = ret && isOkDn == true;
+   if( TDDoNotSell2DnLine == 1 ) ret = ret && isOk2Dn == false;
+   if( TDDoNotSell2DnLine == 2 ) ret = ret && isOk2Dn == true;
+   return(ret);
+}
+bool isSetGlobalVar(string &gVarStr, string sym, int period, string name)
+{
+   gVarStr = StringConcatenate( sym, "_", period, "_", name );
+   GlobalVariableGet(gVarStr);
+   if( GetLastError()!= 0 ) 
+      return( false );
+   else
+      return( true );
+}
+bool LoadGlobalVars(int type)
+{
+//--- Assert default is Ok to trade
+   bool isOkUp, isOk2Up, isOkDn, isOk2Dn;
+
+   if( type == OP_BUY )
+   {
+      if( TDDoNotBuyUpLine == 1 )   isOkUp   = false;
+      if( TDDoNotBuyUpLine == 2 )   isOkUp   = true;
+      if( TDDoNotBuy2UpLine == 1 )  isOk2Up  = false;
+      if( TDDoNotBuy2UpLine == 2 )  isOk2Up  = true;
+      if( TDDoNotBuyDnLine == 1 )   isOkDn   = false;
+      if( TDDoNotBuyDnLine == 2 )   isOkDn   = true;
+      if( TDDoNotBuy2DnLine == 1 )  isOk2Dn  = false;
+      if( TDDoNotBuy2DnLine == 2 )  isOk2Dn  = true;
+   }
+   if( type == OP_SELL )
+   {
+      if( TDDoNotSellUpLine == 1 )  isOkUp   = false;
+      if( TDDoNotSellUpLine == 2 )  isOkUp   = true;
+      if( TDDoNotSell2UpLine == 1 ) isOk2Up  = false;
+      if( TDDoNotSell2UpLine == 2 ) isOk2Up  = true;
+      if( TDDoNotSellDnLine == 1 )  isOkDn   = false;
+      if( TDDoNotSellDnLine == 2 )  isOkDn   = true;
+      if( TDDoNotSell2DnLine == 1 ) isOk2Dn  = false;
+      if( TDDoNotSell2DnLine == 2 ) isOk2Dn  = true;
+   }
+   
+   if( !UseWave1TDSetup )
+   {
+      isOkUpLine  = isOkUp;
+      isOk2UpLine = isOk2Up;
+      isOkDnLine  = isOkDn;
+      isOk2DnLine = isOk2Dn;
+      return( false );
+   }
+   bool isSetUp, isSet2Up, isSetDn, isSet2Dn;
+   
+   isSetUp  = isSetGlobalVar( gTDIsOkUpLineStr,    Symbol(), TDPeriod, "isOkUpLine");
+   isSet2Up = isSetGlobalVar( gTDIsOk2UpLineStr,   Symbol(), TDPeriod, "isOk2UpLine");
+   isSetDn  = isSetGlobalVar( gTDIsOkDnLineStr,    Symbol(), TDPeriod, "isOkDnLine");
+   isSet2Dn = isSetGlobalVar( gTDIsOk2DnLineStr,   Symbol(), TDPeriod, "isOk2DnLine");
+//--- Assert ALL global vars are set correctly
+   if( !isSetUp || !isSet2Up || !isSetDn || !isSet2Dn )
+   {
+      EaDebugPrint( 0, "LoadGlobalVar",
+         EaDebugStr("EaName",EaName)+
+         EaDebugStr("EaVer",EaVer)+
+         EaDebugInt("AcctNo",AccountNo)+
+         EaDebugInt("mgc",Magic)+
+         EaDebugStr("sym",Symbol())+
+         EaDebugStr("period",TDPeriod)+
+         EaDebugInt("type",type)+
+         EaDebugBln("isSetUp",isSetUp)+
+         EaDebugBln("isSet2Up",isSet2Up)+
+         EaDebugBln("isSetDn",isSetDn)+
+         EaDebugBln("isSet2Dn",isSet2Dn)+
+         " failed to load ALL global vars." );
+   }
+   if( isSetUp ) 
+      isOkUpLine  = GlobalVariableGet( gTDIsOkUpLineStr );
+   else
+      isOkUpLine  = isOkUp;
+   if( isSet2Up ) 
+      isOk2UpLine = GlobalVariableGet( gTDIsOk2UpLineStr );
+   else
+      isOk2UpLine = isOk2Up;
+      
+   if( isSetDn ) 
+      isOkDnLine = GlobalVariableGet( gTDIsOkDnLineStr );
+   else
+      isOkDnLine = isOkDn;
+   if( isSet2Dn ) 
+      isOk2DnLine = GlobalVariableGet( gTDIsOk2DnLineStr );
+   else
+      isOk2DnLine = isOk2Dn;
+      
+   return( isSetUp && isSet2Up && isSetDn && isSet2Dn );
+}
 void UpdateState(string as_0) {
    if (InternalControl && (!ManualTradeControl) && (!Assign_PT_and_ST)) {
       ObjectDelete("fgbPosInfo" + gi_416);
@@ -415,14 +563,10 @@ void AdjustPosition(int ai_0) {
          for (count_28 = 0; count_28 < gi_348; count_28++)
          {
          //--- Assert check for qualifier 1 (when line is broken, it is ok to trade)
-            gTDIsOkUpLineStr = StringConcatenate( Symbol(), "_", Period(), "_IsOkUpLine" );
-            if( UseWave1TDSetupBreak )
-               isOkUpLine = GlobalVariableGet( gTDIsOkUpLineStr );
-            else
-               isOkUpLine = false;
-            if( isOkUpLine == false )
+            LoadGlobalVars( OP_BUY );
+            if( isOkWave1Buy( isOkUpLine, isOk2UpLine, isOkDnLine, isOk2DnLine ) )
                ticket_36 = GhostOrderSend(Symbol(), OP_BUY, MathAbs(ld_12), normPrice(Ask), 25, 0, 0, g_comment_128, Magic, 0, Green);
-            if (ticket_36 >= 0)
+            if (ticket_36 > 0)
             {
                EaDebugPrint( 0, "AdjustPosition",
                   EaDebugStr("EaName", EaName)+
@@ -433,7 +577,7 @@ void AdjustPosition(int ai_0) {
                   EaDebugInt("type", OP_BUY)+
                   EaDebugDbl("lot", MathAbs(ld_12))+
                   EaDebugDbl("openPrice", normPrice(Ask))+
-                  EaDebugBln("isOkUpLine", isOkUpLine) );
+                  EaDebugBln("isOkWave1Buy", isOkWave1Buy( isOkUpLine, isOk2UpLine, isOkDnLine, isOk2DnLine ) ) );
                break;
             }
             Sleep(gi_352);
@@ -448,14 +592,10 @@ void AdjustPosition(int ai_0) {
          for (count_28 = 0; count_28 < gi_348; count_28++)
          {
          //--- Assert check for qualifier 1 (when line is broken, it is ok to trade)
-            gTDIsOkDnLineStr = StringConcatenate( Symbol(), "_", Period(), "_IsOkDnLine" );
-            if( UseWave1TDSetupBreak )
-               isOkDnLine = GlobalVariableGet( gTDIsOkDnLineStr );
-            else
-               isOkDnLine = false;
-            if( isOkDnLine == false )
+            LoadGlobalVars( OP_SELL );
+            if( isOkWave1Sell( isOkUpLine, isOk2UpLine, isOkDnLine, isOk2DnLine ) )
                ticket_36 = GhostOrderSend(Symbol(), OP_SELL, MathAbs(ld_12), normPrice(Bid), 25, 0, 0, g_comment_128, Magic, 0, Red);
-            if (ticket_36 >= 0) 
+            if (ticket_36 > 0) 
             {
                EaDebugPrint( 0, "AdjustPosition",
                   EaDebugStr("EaName", EaName)+
@@ -466,7 +606,7 @@ void AdjustPosition(int ai_0) {
                   EaDebugInt("type", OP_SELL)+
                   EaDebugDbl("lot", MathAbs(ld_12))+
                   EaDebugDbl("openPrice", normPrice(Bid))+
-                  EaDebugBln("isOkDnLine", isOkDnLine) );
+                  EaDebugBln("isOkWave1Sell", isOkWave1Sell( isOkUpLine, isOk2UpLine, isOkDnLine, isOk2DnLine ) ) );
                break;
             }
             Sleep(gi_352);
@@ -546,6 +686,7 @@ int init() {
 //--- Assert 2: Init Plus mods   
    TurtleInit();
    GhostInit();
+   if( TDPeriod == 0 )  TDPeriod = Period();
    
    if (gi_380) {
       ObjectDelete("fgbLicenseInfo" + gi_420);
@@ -843,14 +984,10 @@ int start() {
                      for (count_8 = 0; count_8 < gi_348; count_8++)
                      {
                      //--- Assert check for qualifier 1 (when line is broken, it is ok to trade)
-                        gTDIsOkUpLineStr = StringConcatenate( Symbol(), "_", Period(), "_IsOkUpLine" );
-                        if( UseWave1TDSetupBreak )
-                           isOkUpLine = GlobalVariableGet( gTDIsOkUpLineStr );
-                        else
-                           isOkUpLine = false;
-                        if( isOkUpLine == false )
+                        LoadGlobalVars( OP_BUY );
+                        if( isOkWave1Buy( isOkUpLine, isOk2UpLine, isOkDnLine, isOk2DnLine )  )
                            ticket_44 = GhostOrderSend(Symbol(), OP_BUY, LotSize, price_164, 25, 0, 0, g_comment_128, Magic, 0, Green);
-                        if (ticket_44 >= 0)
+                        if (ticket_44 > 0)
                         {
                            EaDebugPrint( 0, "start",
                               EaDebugStr("EaName", EaName)+
@@ -861,7 +998,7 @@ int start() {
                               EaDebugInt("type", OP_BUY)+
                               EaDebugDbl("lot", LotSize)+
                               EaDebugDbl("openPrice", price_164)+
-                              EaDebugBln("isOkUpLine", isOkUpLine) );
+                              EaDebugBln("isOkWave1Buy", isOkWave1Buy( isOkUpLine, isOk2UpLine, isOkDnLine, isOk2DnLine ) ) );
                            break;
                         }
                         Sleep(gi_352);
@@ -890,14 +1027,10 @@ int start() {
                   while (count_8 < gi_348) 
                   {
                   //--- Assert check for qualifier 1 (when line is broken, it is ok to trade)
-                     gTDIsOkDnLineStr = StringConcatenate( Symbol(), "_", Period(), "_IsOkDnLine" );
-                     if( UseWave1TDSetupBreak )
-                        isOkDnLine = GlobalVariableGet( gTDIsOkDnLineStr );
-                     else
-                        isOkDnLine = false;
-                     if( isOkDnLine == false )
+                     LoadGlobalVars( OP_SELL );
+                     if( isOkWave1Sell( isOkUpLine, isOk2UpLine, isOkDnLine, isOk2DnLine ) )
                         ticket_44 = GhostOrderSend(Symbol(), OP_SELL, LotSize, price_164, 100, 0, 0, g_comment_128, Magic, 0, Red);
-                     if (ticket_44 >= 0) 
+                     if (ticket_44 > 0) 
                      {
                         EaDebugPrint( 0, "start",
                            EaDebugStr("EaName", EaName)+
@@ -908,7 +1041,7 @@ int start() {
                            EaDebugInt("type", OP_SELL)+
                            EaDebugDbl("lot", LotSize)+
                            EaDebugDbl("openPrice", price_164)+
-                           EaDebugBln("isOkDnLine", isOkDnLine) );
+                           EaDebugBln("isOkWave1Sell", isOkWave1Sell( isOkUpLine, isOk2UpLine, isOkDnLine, isOk2DnLine ) ) );
                         break;
                      }
                      Sleep(gi_352);
@@ -969,7 +1102,7 @@ int start() {
    if( posTP!=0 ) strTP = "    posTP=" + DoubleToStr(posTP,5) + "\n";
 //--- Assert Refresh Plus mods
    GhostRefresh();
-   Comment( GhostComment("\n\n\n"+strTP) );
+   Comment( EaComment("\n\n\n"+strTP) );
    
    if (TimeCurrent() - g_datetime_424 >= 30 || MathAbs(NormalizeDouble(getPosSize(), 2) - NormalizeDouble(gd_400, 2)) < LotSize && InternalControl && (!ManualTradeControl) &&
       (!Assign_PT_and_ST)) {
@@ -993,6 +1126,53 @@ int start() {
 //|-----------------------------------------------------------------------------------------|
 //|                                     C O M M E N T                                       |
 //|-----------------------------------------------------------------------------------------|
+string EaComment(string cmt="")
+{
+   string strtmp = cmt+"-->"+EaName+" "+EaVer+"<--";
+//--- Assert Basic info in comment
+   strtmp=strtmp+"\n";
+   if(UseWave1TDSetup)
+   {
+      strtmp=strtmp+"  Wave1 Enabled.";
+      strtmp=strtmp+"  Period="+TDPeriod;
+      strtmp=strtmp+"\n";
+   //--- Wave1 logic for Do Not Buy
+      if( TDDoNotBuyUpLine>0 || TDDoNotBuy2UpLine>0 || TDDoNotBuyDnLine>0 || TDDoNotBuy2DnLine>0 )
+      {
+         strtmp=strtmp+"  Do Not Buy Cond:";
+         if( TDDoNotBuyUpLine==1 )  strtmp=strtmp+"  UpOk";
+         if( TDDoNotBuyUpLine==2 )  strtmp=strtmp+"  UpBrk";
+         if( TDDoNotBuy2UpLine==1 ) strtmp=strtmp+"  Up2Ok";
+         if( TDDoNotBuy2UpLine==2 ) strtmp=strtmp+"  Up2Brk";
+         if( TDDoNotBuyDnLine==1 )  strtmp=strtmp+"  DnOk";
+         if( TDDoNotBuyDnLine==2 )  strtmp=strtmp+"  DnBrk";
+         if( TDDoNotBuy2DnLine==1 ) strtmp=strtmp+"  Dn2Ok";
+         if( TDDoNotBuy2DnLine==2 ) strtmp=strtmp+"  Dn2Brk";
+         strtmp=strtmp+"\n";
+      }
+   //--- Wave 1 logic for Do Not Sell
+      if( TDDoNotSellUpLine>0 || TDDoNotSell2UpLine>0 || TDDoNotSellDnLine>0 || TDDoNotSell2DnLine>0 )
+      {
+         strtmp=strtmp+"  Do Not Sell Cond:";
+         if( TDDoNotSellUpLine==1 )  strtmp=strtmp+"  UpOk";
+         if( TDDoNotSellUpLine==2 )  strtmp=strtmp+"  UpBrk";
+         if( TDDoNotSell2UpLine==1 ) strtmp=strtmp+"  Up2Ok";
+         if( TDDoNotSell2UpLine==2 ) strtmp=strtmp+"  Up2Brk";
+         if( TDDoNotSellDnLine==1 )  strtmp=strtmp+"  DnOk";
+         if( TDDoNotSellDnLine==2 )  strtmp=strtmp+"  DnBrk";
+         if( TDDoNotSell2DnLine==1 ) strtmp=strtmp+"  Dn2Ok";
+         if( TDDoNotSell2DnLine==2 ) strtmp=strtmp+"  Dn2Brk";
+         strtmp=strtmp+"\n";
+      }
+   }
+   
+//--- Assert additional comments here
+   strtmp=TurtleComment(strtmp);
+   strtmp=GhostComment(strtmp);
+   
+   strtmp = strtmp+"\n";
+   return(strtmp);
+}
 void EaDebugPrint(int dbg, string fn, string msg)
 {
    static int noStackCount;
