@@ -2,6 +2,7 @@
 //|                                                                       ImportDrawHst.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.2.0   Fixed IF curly braces in start, which caused the program to exit prematurely.   |
 //| 1.10    Added PlusR. Import CSV file is optional (default: Use R).                      |
 //| 1.00    Import CSV file into a chart and export to history file.                        |
 //|            1) For the CSV file, if EOF is not correct, file will not be read;           |
@@ -21,12 +22,12 @@
 //|------------------------------------------------------------------------------------------|
 //|                           E X T E R N A L   V A R I A B L E S                            |
 //|------------------------------------------------------------------------------------------|
-extern   string   s1             = " UseCustom: set Symbol and Period.";
-extern   string   s1_1           = " Period: 15-M15, 30-M30,.. 1440-D1";
+extern   string   s1             = "UseCustom: set Symbol and Period.";
+extern   string   s1_1           = "Period: 15-M15, 30-M30,.. 1440-D1";
 extern   bool     UseCustom      = true;
 extern   string   CustomSymbol   = "GLD";
 extern   int      CustomPeriod   = 1440;
-extern   string   s2             = " UseFileCsv: set Name and Delimiter.";
+extern   string   s2             = "UseFileCsv: set Name and Delimiter.";
 extern   bool     UseFileCsv     = false;
 extern   string   FileName       = "";
 extern   int      FileDelim      = ',';
@@ -48,7 +49,7 @@ double ExtMapBuffer5[];    // Volume
 //|                           I N T E R N A L   V A R I A B L E S                            |
 //|------------------------------------------------------------------------------------------|
 string   IndName   ="ImportDrawHst";
-string   IndVer    ="1.10";
+string   IndVer    ="1.2.0";
 string   IndCopyr  ="Copyright © 2012, Dennis Lee";
 string   IndSymbol;
 int      IndPeriod;
@@ -112,6 +113,8 @@ int init()
          }
          IndDebugPrint( 1, "init", "File test contains the correct EOF character.");
       }
+      else
+         IndDebugPrint( 0, "init", "FileCsv "+FileName+" opened.");
    }
    else RInit();
       
@@ -130,7 +133,7 @@ int init()
    FileWriteInteger(FileHandleHst,   0, LONG_VALUE);       //timesign
    FileWriteInteger(FileHandleHst,   0, LONG_VALUE);       //last_sync
    FileWriteArray(FileHandleHst,     i_unused, 0, 13);
-   IndDebugPrint( 1, "init", "File header successfully written.");
+   IndDebugPrint( 1, "init", "File header "+FileNameHst+" created.");
 
 
 //---- Assert indicators for outputs (4) 
@@ -206,7 +209,9 @@ int start()
 //---- Assert files are opened   
    if( FileHandleHst < 0) return(-1);
    if( UseFileCsv )
+   {
       if( FileHandleCsv < 0) return(-1);
+   }
    else
       if( RIsStopped() ) return(-1);
 
