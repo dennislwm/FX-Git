@@ -2,6 +2,8 @@
 //|                                                           ForexGrowthBot_v18_SqLite.mq4 |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.3.1   Replace function isSetGlobalVar() with GlobalVariableCheck() in function init().|
+//|            If ANY of the FOUR (4) global vars do not exist, then set UseWave1TDSetup=F. |
 //| 1.3.0   Added functions isOkWave1Buy() and isOkWave1Sell() to indicate if qualifier     |
 //|            ONE (1) allows trade to open. Qualifier 1 has EIGHT (8) parameters: FOUR (4) |
 //|            for Do Not BUY condition, and FOUR (4) for Do Not SELL condition.            |
@@ -87,7 +89,7 @@ double gd_160 = 0.2;
 int gi_168 = 50;
 extern bool       SmartExit = TRUE;
 string EaName = "ForexGrowthBot_v18_SqLite";
-string EaVer = "1.3.0";
+string EaVer = "1.3.1";
 //|-----------------------------------------------------------------------------------------|
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
@@ -177,16 +179,7 @@ bool isOkWave1Sell(bool isOkUp, bool isOk2Up, bool isOkDn, bool isOk2Dn)
    if( TDDoNotSell2DnLine == 2 ) ret = ret && isOk2Dn == true;
    return(ret);
 }
-bool isSetGlobalVar(string &gVarStr, string sym, int period, string name)
-{
-   gVarStr = StringConcatenate( sym, "_", period, "_", name );
-   GlobalVariableGet(gVarStr);
-   if( GetLastError()!= 0 ) 
-      return( false );
-   else
-      return( true );
-}
-bool LoadGlobalVars(int type)
+void LoadGlobalVars(int type)
 {
 //--- Assert default is Ok to trade
    bool isOkUp, isOk2Up, isOkDn, isOk2Dn;
@@ -220,51 +213,28 @@ bool LoadGlobalVars(int type)
       isOk2UpLine = isOk2Up;
       isOkDnLine  = isOkDn;
       isOk2DnLine = isOk2Dn;
-      return( false );
+      return(0);
    }
-   bool isSetUp, isSet2Up, isSetDn, isSet2Dn;
    
-   isSetUp  = isSetGlobalVar( gTDIsOkUpLineStr,    Symbol(), TDPeriod, "isOkUpLine");
-   isSet2Up = isSetGlobalVar( gTDIsOk2UpLineStr,   Symbol(), TDPeriod, "isOk2UpLine");
-   isSetDn  = isSetGlobalVar( gTDIsOkDnLineStr,    Symbol(), TDPeriod, "isOkDnLine");
-   isSet2Dn = isSetGlobalVar( gTDIsOk2DnLineStr,   Symbol(), TDPeriod, "isOk2DnLine");
-//--- Assert ALL global vars are set correctly
-   if( !isSetUp || !isSet2Up || !isSetDn || !isSet2Dn )
-   {
-      EaDebugPrint( 0, "LoadGlobalVar",
-         EaDebugStr("EaName",EaName)+
-         EaDebugStr("EaVer",EaVer)+
-         EaDebugInt("AcctNo",AccountNo)+
-         EaDebugInt("mgc",Magic)+
-         EaDebugStr("sym",Symbol())+
-         EaDebugStr("period",TDPeriod)+
-         EaDebugInt("type",type)+
-         EaDebugBln("isSetUp",isSetUp)+
-         EaDebugBln("isSet2Up",isSet2Up)+
-         EaDebugBln("isSetDn",isSetDn)+
-         EaDebugBln("isSet2Dn",isSet2Dn)+
-         " failed to load ALL global vars." );
-   }
-   if( isSetUp ) 
+   if( GlobalVariableCheck( gTDIsOkUpLineStr ) ) 
       isOkUpLine  = GlobalVariableGet( gTDIsOkUpLineStr );
    else
       isOkUpLine  = isOkUp;
-   if( isSet2Up ) 
+   if( GlobalVariableCheck( gTDIsOk2UpLineStr ) ) 
       isOk2UpLine = GlobalVariableGet( gTDIsOk2UpLineStr );
    else
       isOk2UpLine = isOk2Up;
       
-   if( isSetDn ) 
+   if( GlobalVariableCheck( gTDIsOkDnLineStr ) ) 
       isOkDnLine = GlobalVariableGet( gTDIsOkDnLineStr );
    else
       isOkDnLine = isOkDn;
-   if( isSet2Dn ) 
+   if( GlobalVariableCheck( gTDIsOk2DnLineStr ) ) 
       isOk2DnLine = GlobalVariableGet( gTDIsOk2DnLineStr );
    else
       isOk2DnLine = isOk2Dn;
-      
-   return( isSetUp && isSet2Up && isSetDn && isSet2Dn );
 }
+
 void UpdateState(string as_0) {
    if (InternalControl && (!ManualTradeControl) && (!Assign_PT_and_ST)) {
       ObjectDelete("fgbPosInfo" + gi_416);
@@ -275,7 +245,6 @@ void UpdateState(string as_0) {
       ObjectSet("fgbPosInfo" + gi_416, OBJPROP_YDISTANCE, g_y_396);
    }
 }
-
 double getPosSize() {
    double ld_0 = 0;
 //--- Assert 2: Init OrderSelect #1
@@ -683,10 +652,34 @@ int init() {
    gd_unused_408 = 0;
    g_datetime_424 = 0;
    
-//--- Assert 2: Init Plus mods   
+//--- Assert 3: Init Plus mods   
    TurtleInit();
    GhostInit();
-   if( TDPeriod == 0 )  TDPeriod = Period();
+//--- Assert : UseWave1TDSetup true checks for existing global vars
+   if( UseWave1TDSetup )
+   {
+      if( TDPeriod == 0 )  TDPeriod = Period();
+      bool found = true;
+      gTDIsOkUpLineStr  = StringConcatenate( Symbol(), "_", TDPeriod, "_IsOkUpLine" );
+      gTDIsOk2UpLineStr = StringConcatenate( Symbol(), "_", TDPeriod, "_IsOk2UpLine" );
+      gTDIsOkDnLineStr  = StringConcatenate( Symbol(), "_", TDPeriod, "_IsOkDnLine" );
+      gTDIsOk2DnLineStr = StringConcatenate( Symbol(), "_", TDPeriod, "_IsOk2DnLine" );
+      found = found && GlobalVariableCheck( gTDIsOkUpLineStr );
+      found = found && GlobalVariableCheck( gTDIsOk2UpLineStr );
+      found = found && GlobalVariableCheck( gTDIsOkDnLineStr );
+      found = found && GlobalVariableCheck( gTDIsOk2DnLineStr );
+      if( !found )
+      {
+         UseWave1TDSetup = false;
+         EaDebugPrint( 0, "init",
+            EaDebugStr("EaName",EaName)+
+            EaDebugStr("EaVer",EaVer)+
+            EaDebugInt("mgc",Magic)+
+            EaDebugStr("sym",Symbol())+
+            EaDebugInt("TDPeriod", TDPeriod)+
+            " At least ONE of FOUR (4) global variables do not exist. Set UseWave1TDSetup=False." );
+      }
+   }
    
    if (gi_380) {
       ObjectDelete("fgbLicenseInfo" + gi_420);
@@ -1088,8 +1081,7 @@ int start() {
    double posSize = getPosSize();
    double posTP;
    string strTP;
-   if( posSize==0 ) posTP=0;
-   else
+   if( posSize!=0 )
    {
       if( ld_156!=0 && price_164!=0 && gd_152!=0 )
       {
@@ -1097,9 +1089,11 @@ int start() {
          if( posSize>0 ) posTP = normPrice(price_164) + NormalizeDouble(ld_156 * gd_152, Digits);
       //--- Assert Sell positions opened
          if( posSize<0 ) posTP = normPrice(price_164) - NormalizeDouble(ld_156 * gd_152, Digits);
+         strTP = "    posTP=" + DoubleToStr(posTP,5) + "\n";
       }
+      else
+         strTP = "    posTP=0  (ld_156=" + DoubleToStr(ld_156,5) + "  price_164=" + DoubleToStr(price_164,5) + "  gd_152=" + DoubleToStr(price_164,5) + ")\n";
    }
-   if( posTP!=0 ) strTP = "    posTP=" + DoubleToStr(posTP,5) + "\n";
 //--- Assert Refresh Plus mods
    GhostRefresh();
    Comment( EaComment("\n\n\n"+strTP) );
