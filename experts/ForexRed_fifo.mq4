@@ -2,6 +2,8 @@
 //|                                                                            ForexRed.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.0.7   Use GlobalVariableCheck() in function init(). If ANY of the FOUR (4) global     |
+//|            variables do not exist, then set SmartExit=F.                                |
 //| 1.0.6   Added extern SmartExit (default: F). If true, EA will closed ALL BUY basket, if |
 //|            the pair of TDST Support lines are broken. Conversely, EA will closed ALL    |
 //|            SELL basket, if the pair of TDST Resistance lines are broken.                |
@@ -49,7 +51,7 @@ extern   string   s4             ="-->PlusGhost Settings<--";
 //|                           I N T E R N A L   V A R I A B L E S                            |
 //|------------------------------------------------------------------------------------------|
 string   EaName      ="ForexRed";
-string   EaVer       ="1.0.6";
+string   EaVer       ="1.0.7";
 int      EaDebugCount;
 string   gTDIsOkUpLineStr;
 string   gTDIsOk2UpLineStr;
@@ -70,6 +72,30 @@ int init()
    EasyInit();
    TurtleInit();
    GhostInit();
+//--- Assert SmartExit true checks for existing global vars
+   if( FredSmartExit )
+   {
+      bool found = true;
+      gTDIsOkUpLineStr  = StringConcatenate( Symbol(), "_", Period(), "_IsOkUpLine" );
+      gTDIsOk2UpLineStr = StringConcatenate( Symbol(), "_", Period(), "_IsOk2UpLine" );
+      gTDIsOkDnLineStr  = StringConcatenate( Symbol(), "_", Period(), "_IsOkDnLine" );
+      gTDIsOk2DnLineStr = StringConcatenate( Symbol(), "_", Period(), "_IsOk2DnLine" );
+      found = found && GlobalVariableCheck( gTDIsOkUpLineStr );
+      found = found && GlobalVariableCheck( gTDIsOk2UpLineStr );
+      found = found && GlobalVariableCheck( gTDIsOkDnLineStr );
+      found = found && GlobalVariableCheck( gTDIsOk2DnLineStr );
+      if( !found )
+      {
+         FredSmartExit = false;
+         EaDebugPrint( 0, "init",
+            EaDebugStr("EaName",EaName)+
+            EaDebugStr("EaVer",EaVer)+
+            EaDebugInt("mgc",Fred1Magic)+
+            EaDebugStr("sym",Symbol())+
+            " At least ONE of FOUR (4) global variables do not exist. Set SmartExit=False.",
+            false, 0 );
+      }
+   }
    return(0);    
 }
 
@@ -118,8 +144,9 @@ int start()
       //--- Load global variables if it does not exist (default: exit condition fails)
          gTDIsOkUpLineStr  = StringConcatenate( Symbol(), "_", Period(), "_IsOkUpLine" );
          gTDIsOk2UpLineStr = StringConcatenate( Symbol(), "_", Period(), "_IsOk2UpLine" );
-         isOkUpLine  = GlobalVariableGet( gTDIsOkUpLineStr );
-         if( GetLastError()!=0 )
+         if( GlobalVariableCheck( gTDIsOkUpLineStr ) )
+            isOkUpLine  = GlobalVariableGet( gTDIsOkUpLineStr );
+         else
          {
             EaDebugPrint(0, "start",
                EaDebugStr("EaName",EaName)+
@@ -132,8 +159,9 @@ int start()
                false, 0);
             isOkUpLine  = true;
          }
-         isOk2UpLine = GlobalVariableGet( gTDIsOk2UpLineStr );
-         if( GetLastError()!=0 ) 
+         if( GlobalVariableCheck( gTDIsOk2UpLineStr ) )
+            isOk2UpLine = GlobalVariableGet( gTDIsOk2UpLineStr );
+         else
          {
             EaDebugPrint(0, "start",
                EaDebugStr("EaName",EaName)+
@@ -155,6 +183,7 @@ int start()
                EaDebugStr("EaVer",EaVer)+
                EaDebugInt("mgc",Fred1Magic)+
                EaDebugStr("sym",Symbol())+
+               EaDebugDbl("price",MarketInfo(Symbol(),MODE_ASK))+
                " SmartExit closed ALL SELL basket.",
                false, 0);
          }
@@ -164,8 +193,9 @@ int start()
       //--- Load global variables if it does not exist (default: exit condition fails)
          gTDIsOkDnLineStr  = StringConcatenate( Symbol(), "_", Period(), "_IsOkDnLine" );
          gTDIsOk2DnLineStr = StringConcatenate( Symbol(), "_", Period(), "_IsOk2DnLine" );
-         isOkDnLine  = GlobalVariableGet( gTDIsOkDnLineStr );
-         if( GetLastError()!=0 )
+         if( GlobalVariableCheck( gTDIsOkDnLineStr ) )
+            isOkDnLine  = GlobalVariableGet( gTDIsOkDnLineStr );
+         else
          {
             EaDebugPrint(0, "start",
                EaDebugStr("EaName",EaName)+
@@ -178,8 +208,9 @@ int start()
                false, 0);
             isOkDnLine  = true;
          }
-         isOk2DnLine = GlobalVariableGet( gTDIsOk2DnLineStr );
-         if( GetLastError()!=0 ) 
+         if( GlobalVariableCheck( gTDIsOk2DnLineStr ) )
+            isOk2DnLine = GlobalVariableGet( gTDIsOk2DnLineStr );
+         else
          {
             EaDebugPrint(0, "start",
                EaDebugStr("EaName",EaName)+
@@ -201,6 +232,7 @@ int start()
                EaDebugStr("EaVer",EaVer)+
                EaDebugInt("mgc",Fred1Magic)+
                EaDebugStr("sym",Symbol())+
+               EaDebugDbl("price",MarketInfo(Symbol(),MODE_BID))+
                " SmartExit closed ALL BUY basket.",
                false, 0);
          }
