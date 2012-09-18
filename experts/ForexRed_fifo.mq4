@@ -2,6 +2,8 @@
 //|                                                                            ForexRed.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.1.0   Added PlusTD to fix a MAJOR bug where the EA should NOT open trades when ANY    |
+//|            of a pair of TDST lines is broken.                                           |
 //| 1.0.7   Use GlobalVariableCheck() in function init(). If ANY of the FOUR (4) global     |
 //|            variables do not exist, then set SmartExit=F.                                |
 //| 1.0.6   Added extern SmartExit (default: F). If true, EA will closed ALL BUY basket, if |
@@ -34,16 +36,18 @@ extern   bool     FredSmartExit  = false;
 extern   bool     FredDebugNotify= false;
 extern   int      FredDebug      = 1;
 extern   int      FredDebugCount = 1000;
-extern   string   s1             ="-->PlusRed Settings<--";
+extern   string   s1             ="-->PlusTD Settings<--";
+#include <plustd.mqh>
+extern   string   s2             ="-->PlusRed Settings<--";
 #include <plusred.mqh>
 //---- Assert Basic externs
-extern   string   s2             ="-->PlusEasy Settings<--";
+extern   string   s3             ="-->PlusEasy Settings<--";
 #include <pluseasy.mqh>
 //---- Assert PlusTurtle externs
-extern   string   s3             ="-->PlusTurtle Settings<--";
+extern   string   s4             ="-->PlusTurtle Settings<--";
 #include <plusturtle.mqh>
 //---- Assert PlusGhost externs
-extern   string   s4             ="-->PlusGhost Settings<--";
+extern   string   s5             ="-->PlusGhost Settings<--";
 #include <plusghost.mqh>
 
 
@@ -51,16 +55,8 @@ extern   string   s4             ="-->PlusGhost Settings<--";
 //|                           I N T E R N A L   V A R I A B L E S                            |
 //|------------------------------------------------------------------------------------------|
 string   EaName      ="ForexRed";
-string   EaVer       ="1.0.7";
+string   EaVer       ="1.1.0";
 int      EaDebugCount;
-string   gTDIsOkUpLineStr;
-string   gTDIsOk2UpLineStr;
-string   gTDIsOkDnLineStr;
-string   gTDIsOk2DnLineStr;
-bool     isOkUpLine  = true;
-bool     isOk2UpLine = true;
-bool     isOkDnLine  = true;
-bool     isOk2DnLine = true;
 
 //|------------------------------------------------------------------------------------------|
 //|                            I N I T I A L I S A T I O N                                   |
@@ -68,6 +64,7 @@ bool     isOk2DnLine = true;
 int init()
 {
    InitInit();
+   TDInit();
    RedInit(EasySL,Fred1Magic,Fred2Magic);
    EasyInit();
    TurtleInit();
@@ -75,16 +72,7 @@ int init()
 //--- Assert SmartExit true checks for existing global vars
    if( FredSmartExit )
    {
-      bool found = true;
-      gTDIsOkUpLineStr  = StringConcatenate( Symbol(), "_", Period(), "_IsOkUpLine" );
-      gTDIsOk2UpLineStr = StringConcatenate( Symbol(), "_", Period(), "_IsOk2UpLine" );
-      gTDIsOkDnLineStr  = StringConcatenate( Symbol(), "_", Period(), "_IsOkDnLine" );
-      gTDIsOk2DnLineStr = StringConcatenate( Symbol(), "_", Period(), "_IsOk2DnLine" );
-      found = found && GlobalVariableCheck( gTDIsOkUpLineStr );
-      found = found && GlobalVariableCheck( gTDIsOk2UpLineStr );
-      found = found && GlobalVariableCheck( gTDIsOkDnLineStr );
-      found = found && GlobalVariableCheck( gTDIsOk2DnLineStr );
-      if( !found )
+      if( !TDGlobalCheck() )
       {
          FredSmartExit = false;
          EaDebugPrint( 0, "init",
@@ -141,41 +129,9 @@ int start()
       
       if( EasyOrdersSellBasket(Fred1Magic, Symbol()) > 0 )
       {
-      //--- Load global variables if it does not exist (default: exit condition fails)
-         gTDIsOkUpLineStr  = StringConcatenate( Symbol(), "_", Period(), "_IsOkUpLine" );
-         gTDIsOk2UpLineStr = StringConcatenate( Symbol(), "_", Period(), "_IsOk2UpLine" );
-         if( GlobalVariableCheck( gTDIsOkUpLineStr ) )
-            isOkUpLine  = GlobalVariableGet( gTDIsOkUpLineStr );
-         else
-         {
-            EaDebugPrint(0, "start",
-               EaDebugStr("EaName",EaName)+
-               EaDebugStr("EaVer",EaVer)+
-               EaDebugInt("mgc",Fred1Magic)+
-               EaDebugStr("sym",Symbol())+
-               EaDebugStr("gTDIsOkUpLineStr",gTDIsOkUpLineStr)+
-               EaDebugBln("isOkUpLine",isOkUpLine)+
-               " global var does not exist.",
-               false, 0);
-            isOkUpLine  = true;
-         }
-         if( GlobalVariableCheck( gTDIsOk2UpLineStr ) )
-            isOk2UpLine = GlobalVariableGet( gTDIsOk2UpLineStr );
-         else
-         {
-            EaDebugPrint(0, "start",
-               EaDebugStr("EaName",EaName)+
-               EaDebugStr("EaVer",EaVer)+
-               EaDebugInt("mgc",Fred1Magic)+
-               EaDebugStr("sym",Symbol())+
-               EaDebugStr("gTDIsOk2UpLineStr",gTDIsOk2UpLineStr)+
-               EaDebugBln("isOk2UpLine",isOk2UpLine)+
-               " global var does not exist.",
-               false, 0);
-            isOk2UpLine = true;
-         }
+      //--- Check SmartExit condition (default: exit condition fails)
       //--- Assert check exit condition for SELL basket
-         if( isOkUpLine == false && isOk2UpLine == false )
+         if( TDIsOkUpLine(true) == false && TDIsOk2UpLine(true) == false )
          {
             EasyBuyToCloseBasket( Fred1Magic, Symbol(), EasyMaxAccountTrades );
             EaDebugPrint(0, "start",
@@ -190,41 +146,9 @@ int start()
       }
       else if( EasyOrdersBuyBasket(Fred1Magic, Symbol()) > 0 )
       {
-      //--- Load global variables if it does not exist (default: exit condition fails)
-         gTDIsOkDnLineStr  = StringConcatenate( Symbol(), "_", Period(), "_IsOkDnLine" );
-         gTDIsOk2DnLineStr = StringConcatenate( Symbol(), "_", Period(), "_IsOk2DnLine" );
-         if( GlobalVariableCheck( gTDIsOkDnLineStr ) )
-            isOkDnLine  = GlobalVariableGet( gTDIsOkDnLineStr );
-         else
-         {
-            EaDebugPrint(0, "start",
-               EaDebugStr("EaName",EaName)+
-               EaDebugStr("EaVer",EaVer)+
-               EaDebugInt("mgc",Fred1Magic)+
-               EaDebugStr("sym",Symbol())+
-               EaDebugStr("gTDIsOkDnLineStr",gTDIsOkDnLineStr)+
-               EaDebugBln("isOkDnLine",isOkDnLine)+
-               " global var does not exist.",
-               false, 0);
-            isOkDnLine  = true;
-         }
-         if( GlobalVariableCheck( gTDIsOk2DnLineStr ) )
-            isOk2DnLine = GlobalVariableGet( gTDIsOk2DnLineStr );
-         else
-         {
-            EaDebugPrint(0, "start",
-               EaDebugStr("EaName",EaName)+
-               EaDebugStr("EaVer",EaVer)+
-               EaDebugInt("mgc",Fred1Magic)+
-               EaDebugStr("sym",Symbol())+
-               EaDebugStr("gTDIsOk2DnLineStr",gTDIsOk2DnLineStr)+
-               EaDebugBln("isOk2DnLine",isOk2DnLine)+
-               " global var does not exist.",
-               false, 0);
-            isOk2DnLine = true;
-         }
+      //--- Check SmartExit condition (default: exit condition fails)
       //--- Assert check exit condition for BUY basket
-         if( isOkDnLine == false && isOk2DnLine == false )
+         if( TDIsOkDnLine(true) == false && TDIsOk2DnLine(true) == false )
          {
             EasySellToCloseBasket( Fred1Magic, Symbol(), EasyMaxAccountTrades );
             EaDebugPrint(0, "start",
@@ -279,12 +203,28 @@ int start()
          Print(i,": tdWave=",tdWave," shWave=",shWave);
          if( tdWave!= EMPTY_VALUE && tdWave <= -5 && shWave < 0 ) 
          {
-            wave = -1;
+            if( TDWave1Buy() )   
+            {
+               wave = -1;
+               EaDebugPrint(0, "start",
+                  TDDebugGlobal()+
+                  EaDebugBln("TDWave1Buy",true) );
+            }
+            else                 
+               wave = 0;
             break;
          }
          if( tdWave!= EMPTY_VALUE && tdWave >= 5 && shWave > 0 )
          {
-            wave = 1;
+            if( TDWave1Sell() )  
+            {
+               wave = 1;
+               EaDebugPrint(0, "start",
+                  TDDebugGlobal()+
+                  EaDebugBln("TDWave1Sell",true) );
+            }
+            else
+               wave = 0;
             break;
          }
       }
@@ -342,6 +282,7 @@ string EaComment(string cmt="")
       strtmp = strtmp + "  SmartExit Enabled.\n";
    
 //--- Assert additional comments here
+   strtmp=TDComment(strtmp);
    strtmp=RedComment(strtmp);
    double profit=EasyProfitsBasket(Fred1Magic,Symbol())+EasyProfitsBasket(Fred2Magic,Symbol());
    strtmp=EasyComment(profit,strtmp);
