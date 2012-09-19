@@ -2,6 +2,7 @@
 //|                                                    WallStreetForexRobot_v3.9_Sqlite.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.3.0   Added PlusTD to replace previous support functions for TDSetup indicator.       |
 //| 1.2.0   Added qualifier ONE (1), checks that TDST UpLine has been broken, and DnLine    |
 //|            has NOT been broken, before opening a LONG trade. Conversely, checks that    |
 //|            TDST DnLine has been broken and UpLine has NOT been broken, before opening   |
@@ -30,25 +31,23 @@
 #import
 
 //--- Assert 2: Plus include files
+extern string     s1                         = "-->PlusTD Settings<--";
+#include <PlusTD.mqh>
+extern string     s2                         = "-->PlusTurtle Settings<--";
 #include <PlusTurtle.mqh>
+extern string     s3                         = "-->PlusGhost Settings<--";
 #include <PlusGhost.mqh>
 
 //|-----------------------------------------------------------------------------------------|
 //|                           E X T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
-extern string     w1                         = "Wave Properties";
-extern bool       UseWave1TDSetupBreak       = false;
-string gTDIsOkUpLineStr;
-string gTDIsOkDnLineStr;
-bool isOkUpLine = false;
-bool isOkDnLine = false;
-extern string     d1                         = "Debug Properties";
+extern string     e1                         = "Debug Properties";
 extern bool       EaViewDebugNotify          = false;
 extern int        EaViewDebug                = 0;
 extern int        EaViewDebugNoStack         = 1000;
 extern int        EaViewDebugNoStackEnd      = 10;
 string EaName = "WallStreetForexRobot_v3.9_Sqlite";
-string EaVer = "1.2.0";
+string EaVer = "1.3.0";
 extern int Magic = 4698523;
 extern string EA_Comment = "";
 extern int MaxSpread = 4;
@@ -143,6 +142,7 @@ void init() {
    if (ObjectFind("BKGR4") >= 0) ObjectDelete("BKGR4");
    if (ObjectFind("LV") >= 0) ObjectDelete("LV");
 //--- Assert 2: Init Plus   
+   TDInit();
    TurtleInit();
    GhostInit();
 }
@@ -308,7 +308,7 @@ int start() {
    ls_0 = ls_0 
    + "\n -----------------------------------------------";
 //--- Assert 1: Replace comment with Ghost comment   
-   Comment(GhostComment(ls_0+"\n"));
+   Comment(GhostComment(TurtleComment(TDComment(ls_0+"\n"))));
    if (ObjectFind("BKGR") < 0) {
       ObjectCreate("BKGR", OBJ_LABEL, 0, 0, 0);
       ObjectSetText("BKGR", "g", 110, "Webdings", LightSlateGray);
@@ -519,7 +519,7 @@ int start() {
       + "\n  Account Profit = " + DoubleToStr(ld_64, 2);
    }
 //--- Assert 1: Replace comment with Ghost comment   
-   Comment(GhostComment(ls_0+"\n"));
+   Comment(GhostComment(TurtleComment(TDComment(ls_0+"\n"))));
    bool li_172 = TRUE;
    bool li_176 = TRUE;
    if (NFA == TRUE && count_132 > 0 || count_128 > 0) {
@@ -580,41 +580,9 @@ int start() {
       bool isWave1Ok = true;
       for (li_148 = 1; li_148 <= MathMax(1, gi_96); li_148++) {
          if( cmd_36 == OP_BUY )
-         {
-            gTDIsOkUpLineStr = StringConcatenate( Symbol(), "_", Period(), "_IsOkUpLine" );
-            gTDIsOkDnLineStr = StringConcatenate( Symbol(), "_", Period(), "_IsOkDnLine" );
-            if( UseWave1TDSetupBreak )
-            {
-               isOkUpLine = GlobalVariableGet( gTDIsOkUpLineStr );
-               isOkDnLine = GlobalVariableGet( gTDIsOkDnLineStr );
-            }
-            else
-         //--- Assert check for qualifier 1 (when UpLine is broken and DnLine is NOT broken, it is ok to trade)
-            {
-               isOkUpLine = false;
-               isOkDnLine = true;
-            }
-            if( isOkUpLine == false && isOkDnLine == true ) isWave1Ok = true;
-            else                                            isWave1Ok = false;
-         }
+            isWave1Ok = TDWave1Buy();
          if( cmd_36 == OP_SELL )
-         {
-            gTDIsOkUpLineStr = StringConcatenate( Symbol(), "_", Period(), "_IsOkUpLine" );
-            gTDIsOkDnLineStr = StringConcatenate( Symbol(), "_", Period(), "_IsOkDnLine" );
-            if( UseWave1TDSetupBreak )
-            {
-               isOkUpLine = GlobalVariableGet( gTDIsOkUpLineStr );
-               isOkDnLine = GlobalVariableGet( gTDIsOkDnLineStr );
-            }
-            else
-         //--- Assert check for qualifier 1 (when DnLine is broken and UpLine is NOT broken, it is ok to trade)
-            {
-               isOkUpLine = true;
-               isOkDnLine = false;
-            }
-            if( isOkUpLine == true && isOkDnLine == false ) isWave1Ok = true;
-            else                                            isWave1Ok = false;
-         }
+            isWave1Ok = TDWave1Sell();
          if( isWave1Ok )
             ticket_144 = GhostOrderSend(Symbol(), cmd_36, lots_40, price_8, Slippage, 0, 0, EA_Comment, Magic, 0, color_32);
          if (ticket_144 >= 0)
@@ -628,8 +596,8 @@ int start() {
                EaDebugInt("type", cmd_36)+
                EaDebugDbl("lot", lots_40)+
                EaDebugDbl("openPrice", price_8)+
-               EaDebugBln("isOkUpLine", isOkUpLine)+
-               EaDebugBln("isOkDnLine", isOkDnLine) );
+               TDDebugGlobal()+
+               EaDebugBln("TDWave1", true) );
             break;
          }
          Sleep(MathMax(100, 1000 * gi_100));
