@@ -2,6 +2,7 @@
 //|                                                           ForexGrowthBot_v18_SqLite.mq4 |
 //|                                                            Copyright © 2011, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.3.2   Added PlusTD to replace previous support functions for TDSetup indicator.       |
 //| 1.3.1   Replace function isSetGlobalVar() with GlobalVariableCheck() in function init().|
 //|            If ANY of the FOUR (4) global vars do not exist, then set UseWave1TDSetup=F. |
 //| 1.3.0   Added functions isOkWave1Buy() and isOkWave1Sell() to indicate if qualifier     |
@@ -35,31 +36,13 @@
 #import
 
 //--- Assert 2: Plus include files
+extern string     s1                         = "-->PlusTD Settings<--";
+#include <PlusTD.mqh>
+extern string     s2                         = "-->PlusTurtle Settings<--";
 #include <PlusTurtle.mqh>
+extern string     s3                         = "-->PlusGhost Settings<--";
 #include <PlusGhost.mqh>
-extern string     w1                         = "Wave Properties";
-extern bool       UseWave1TDSetup            = false;
-extern string     w1_1                       = "Period: 0-Default";
-extern int        TDPeriod                   = 0;
-extern string     w1_2                       = "DoNotBuy: 0-F; 1-Ok; 2-Brk";
-extern int        TDDoNotBuyUpLine           = 0;
-extern int        TDDoNotBuy2UpLine          = 0;
-extern int        TDDoNotBuyDnLine           = 0;
-extern int        TDDoNotBuy2DnLine          = 0;
-extern string     w1_3                       = "DoNotSell: 0-F; 1-Ok; 2-Brk";
-extern int        TDDoNotSellUpLine          = 0;
-extern int        TDDoNotSell2UpLine         = 0;
-extern int        TDDoNotSellDnLine          = 0;
-extern int        TDDoNotSell2DnLine         = 0;
-string gTDIsOkUpLineStr;
-string gTDIsOk2UpLineStr;
-string gTDIsOkDnLineStr;
-string gTDIsOk2DnLineStr;
-bool isOkUpLine   = false;
-bool isOk2UpLine  = false;
-bool isOkDnLine   = false;
-bool isOk2DnLine  = false;
-extern string     d1                         = "Debug Properties";
+extern string     e1                         = "Debug Properties";
 extern bool       EaViewDebugNotify          = false;
 extern int        EaViewDebug                = 0;
 extern int        EaViewDebugNoStack         = 1000;
@@ -89,7 +72,7 @@ double gd_160 = 0.2;
 int gi_168 = 50;
 extern bool       SmartExit = TRUE;
 string EaName = "ForexGrowthBot_v18_SqLite";
-string EaVer = "1.3.1";
+string EaVer = "1.3.2";
 //|-----------------------------------------------------------------------------------------|
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
@@ -147,94 +130,6 @@ double gd_unused_432 = 3.0;
 //|-----------------------------------------------------------------------------------------|
 //|                           I N T E R N A L   F U N C T I O N S                           |
 //|-----------------------------------------------------------------------------------------|
-bool isOkWave1Buy(bool isOkUp, bool isOk2Up, bool isOkDn, bool isOk2Dn)
-{
-//--- Assert default is Ok to trade
-   bool ret=true;
-   if( !UseWave1TDSetup )  return(ret);
-   
-   if( TDDoNotBuyUpLine == 1 )   ret = ret && isOkUp == false;
-   if( TDDoNotBuyUpLine == 2 )   ret = ret && isOkUp == true;
-   if( TDDoNotBuy2UpLine == 1 )  ret = ret && isOk2Up == false;
-   if( TDDoNotBuy2UpLine == 2 )  ret = ret && isOk2Up == true;
-   if( TDDoNotBuyDnLine == 1 )   ret = ret && isOkDn == false;
-   if( TDDoNotBuyDnLine == 2 )   ret = ret && isOkDn == true;
-   if( TDDoNotBuy2DnLine == 1 )  ret = ret && isOk2Dn == false;
-   if( TDDoNotBuy2DnLine == 2 )  ret = ret && isOk2Dn == true;
-   return(ret);
-}
-bool isOkWave1Sell(bool isOkUp, bool isOk2Up, bool isOkDn, bool isOk2Dn)
-{
-//--- Assert default is Ok to trade
-   bool ret=true;
-   if( !UseWave1TDSetup )  return(ret);
-   
-   if( TDDoNotSellUpLine == 1 )  ret = ret && isOkUp == false;
-   if( TDDoNotSellUpLine == 2 )  ret = ret && isOkUp == true;
-   if( TDDoNotSell2UpLine == 1 ) ret = ret && isOk2Up == false;
-   if( TDDoNotSell2UpLine == 2 ) ret = ret && isOk2Up == true;
-   if( TDDoNotSellDnLine == 1 )  ret = ret && isOkDn == false;
-   if( TDDoNotSellDnLine == 2 )  ret = ret && isOkDn == true;
-   if( TDDoNotSell2DnLine == 1 ) ret = ret && isOk2Dn == false;
-   if( TDDoNotSell2DnLine == 2 ) ret = ret && isOk2Dn == true;
-   return(ret);
-}
-void LoadGlobalVars(int type)
-{
-//--- Assert default is Ok to trade
-   bool isOkUp, isOk2Up, isOkDn, isOk2Dn;
-
-   if( type == OP_BUY )
-   {
-      if( TDDoNotBuyUpLine == 1 )   isOkUp   = false;
-      if( TDDoNotBuyUpLine == 2 )   isOkUp   = true;
-      if( TDDoNotBuy2UpLine == 1 )  isOk2Up  = false;
-      if( TDDoNotBuy2UpLine == 2 )  isOk2Up  = true;
-      if( TDDoNotBuyDnLine == 1 )   isOkDn   = false;
-      if( TDDoNotBuyDnLine == 2 )   isOkDn   = true;
-      if( TDDoNotBuy2DnLine == 1 )  isOk2Dn  = false;
-      if( TDDoNotBuy2DnLine == 2 )  isOk2Dn  = true;
-   }
-   if( type == OP_SELL )
-   {
-      if( TDDoNotSellUpLine == 1 )  isOkUp   = false;
-      if( TDDoNotSellUpLine == 2 )  isOkUp   = true;
-      if( TDDoNotSell2UpLine == 1 ) isOk2Up  = false;
-      if( TDDoNotSell2UpLine == 2 ) isOk2Up  = true;
-      if( TDDoNotSellDnLine == 1 )  isOkDn   = false;
-      if( TDDoNotSellDnLine == 2 )  isOkDn   = true;
-      if( TDDoNotSell2DnLine == 1 ) isOk2Dn  = false;
-      if( TDDoNotSell2DnLine == 2 ) isOk2Dn  = true;
-   }
-   
-   if( !UseWave1TDSetup )
-   {
-      isOkUpLine  = isOkUp;
-      isOk2UpLine = isOk2Up;
-      isOkDnLine  = isOkDn;
-      isOk2DnLine = isOk2Dn;
-      return(0);
-   }
-   
-   if( GlobalVariableCheck( gTDIsOkUpLineStr ) ) 
-      isOkUpLine  = GlobalVariableGet( gTDIsOkUpLineStr );
-   else
-      isOkUpLine  = isOkUp;
-   if( GlobalVariableCheck( gTDIsOk2UpLineStr ) ) 
-      isOk2UpLine = GlobalVariableGet( gTDIsOk2UpLineStr );
-   else
-      isOk2UpLine = isOk2Up;
-      
-   if( GlobalVariableCheck( gTDIsOkDnLineStr ) ) 
-      isOkDnLine = GlobalVariableGet( gTDIsOkDnLineStr );
-   else
-      isOkDnLine = isOkDn;
-   if( GlobalVariableCheck( gTDIsOk2DnLineStr ) ) 
-      isOk2DnLine = GlobalVariableGet( gTDIsOk2DnLineStr );
-   else
-      isOk2DnLine = isOk2Dn;
-}
-
 void UpdateState(string as_0) {
    if (InternalControl && (!ManualTradeControl) && (!Assign_PT_and_ST)) {
       ObjectDelete("fgbPosInfo" + gi_416);
@@ -532,8 +427,7 @@ void AdjustPosition(int ai_0) {
          for (count_28 = 0; count_28 < gi_348; count_28++)
          {
          //--- Assert check for qualifier 1 (when line is broken, it is ok to trade)
-            LoadGlobalVars( OP_BUY );
-            if( isOkWave1Buy( isOkUpLine, isOk2UpLine, isOkDnLine, isOk2DnLine ) )
+            if( TDWave1Buy() )
                ticket_36 = GhostOrderSend(Symbol(), OP_BUY, MathAbs(ld_12), normPrice(Ask), 25, 0, 0, g_comment_128, Magic, 0, Green);
             if (ticket_36 > 0)
             {
@@ -546,7 +440,8 @@ void AdjustPosition(int ai_0) {
                   EaDebugInt("type", OP_BUY)+
                   EaDebugDbl("lot", MathAbs(ld_12))+
                   EaDebugDbl("openPrice", normPrice(Ask))+
-                  EaDebugBln("isOkWave1Buy", isOkWave1Buy( isOkUpLine, isOk2UpLine, isOkDnLine, isOk2DnLine ) ) );
+                  TDDebugGlobal()+
+                  EaDebugBln("TDWave1Buy",true) );
                break;
             }
             Sleep(gi_352);
@@ -561,8 +456,7 @@ void AdjustPosition(int ai_0) {
          for (count_28 = 0; count_28 < gi_348; count_28++)
          {
          //--- Assert check for qualifier 1 (when line is broken, it is ok to trade)
-            LoadGlobalVars( OP_SELL );
-            if( isOkWave1Sell( isOkUpLine, isOk2UpLine, isOkDnLine, isOk2DnLine ) )
+            if( TDWave1Sell() )
                ticket_36 = GhostOrderSend(Symbol(), OP_SELL, MathAbs(ld_12), normPrice(Bid), 25, 0, 0, g_comment_128, Magic, 0, Red);
             if (ticket_36 > 0) 
             {
@@ -575,7 +469,8 @@ void AdjustPosition(int ai_0) {
                   EaDebugInt("type", OP_SELL)+
                   EaDebugDbl("lot", MathAbs(ld_12))+
                   EaDebugDbl("openPrice", normPrice(Bid))+
-                  EaDebugBln("isOkWave1Sell", isOkWave1Sell( isOkUpLine, isOk2UpLine, isOkDnLine, isOk2DnLine ) ) );
+                  TDDebugGlobal()+
+                  EaDebugBln("TDWave1Sell",true) );
                break;
             }
             Sleep(gi_352);
@@ -653,33 +548,9 @@ int init() {
    g_datetime_424 = 0;
    
 //--- Assert 3: Init Plus mods   
+   TDInit();
    TurtleInit();
    GhostInit();
-//--- Assert : UseWave1TDSetup true checks for existing global vars
-   if( UseWave1TDSetup )
-   {
-      if( TDPeriod == 0 )  TDPeriod = Period();
-      bool found = true;
-      gTDIsOkUpLineStr  = StringConcatenate( Symbol(), "_", TDPeriod, "_IsOkUpLine" );
-      gTDIsOk2UpLineStr = StringConcatenate( Symbol(), "_", TDPeriod, "_IsOk2UpLine" );
-      gTDIsOkDnLineStr  = StringConcatenate( Symbol(), "_", TDPeriod, "_IsOkDnLine" );
-      gTDIsOk2DnLineStr = StringConcatenate( Symbol(), "_", TDPeriod, "_IsOk2DnLine" );
-      found = found && GlobalVariableCheck( gTDIsOkUpLineStr );
-      found = found && GlobalVariableCheck( gTDIsOk2UpLineStr );
-      found = found && GlobalVariableCheck( gTDIsOkDnLineStr );
-      found = found && GlobalVariableCheck( gTDIsOk2DnLineStr );
-      if( !found )
-      {
-         UseWave1TDSetup = false;
-         EaDebugPrint( 0, "init",
-            EaDebugStr("EaName",EaName)+
-            EaDebugStr("EaVer",EaVer)+
-            EaDebugInt("mgc",Magic)+
-            EaDebugStr("sym",Symbol())+
-            EaDebugInt("TDPeriod", TDPeriod)+
-            " At least ONE of FOUR (4) global variables do not exist. Set UseWave1TDSetup=False." );
-      }
-   }
    
    if (gi_380) {
       ObjectDelete("fgbLicenseInfo" + gi_420);
@@ -977,8 +848,7 @@ int start() {
                      for (count_8 = 0; count_8 < gi_348; count_8++)
                      {
                      //--- Assert check for qualifier 1 (when line is broken, it is ok to trade)
-                        LoadGlobalVars( OP_BUY );
-                        if( isOkWave1Buy( isOkUpLine, isOk2UpLine, isOkDnLine, isOk2DnLine )  )
+                        if( TDWave1Buy()  )
                            ticket_44 = GhostOrderSend(Symbol(), OP_BUY, LotSize, price_164, 25, 0, 0, g_comment_128, Magic, 0, Green);
                         if (ticket_44 > 0)
                         {
@@ -991,7 +861,8 @@ int start() {
                               EaDebugInt("type", OP_BUY)+
                               EaDebugDbl("lot", LotSize)+
                               EaDebugDbl("openPrice", price_164)+
-                              EaDebugBln("isOkWave1Buy", isOkWave1Buy( isOkUpLine, isOk2UpLine, isOkDnLine, isOk2DnLine ) ) );
+                              TDDebugGlobal()+
+                              EaDebugBln("TDWave1Buy",true) );
                            break;
                         }
                         Sleep(gi_352);
@@ -1020,8 +891,7 @@ int start() {
                   while (count_8 < gi_348) 
                   {
                   //--- Assert check for qualifier 1 (when line is broken, it is ok to trade)
-                     LoadGlobalVars( OP_SELL );
-                     if( isOkWave1Sell( isOkUpLine, isOk2UpLine, isOkDnLine, isOk2DnLine ) )
+                     if( TDWave1Sell() )
                         ticket_44 = GhostOrderSend(Symbol(), OP_SELL, LotSize, price_164, 100, 0, 0, g_comment_128, Magic, 0, Red);
                      if (ticket_44 > 0) 
                      {
@@ -1034,7 +904,8 @@ int start() {
                            EaDebugInt("type", OP_SELL)+
                            EaDebugDbl("lot", LotSize)+
                            EaDebugDbl("openPrice", price_164)+
-                           EaDebugBln("isOkWave1Sell", isOkWave1Sell( isOkUpLine, isOk2UpLine, isOkDnLine, isOk2DnLine ) ) );
+                           TDDebugGlobal()+
+                           EaDebugBln("TDWave1Sell",true) );
                         break;
                      }
                      Sleep(gi_352);
@@ -1125,42 +996,9 @@ string EaComment(string cmt="")
    string strtmp = cmt+"-->"+EaName+" "+EaVer+"<--";
 //--- Assert Basic info in comment
    strtmp=strtmp+"\n";
-   if(UseWave1TDSetup)
-   {
-      strtmp=strtmp+"  Wave1 Enabled.";
-      strtmp=strtmp+"  Period="+TDPeriod;
-      strtmp=strtmp+"\n";
-   //--- Wave1 logic for Do Not Buy
-      if( TDDoNotBuyUpLine>0 || TDDoNotBuy2UpLine>0 || TDDoNotBuyDnLine>0 || TDDoNotBuy2DnLine>0 )
-      {
-         strtmp=strtmp+"  Do Not Buy Cond:";
-         if( TDDoNotBuyUpLine==1 )  strtmp=strtmp+"  UpOk";
-         if( TDDoNotBuyUpLine==2 )  strtmp=strtmp+"  UpBrk";
-         if( TDDoNotBuy2UpLine==1 ) strtmp=strtmp+"  Up2Ok";
-         if( TDDoNotBuy2UpLine==2 ) strtmp=strtmp+"  Up2Brk";
-         if( TDDoNotBuyDnLine==1 )  strtmp=strtmp+"  DnOk";
-         if( TDDoNotBuyDnLine==2 )  strtmp=strtmp+"  DnBrk";
-         if( TDDoNotBuy2DnLine==1 ) strtmp=strtmp+"  Dn2Ok";
-         if( TDDoNotBuy2DnLine==2 ) strtmp=strtmp+"  Dn2Brk";
-         strtmp=strtmp+"\n";
-      }
-   //--- Wave 1 logic for Do Not Sell
-      if( TDDoNotSellUpLine>0 || TDDoNotSell2UpLine>0 || TDDoNotSellDnLine>0 || TDDoNotSell2DnLine>0 )
-      {
-         strtmp=strtmp+"  Do Not Sell Cond:";
-         if( TDDoNotSellUpLine==1 )  strtmp=strtmp+"  UpOk";
-         if( TDDoNotSellUpLine==2 )  strtmp=strtmp+"  UpBrk";
-         if( TDDoNotSell2UpLine==1 ) strtmp=strtmp+"  Up2Ok";
-         if( TDDoNotSell2UpLine==2 ) strtmp=strtmp+"  Up2Brk";
-         if( TDDoNotSellDnLine==1 )  strtmp=strtmp+"  DnOk";
-         if( TDDoNotSellDnLine==2 )  strtmp=strtmp+"  DnBrk";
-         if( TDDoNotSell2DnLine==1 ) strtmp=strtmp+"  Dn2Ok";
-         if( TDDoNotSell2DnLine==2 ) strtmp=strtmp+"  Dn2Brk";
-         strtmp=strtmp+"\n";
-      }
-   }
    
 //--- Assert additional comments here
+   strtmp=TDComment(strtmp);
    strtmp=TurtleComment(strtmp);
    strtmp=GhostComment(strtmp);
    
