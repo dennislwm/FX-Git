@@ -2,6 +2,7 @@
 //|                                                            TsaktuoDealClient_SqLite.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.0.2   Added PlusTD to provide support functions for TDSetup indicator.                |
 //| 1.0.1   Added PlusInit, PlusTurtle, and PlusGhost.                                      |
 //|            a) Functions that have non-Nested non-Select Ghost calls:                    |
 //|                  DealIN()                                                               |
@@ -29,9 +30,11 @@
 #define OP_OUTALL 3 // Custom DEAL ENTRY type.
 //--- Assert 5: Plus include files
 #include <PlusInit.mqh>
-extern   string   s1             ="-->PlusTurtle Settings<--";
+extern string     s1             = "-->PlusTD Settings<--";
+#include <PlusTD.mqh>
+extern   string   s2             ="-->PlusTurtle Settings<--";
 #include <PlusTurtle.mqh>
-extern   string   s2             ="-->PlusGhost Settings<--";
+extern   string   s3             ="-->PlusGhost Settings<--";
 #include <PlusGhost.mqh>
 //|-----------------------------------------------------------------------------------------|
 //|                           E X T E R N A L   V A R I A B L E S                           |
@@ -54,7 +57,7 @@ extern double  InpMaxRemoteLotSize =      15.00;
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string   EaName         = "TsaktuoDealClient_SqLite";
-string   EaVer          = "1.0.1";
+string   EaVer          = "1.0.2";
 int      iSocketHandle  =0;
 //|-----------------------------------------------------------------------------------------|
 //|                              I N I T I A L I S A T I O N                                |
@@ -62,6 +65,7 @@ int      iSocketHandle  =0;
 int init() {
 //--- Assert 3: Init Plus   
    InitInit();
+   TDInit();
    TurtleInit();
    GhostInit();
    return(0);
@@ -141,6 +145,9 @@ int start()
    while(!IsStopped())
      {
       Print("Client: Waiting for DEAL...");
+   //--- Assert 2: Refresh Plus   
+      GhostRefresh();
+      Comment(EaComment());
       ArrayInitialize(iBuffer,0);
       iRetVal=recv(iSocketHandle,iBuffer,ArraySize(iBuffer)<<2,0);
       if(iRetVal>0)
@@ -450,11 +457,22 @@ void DealIN(string symbol,int cmd,double volume,double price,double stoploss,dou
   {
    double prc=0;
 
+//--- Assert TDWave1
+   bool  isWave1Ok;
+   
    if(cmd==OP_SELL)
+   {
+      isWave1Ok = TDWave1Sell();
       prc= MarketInfo(symbol,MODE_BID);
+   }
    else if(cmd==OP_BUY)
+   {
+      isWave1Ok = TDWave1Buy();
       prc=MarketInfo(symbol,MODE_ASK);
-
+   }
+//--- Assert exit do not open a new trade
+   if( !isWave1Ok ) return(0);
+   
    string comment="IN."+Type2String(cmd);
 
    int iRetVal=GhostOrderSend(symbol,cmd,volume,prc,InpSlippage,stoploss,takeprofit,comment,account);
@@ -483,9 +501,23 @@ void DealIN(string symbol,int cmd,double volume,double price,double stoploss,dou
          if(iRetVal<0) retries++;
          else break;
         }
-
-      if(iRetVal<0)
-         Print("Failed to execute order! Error: ",GetLastError());
+     }
+   if(iRetVal<=0)
+      Print("Failed to execute order! Error: ",GetLastError());
+   else
+     {
+      EaDebugPrint( 0, "DealIN",
+         EaDebugStr("EaName", EaName)+
+         EaDebugStr("EaVer", EaVer)+
+         EaDebugStr("sym", Symbol())+
+         EaDebugInt("mgc", account)+
+         EaDebugInt("port", InpServerPort)+
+         EaDebugInt("ticket", iRetVal)+
+         EaDebugInt("type", cmd)+
+         EaDebugDbl("lot", volume)+
+         EaDebugDbl("openPrice", prc)+
+         TDDebugGlobal()+
+         EaDebugBln("TDWave1", true) );
      }
   }
 //+------------------------------------------------------------------+
@@ -885,6 +917,7 @@ string EaComment(string cmt="")
    strtmp=strtmp+"\n";
    
 //--- Assert additional comments here
+   strtmp=TDComment(strtmp);
    strtmp=TurtleComment(strtmp);
    strtmp=GhostComment(strtmp);
    
