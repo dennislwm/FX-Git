@@ -2,6 +2,8 @@
 //|                                                    WallStreetForexRobot_v3.9_Sqlite.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.3.1   Check if MagicNumber is returned correctly by broker. If not then set           |
+//|            MaxAccountTrades=0 (disable the EA).                                         |
 //| 1.3.0   Added PlusTD to replace previous support functions for TDSetup indicator.       |
 //| 1.2.0   Added qualifier ONE (1), checks that TDST UpLine has been broken, and DnLine    |
 //|            has NOT been broken, before opening a LONG trade. Conversely, checks that    |
@@ -47,7 +49,7 @@ extern int        EaViewDebug                = 0;
 extern int        EaViewDebugNoStack         = 1000;
 extern int        EaViewDebugNoStackEnd      = 10;
 string EaName = "WallStreetForexRobot_v3.9_Sqlite";
-string EaVer = "1.3.0";
+string EaVer = "1.3.1";
 extern int Magic = 4698523;
 extern string EA_Comment = "";
 extern int MaxSpread = 4;
@@ -406,7 +408,7 @@ int start() {
                      aTakeProfit[aCount]  = price_164;
                      aCount ++;
                      if( aCount >= MaxAccountTrades ) break;
-                     //GhostOrderModify(GhostOrderTicket(), GhostOrderOpenPrice(), price_156, price_164, 0, Green);
+                     /*GhostOrderModify(GhostOrderTicket(), GhostOrderOpenPrice(), price_156, price_164, 0, Green);*/
                      continue;
                   }
                   if (Bid >= GhostOrderOpenPrice() + TakeProfit * gd_372 || 
@@ -420,11 +422,11 @@ int start() {
                      //--- 3: Assert replace OrderClose a buy trade with arrays
                         aCommand[aCount]  = 2;  // OrderClose a buy trade
                         aCount ++;
+                        count_128--;
                         if( aCount >= MaxAccountTrades ) break;
-                        /*if (GhostOrderClose(GhostOrderTicket(), GhostOrderLots(), NormalizeDouble(Bid, Digits), Slippage, Violet)) {
-                           count_128--;
-                           break;
-                        }*/
+                        /*if (GhostOrderClose(GhostOrderTicket(), GhostOrderLots(), NormalizeDouble(Bid, Digits), Slippage, Violet)) { */
+                        break;
+                        /*}*/
                         Sleep(MathMax(100, 1000 * gi_100));
                      }
                      Sleep(5000);
@@ -438,49 +440,50 @@ int start() {
                   if( aCount >= MaxAccountTrades ) break;
                   //GhostOrderModify(GhostOrderTicket(), GhostOrderOpenPrice(), NormalizeDouble(GhostOrderOpenPrice() + SecureProfit * gd_372, Digits), GhostOrderTakeProfit(), 0, Blue);
                   continue;
-               }
-               count_132++;
-               if (GhostOrderStopLoss() == 0.0 && StealthMode == FALSE) {
-                  price_156 = NormalizeDouble(GhostOrderOpenPrice() + StopLoss * gd_372, Digits);
-                  price_164 = NormalizeDouble(GhostOrderOpenPrice() - TakeProfit * gd_372, Digits);
-               //--- Assert 5: Replace OrderModify a sell trade with arrays.
-                  aCommand[aCount]     = 3;
-                  aStopLoss[aCount]    = price_156;
-                  aTakeProfit[aCount]  = price_164;
-                  aCount ++;
-                  if( aCount >= MaxAccountTrades ) break;
-                  //GhostOrderModify(GhostOrderTicket(), GhostOrderOpenPrice(), price_156, price_164, 0, Green);
-                  continue;
-               }
-               if (Ask <= GhostOrderOpenPrice() - TakeProfit * gd_372 || 
-                   Ask >= GhostOrderOpenPrice() + StopLoss * gd_372 || 
-                  (CloseShort(GhostOrderOpenPrice(), iwpr_96, iclose_80, iOpen(NULL, PERIOD_M1, 1), iClose(NULL, PERIOD_M1, 1)) && 
-                   TimeCurrent() - GhostOrderOpenTime() > 180) || 
-                  (FridayExit && DayOfWeek() == 5 && Hour() >= ExitHour && 
-                   TimeCurrent() - GhostOrderOpenTime() > 180)) {
-                  for (li_148 = 1; li_148 <= MathMax(1, gi_96); li_148++) {
-                     RefreshRates();
-                  //--- Assert 3: Replace OrderClose a sell trade with arrays.
-                     aCommand[aCount]  = 4;
+               } else {
+                  count_132++;
+                  if (GhostOrderStopLoss() == 0.0 && StealthMode == FALSE) {
+                     price_156 = NormalizeDouble(GhostOrderOpenPrice() + StopLoss * gd_372, Digits);
+                     price_164 = NormalizeDouble(GhostOrderOpenPrice() - TakeProfit * gd_372, Digits);
+                  //--- Assert 5: Replace OrderModify a sell trade with arrays.
+                     aCommand[aCount]     = 3;
+                     aStopLoss[aCount]    = price_156;
+                     aTakeProfit[aCount]  = price_164;
                      aCount ++;
-                     break;
-                     /*if (GhostOrderClose(GhostOrderTicket(), GhostOrderLots(), NormalizeDouble(Ask, Digits), Slippage, Violet)) {
-                        count_132--;
-                        break;
-                     }*/
-                     Sleep(MathMax(100, 1000 * gi_100));
+                     if( aCount >= MaxAccountTrades ) break;
+                     //GhostOrderModify(GhostOrderTicket(), GhostOrderOpenPrice(), price_156, price_164, 0, Green);
+                     continue;
                   }
-                  Sleep(5000);
-                  continue;
-               }
-               if (GhostOrderOpenPrice() - Ask > SecureProfitTriger * gd_372 && MathAbs(GhostOrderOpenPrice() - SecureProfit * gd_372 - GhostOrderStopLoss()) >= Point) 
-               {
-               //--- Assert 4: Replace OrderModify a sell trade with arrays.
-                  aCommand[aCount]     = 3;
-                  aStopLoss[aCount]    = NormalizeDouble(GhostOrderOpenPrice() - SecureProfit * gd_372, Digits);
-                  aCount ++;
-                  if( aCount >= MaxAccountTrades ) break;
-                  //GhostOrderModify(GhostOrderTicket(), GhostOrderOpenPrice(), NormalizeDouble(GhostOrderOpenPrice() - SecureProfit * gd_372, Digits), GhostOrderTakeProfit(), 0, Red);
+                  if (Ask <= GhostOrderOpenPrice() - TakeProfit * gd_372 || 
+                     Ask >= GhostOrderOpenPrice() + StopLoss * gd_372 || 
+                     (CloseShort(GhostOrderOpenPrice(), iwpr_96, iclose_80, iOpen(NULL, PERIOD_M1, 1), iClose(NULL, PERIOD_M1, 1)) && 
+                     TimeCurrent() - GhostOrderOpenTime() > 180) || 
+                     (FridayExit && DayOfWeek() == 5 && Hour() >= ExitHour && 
+                     TimeCurrent() - GhostOrderOpenTime() > 180)) {
+                     for (li_148 = 1; li_148 <= MathMax(1, gi_96); li_148++) {
+                        RefreshRates();
+                     //--- Assert 3: Replace OrderClose a sell trade with arrays.
+                        aCommand[aCount]  = 4;
+                        aCount ++;
+                        count_132--;
+                        if( aCount >= MaxAccountTrades ) break;
+                        /*if (GhostOrderClose(GhostOrderTicket(), GhostOrderLots(), NormalizeDouble(Ask, Digits), Slippage, Violet)) {*/
+                        break;
+                        /*}*/
+                        Sleep(MathMax(100, 1000 * gi_100));
+                     }
+                     Sleep(5000);
+                     continue;
+                  }
+                  if (GhostOrderOpenPrice() - Ask > SecureProfitTriger * gd_372 && MathAbs(GhostOrderOpenPrice() - SecureProfit * gd_372 - GhostOrderStopLoss()) >= Point) 
+                  {
+                  //--- Assert 4: Replace OrderModify a sell trade with arrays.
+                     aCommand[aCount]     = 3;
+                     aStopLoss[aCount]    = NormalizeDouble(GhostOrderOpenPrice() - SecureProfit * gd_372, Digits);
+                     aCount ++;
+                     if( aCount >= MaxAccountTrades ) break;
+                     //GhostOrderModify(GhostOrderTicket(), GhostOrderOpenPrice(), NormalizeDouble(GhostOrderOpenPrice() - SecureProfit * gd_372, Digits), GhostOrderTakeProfit(), 0, Red);
+                  }
                }
             }
          }
@@ -540,7 +543,7 @@ int start() {
    int cmd_36 = -1;
    if (count_128 < 1 && OpenLong(iclose_80, ima_88, iwpr_96, icci_112)) {
       if (Ask - Bid > MaxSpread * gd_372) {
-         Print("BUY not taken!!! - High spead...");
+         Print("BUY not taken!!! - High spread...");
          Sleep(1000);
       } else {
          if (!li_172) {
@@ -577,15 +580,22 @@ int start() {
       }
    }
    if (cmd_36 >= OP_BUY && CheckLossPause()) {
-      bool isWave1Ok = true;
+      bool  isWave1Ok = true;
+      int   numTrades = 0;
       for (li_148 = 1; li_148 <= MathMax(1, gi_96); li_148++) {
          if( cmd_36 == OP_BUY )
+         {
             isWave1Ok = TDWave1Buy();
+            numTrades = count_128;
+         }
          if( cmd_36 == OP_SELL )
+         {
             isWave1Ok = TDWave1Sell();
+            numTrades = count_132;
+         }
          if( isWave1Ok )
             ticket_144 = GhostOrderSend(Symbol(), cmd_36, lots_40, price_8, Slippage, 0, 0, EA_Comment, Magic, 0, color_32);
-         if (ticket_144 >= 0)
+         if (ticket_144 > 0)
          {
             EaDebugPrint( 0, "start",
                EaDebugStr("EaName", EaName)+
@@ -596,6 +606,7 @@ int start() {
                EaDebugInt("type", cmd_36)+
                EaDebugDbl("lot", lots_40)+
                EaDebugDbl("openPrice", price_8)+
+               EaDebugInt("numTrades", numTrades)+
                TDDebugGlobal()+
                EaDebugBln("TDWave1", true) );
             break;
@@ -610,7 +621,25 @@ int start() {
       if (ticket_144 > 0) {
       //--- Assert 1: Init OrderSelect #2
          GhostInitSelect(true,ticket_144,SELECT_BY_TICKET,MODE_TRADES);
-         if (GhostOrderSelect(ticket_144, SELECT_BY_TICKET, MODE_TRADES)) Print("Order " + ls_180 + " opened!: ", GhostOrderOpenPrice());
+         if( GhostOrderSelect(ticket_144, SELECT_BY_TICKET, MODE_TRADES) ) 
+         {
+            Print("Order " + ls_180 + " opened!: ", GhostOrderOpenPrice());
+         //--- Check if Magic is set correctly by broker
+            if( GhostOrderMagicNumber() != Magic )
+            {
+               EaDebugPrint( 0, "start",
+                  EaDebugStr("EaName", EaName)+
+                  EaDebugStr("EaVer", EaVer)+
+                  EaDebugStr("sym", Symbol())+
+                  EaDebugInt("mgc", Magic)+
+                  EaDebugInt("ticket", ticket_144)+
+                  EaDebugInt("type", cmd_36)+
+                  EaDebugDbl("lot", lots_40)+
+                  EaDebugDbl("openPrice", price_8)+
+                  " Magic number not returned by broker. Set MaxAccountTrades=0." );
+               MaxAccountTrades=0;
+            }
+         }
       //--- Assert 1: Free OrderSelect #2
          GhostFreeSelect(false);
       } else Print("Error opening " + ls_180 + " order!: ", GetLastError());
