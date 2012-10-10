@@ -2,6 +2,7 @@
 //|                                                    WallStreetForexRobot_v3.9_Sqlite.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.3.2   Added function GetAccountOrdersTotal() to ensure total trades do not exceed.    |
 //| 1.3.1   Check if MagicNumber is returned correctly by broker. If not then set           |
 //|            MaxAccountTrades=0 (disable the EA).                                         |
 //| 1.3.0   Added PlusTD to replace previous support functions for TDSetup indicator.       |
@@ -49,7 +50,7 @@ extern int        EaViewDebug                = 0;
 extern int        EaViewDebugNoStack         = 1000;
 extern int        EaViewDebugNoStackEnd      = 10;
 string EaName = "WallStreetForexRobot_v3.9_Sqlite";
-string EaVer = "1.3.1";
+string EaVer = "1.3.2";
 extern int Magic = 4698523;
 extern string EA_Comment = "";
 extern int MaxSpread = 4;
@@ -593,8 +594,10 @@ int start() {
             isWave1Ok = TDWave1Sell();
             numTrades = count_132;
          }
-         if( isWave1Ok )
-            ticket_144 = GhostOrderSend(Symbol(), cmd_36, lots_40, price_8, Slippage, 0, 0, EA_Comment, Magic, 0, color_32);
+         if( GetAccountOrdersTotal() < MaxAccountTrades )
+         {
+            if( isWave1Ok ) ticket_144 = GhostOrderSend(Symbol(), cmd_36, lots_40, price_8, Slippage, 0, 0, EA_Comment, Magic, 0, color_32);
+         }
          if (ticket_144 > 0)
          {
             EaDebugPrint( 0, "start",
@@ -744,6 +747,30 @@ int CheckLossPause() {
       if (TimeCurrent() - datetime_4 < 3600 * gi_308) li_ret_0 = FALSE;
    }
    return (li_ret_0);
+}
+
+double GetAccountOrdersTotal() 
+{
+   int ret;
+//--- Assert 2: Init OrderSelect #13
+   int total = GhostOrdersTotal();
+   GhostInitSelect(true,0,SELECT_BY_POS,MODE_TRADES);
+   for( int pos = 0; pos <= total - 1; pos++ ) 
+   {
+      if( GhostOrderSelect(pos, SELECT_BY_POS, MODE_TRADES) )
+      {
+      //--- Count ALL trades in account
+      //       For ALL symbols
+      //       For ALL magic / non-magic numbers
+      //       For ALL opened trades
+      //       Exclude pending orders
+      //       Exclude historical orders
+         if (GhostOrderType() <= OP_SELL) ret ++;
+      }
+   }
+//--- Assert 1: Free OrderSelect #13
+   GhostFreeSelect(false);
+   return (ret);
 }
 
 int MyFirstInit() {
