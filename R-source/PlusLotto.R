@@ -14,11 +14,12 @@
 #|    (1) Forecast a set of Powerball, OzLotto, Gold, Toto or 4D numbers, based on          |
 #|        ARIMA(q).                                                                         |
 #|                                                                                          |
-#|        Lotto <- function(lottoStr, ticketNum) {                                          |
-#|        #---  Assert TWO (2) arguments:                                                   |
-#|        #        lottoStr:    MUST specify EITHER "powerball", "ozlotto", "satlotto",     |
-#|        #                     "wedlotto", OR "toto"                                       |
-#|        #        ticketNum:   integer value to specify number of tickets (default: 12)    |
+#|        Lotto <- function(lottoStr, ticketNum, startNum) {                                |
+#|        #---  Assert THREE (3) arguments:                                                 |
+#|        #       lottoStr:    MUST specify EITHER "powerball", "ozlotto", "satlotto",      |
+#|        #                   "wedlotto", OR "toto"                                         |
+#|        #       ticketNum:   integer value to specify number of tickets (default: 12)     |
+#|        #       startNum:    the start row that is used in forecast (default: 1)          |
 #|        }                                                                                 |
 #|                                                                                          |
 #|    (2) Update the result files for Powerball, OzLotto, Gold, Toto AND 4D.                |
@@ -30,14 +31,14 @@
 #|                                                                                          |
 #|    (3) Display a table summary of lotto power, based on ARIMA conf.                      |
 #|                                                                                          |
-#|        LottoArimaSummary <- function(startNum=1) {                                       |
+#|        LottoArimaSummary <- function(startNum) {                                         |
 #|        #---  Assert ONE (1) arguments:                                                   |
 #|        #       startNum:     the start row that is used in forecast (default: 1)         |
 #|        }                                                                                 |  
 #|                                                                                          |
 #|    (4) Display a table of confidence intervals for each number, based on ARIMA(q)        |
 #|                                                                                          |
-#|        LottoArimaConf <- function(lottoStr, startNum=1) {                                |
+#|        LottoArimaConf <- function(lottoStr, startNum) {                                  |
 #|        #---  Assert TWO (2) arguments:                                                   |
 #|        #       lottoStr:     MUST specify EITHER "powerball", "ozlotto", "satlotto",     |
 #|        #                     "wedlotto", OR "toto"                                       |
@@ -46,14 +47,51 @@
 #|                                                                                          |
 #|    (5) Display the latest results for Powerball, Ozlotto, Gold, Toto and 4D.             |
 #|                                                                                          |
-#|        LottoResult <- function(resNum=1, ...) {                                          |
+#|        LottoResult <- function(..., resNum) {                                            |
 #|        #---  Assert TWO (2) arguments:                                                   |
-#|        #       resNum:       the latest N results (default: 1)                           |
-#|        #       lottoStr:     optionally specify ANY of "powerball", "ozlotto",           |
+#|        #       ...:          optionally specify ANY of "powerball", "ozlotto",           |
 #|        #                     "satlotto", "wedlotto", "toto", AND/OR "4d" (default: ALL)  |
+#|        #       resNum:       the latest N results (default: 1)                           |
+#|        }                                                                                 |
+#|                                                                                          |
+#|    (6) Forecast a set of Powerball, OzLotto, Gold, Toto or 4D system numbers, based on   |
+#|        ARIMA(q).                                                                         |
+#|                                                                                          |
+#|        LottoSystem <- function(systemNum, lottoStr, ticketNum, startNum) {               |
+#|        #---  Assert FOUR (4) arguments:                                                  |
+#|        #       systemNum:   MUST be an integer between SEVEN (7) and TWELVE (12)         |
+#|        #       lottoStr:    MUST specify EITHER "powerball", "ozlotto", "satlotto",      |
+#|        #                    "wedlotto", OR "toto"                                        |
+#|        #       ticketNum:   integer value to specify number of tickets (default: 12)     |
+#|        #       startNum:    the start row that is used in forecast (default: 1)          |
+#|        }                                                                                 |
+#|                                                                                          |
+#|    (7) Forecast a standard set of numbers for ALL/ANY lotto games, based on ARIMA(q).    |
+#|                                                                                          |
+#|        LottoStandard <- function(..., ticketNum, startNum) {                             |
+#|        #---  Assert THREE (3) arguments:                                                 |
+#|        #       ...:          optionally specify ANY of "powerball", "ozlotto",           |
+#|        #                     "satlotto", "wedlotto", "toto", AND/OR "4d" (default: ALL)  |
+#|        #       ticketNum:   integer value to specify number of tickets (default: 12)     |
+#|        #       startNum:    the start row that is used in forecast (default: 1)          |
+#|        }                                                                                 |
+#|                                                                                          |
+#|    (8) Display the next available draw dates for ALL/ANY lotto games.                    |
+#|                                                                                          |
+#|        LottoDraw <- function(..., startNum) {                                            |
+#|        #---  Assert TWO (2) arguments:                                                   |
+#|        #       ...:          optionally specify ANY of "powerball", "ozlotto",           |
+#|        #                     "satlotto", "wedlotto", "toto", AND/OR "4d" (default: ALL)  |
+#|        #       startNum:    the start row that is used in forecast (default: 1)          |
 #|        }                                                                                 |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.0.2   Added THREE (3) external functions: LottoSystem(), LottoStandard(), and         |
+#|          LottoDraw(). Using the Gap analysis from Win4D, I have added EIGHT (8)          |
+#|          functions: LottoSeqConf(), Lotto4DSeq(), lottoTotoSeqSplitMtx(),                |
+#|          lotto4DSeqSplitMtx(), lottoTotoSeqDfr(), lotto4DSeqDfr(), lottoSeqAlongNum(),   |
+#|          and lotto4DSystemChr().                                                         |
+#|                                                                                          |
 #|  1.0.1   Incorporated 4D results into the FIVE (5) external functions, including the new |
 #|          function LottoResult(). Fixed the missing Supplementary Number in the toto      |
 #|          results file. Completed FOUR (4) internal 4D functions: lotto4DResultChr(),     |
@@ -73,27 +111,32 @@
 library(forecast)
 library(XML)
 library(R.utils)
+library(gtools)
 
 #|------------------------------------------------------------------------------------------|
 #|                            E X T E R N A L   F U N C T I O N S                           |
+#|------------------------------------------------------------------------------------------|
+#|------------------------------------------------------------------------------------------|
+#|                          E X T E R N A L   A   F U N C T I O N S                         |
 #|------------------------------------------------------------------------------------------|
 Lotto <- function(lottoStr, ticketNum=12, startNum=1)
 {
   #---  Assert TWO (2) arguments:                                                   
   #       lottoStr:     MUST specify EITHER "powerball", "ozlotto", "satlotto", "wedlotto",
-  #                     "toto", OR "4d"
+  #                     "toto", "4d"
   #       ticketNum:    integer value to specify number of tickets                 
   
   #---  Check that arguments are valid
   typeStr <- c("powerball", "ozlotto", "satlotto", "wedlotto", "toto", "4d")
   if( length(which(typeStr==lottoStr)) == 0 )
-    stop("lottoStr MUST be either: powerball, ozlotto, satlotto, wedlotto, toto OR 4d")
+    stop("lottoStr MUST be either: powerball, ozlotto, satlotto, wedlotto, toto, OR 4d")
   if( as.numeric(ticketNum) < 1 ) 
     stop("ticketNum MUST be greater than OR equal to ONE (1)")
 
   #---  Draw mechanism
   #       (1) Power draws Number 1-5 from same pool, then powerball from another pool
-  #       (2) Gold (sat and wed) AND Toto draw Number 1-6 from same pool
+  #       (2) Gold (sat and wed) draws Number 1-6 from same pool
+  #       (3) Toto draws Number 1-6 and Additional Number from same pool
   #       (3) Oz draws Number 1-7 from same pool
   #       (4) 4d draws Digit 1-4 EACH from DIFFERENT pools (i.e duplicates allowed)
   if(lottoStr == "powerball")
@@ -103,7 +146,7 @@ Lotto <- function(lottoStr, ticketNum=12, startNum=1)
   if(lottoStr == "wedlotto")
     dupCol <- 1:6
   if(lottoStr == "toto")
-    dupCol <- 1:6
+    dupCol <- 1:7
   if(lottoStr == "ozlotto")
     dupCol <- 1:7
   if(lottoStr == "4d")
@@ -136,7 +179,10 @@ Lotto <- function(lottoStr, ticketNum=12, startNum=1)
       #---  Check for condition (3)
       if( length(dupCol) > 1 )
       {
-        dupNum <- apply(tmpMtx[ ,dupCol], 1, anyDuplicated)
+        if( nrow(tmpMtx) > 1 )
+          dupNum <- apply(tmpMtx[ ,dupCol], 1, anyDuplicated)
+        else
+          dupNum <- anyDuplicated( tmpMtx[1, dupCol] )
         if( sum(dupNum) == 0 ) outMtx <- tmpMtx
       }
       else
@@ -147,6 +193,66 @@ Lotto <- function(lottoStr, ticketNum=12, startNum=1)
     paste0(outMtx[,1], outMtx[,2], outMtx[,3], outMtx[,4])
   else
     outMtx
+}  
+
+LottoSystem <- function(systemNum, lottoStr, ticketNum=12, startNum=1)
+{
+  #---  Assert THREE (3) arguments:
+  #       systemNum:    MUST be an integer between SEVEN (7) and TWELVE (12)
+  #       lottoStr:     MUST specify EITHER "powerball", "ozlotto", "satlotto", "wedlotto",
+  #                     OR "toto"
+  #       ticketNum:    integer value to specify number of tickets                 
+  
+  #---  Check that arguments are valid
+  typeStr <- c("powerball", "ozlotto", "satlotto", "wedlotto", "toto")
+  if( length(which(typeStr==lottoStr)) == 0 )
+    stop("lottoStr MUST be either: powerball, ozlotto, satlotto, wedlotto, OR toto")
+  if( as.numeric(ticketNum) < 1 ) 
+    stop("ticketNum MUST be greater than OR equal to ONE (1)")
+  
+  #---  Draw mechanism
+  #       (1) Power draws Number 1-5 from same pool, then powerball from another pool
+  #       (2) Gold (sat and wed) AND Toto draw Number 1-6 from same pool
+  #       (3) Oz draws Number 1-7 from same pool
+  #       (4) 4d draws Digit 1-4 EACH from DIFFERENT pools (i.e duplicates allowed)
+  if( lottoStr == "ozlotto" | lottoStr == "toto")
+    numCol <- 1:7
+  else
+    numCol <- 1:6
+  sysNum <- systemNum - max(numCol)
+  if( sysNum < 1 | sysNum > 6 ) 
+  {
+    if( lottoStr == "ozlotto" | lottoStr == "toto" )
+      stop("systemNum MUST be between EIGHT (8) and TWELVE (12)")
+    else
+      stop("systemNum MUST be between SEVEN (7) and TWELVE (12)")
+  }
+  
+  outMtx <- matrix(nrow = ticketNum, ncol = systemNum)
+  perMtx <- permutations(max(numCol), max(numCol))
+  lotMtx <- Lotto( lottoStr, ticketNum, startNum )
+  for( t in 1:nrow(lotMtx) )
+  {
+    #---  System mechanism
+    #       Get a standard ticket from the Arima model
+    #       If there is no intersection, then randomly draw n number
+    #       Append n number to the end of ticket for System
+    #       Discard the standard ticket and repeat again
+    stdMtx <- Lotto( lottoStr, 1, startNum )
+    while( length(intersect( stdMtx[1,], lotMtx[t,] )) > 0 )
+    {
+      stdMtx <- Lotto( lottoStr, 1, startNum )
+    }
+    idxNum <- round(runif(1, min=1, max=nrow(perMtx)))
+    perNum <- perMtx[idxNum, ]
+    for( i in 1:sysNum )
+    {
+      p <- max(numCol)+i
+      outMtx[t, p] <- stdMtx[perNum[i]]
+    }
+    outMtx[t, 1:max(numCol)] <- lotMtx[t, ]
+  }
+  outMtx
 }  
 
 LottoUpdate <- function(silent=TRUE)
@@ -167,7 +273,11 @@ LottoUpdate <- function(silent=TRUE)
     if( updNum == 0 ) 
       msgStr = paste("The ", lottoStr, " file is the latest.", sep="")
     else
+    {
+      #---  Sat and Wed lotto are the same lotto
+      if( lottoStr == "satlotto" | lottoStr == "wedlotto" ) updNum <- updNum / 2
       msgStr = paste("Updated ", updNum, " result(s) for ", lottoStr, " file.", sep="")
+    }
     print(msgStr)
   }
 }
@@ -179,7 +289,7 @@ LottoArimaSummary <- function(startNum=1)
   
   #---  Check that arguments are valid
   typeStr <- c("powerball", "ozlotto", "satlotto", "wedlotto", "toto", "4d")
-  if( as.numeric(startNum) < 1 & as.numeric(startNum) > 10 ) 
+  if( as.numeric(startNum) < 1 | as.numeric(startNum) > 10 ) 
     stop("startNum MUST be between ONE (1) and TEN (10)")
 
   #---  Compute power of odds
@@ -187,7 +297,7 @@ LottoArimaSummary <- function(startNum=1)
                factorial(45)/factorial(38)/lottoArimaNum("ozlotto", startNum),
                factorial(45)/factorial(39)/lottoArimaNum("satlotto", startNum),
                factorial(45)/factorial(39)/lottoArimaNum("wedlotto", startNum),
-               factorial(45)/factorial(39)/lottoArimaNum("toto", startNum),
+               factorial(45)/factorial(38)/lottoArimaNum("toto", startNum),
                10000/lottoArimaNum("4d", startNum) )
                
   data.frame(lotto=typeStr, power=round(pwrNum,1))
@@ -196,19 +306,19 @@ LottoArimaSummary <- function(startNum=1)
 LottoArimaConf <- function(lottoStr, startNum=1)
 {
   #---  Assert TWO (2) arguments:                                                   
-  #       lottoStr:     MUST specify EITHER "powerball", "ozlotto", "satlotto", "wedlotto", "toto", OR "4d"
+  #       lottoStr:     MUST specify EITHER "powerball", "ozlotto", "satlotto", "wedlotto", "toto" OR "4d"
   #       startNum:     the start row that is used in forecast (default: 1)                 
   
   #---  Check that arguments are valid
   typeStr <- c("powerball", "ozlotto", "satlotto", "wedlotto", "toto", "4d")
   if( length(which(typeStr==lottoStr)) == 0 )
     stop("lottoStr MUST be either: powerball, ozlotto, satlotto, wedlotto, toto OR 4d")
-  if( as.numeric(startNum) < 1 & as.numeric(startNum) > 10 ) 
+  if( as.numeric(startNum) < 1 | as.numeric(startNum) > 10 ) 
     stop("startNum MUST be between ONE (1) and TEN (10)")
   
   #---  Init loading data
   #       (1) Power, Gold (sat and wed), and Toto uses SIX (6) numbers
-  #       (2) Oz uses SEVEN (7) numbers
+  #       (2) Toto7 and Oz uses SEVEN (7) numbers
   rawDfr <- lottoReadDfr(lottoStr)
   rawDfr <- rawDfr[startNum:nrow(rawDfr), ]
   if(lottoStr == "powerball")
@@ -218,55 +328,23 @@ LottoArimaConf <- function(lottoStr, startNum=1)
   if(lottoStr == "wedlotto")
     rawMtx <- lottoPowerSplitMtx( rawDfr )
   if(lottoStr == "toto")
-    rawMtx <- lottoPowerSplitMtx( rawDfr )
+    rawMtx <- lottoOzSplitMtx( rawDfr )
   if(lottoStr == "ozlotto")
     rawMtx <- lottoOzSplitMtx( rawDfr )
   if(lottoStr == "4d")
     rawMtx <- lotto4DSplitMtx( rawDfr )
 
-  rawMtx <- rawMtx[complete.cases(rawMtx), ]
-  colNum <- ncol(rawMtx)
-  #---  Compute min, max and sum
+  #---  Compute min, max and sum confidence intervals
   if(lottoStr == "4d")
-    minNum <- rep.int(0, colNum)
+    lottoArimaConfDfr(rawMtx, 0)
   else
-    minNum <- rep.int(1, colNum)
-  maxNum <- apply(rawMtx, 2, max)
-  rawMtx <- cbind(rawMtx, apply(rawMtx, 1, sum))
-  
-  #--- fit MA on individual numbers and forecast for ONE (1) look ahead
-  #       compute the confidence for EACH number
-  upperNum <- numeric(0)
-  lowerNum <- numeric(0)
-  for (i in 1:ncol(rawMtx))
-  {
-    #---  Compute difNum, which is a vector of differences between the rows
-    #       E.g. difNum[1] = row[1] - row[2]
-    difNum <- -diff(rawMtx[ ,i])
-    
-    #---  Fit MA on diff and forecast for ONE (1) look ahead
-    dif.arima <- suppressWarnings(auto.arima(difNum, max.p=0))
-    dif.forecast <- forecast(dif.arima, h=1)
-    
-    #---  Rearrange the formula for difNum, and compute the new row and confidence, 
-    #       based on the diff forecast
-    #       row[0] = difNum[0] + row[1]
-    upperNum <- c(upperNum, max(forecast(dif.arima, h=1)$upper) + rawMtx[1, i])
-    lowerNum <- c(lowerNum, min(forecast(dif.arima, h=1)$lower) + rawMtx[1, i])
-  }
-  
-  foreDfr <- data.frame(lower=lowerNum, upper=upperNum)
-  foreDfr$lower <- round(foreDfr$lower)
-  foreDfr$upper <- trunc(foreDfr$upper)
-  for (i in 1:colNum)
-  {
-    foreDfr[i, 1] <- max(foreDfr[i, 1], minNum[i])
-    foreDfr[i, 2] <- min(foreDfr[i, 2], maxNum[i])
-  }
-  foreDfr
+    lottoArimaConfDfr(rawMtx, 1)
 }
 
-LottoResult <- function( resNum=1, ...)
+#|------------------------------------------------------------------------------------------|
+#|                          E X T E R N A L   B   F U N C T I O N S                         |
+#|------------------------------------------------------------------------------------------|
+LottoResult <- function( ..., resNum=1 )
 {
   #---  Assert TWO (2) arguments:                                                   
   #       resNum:       the number of results to display (default: 1)                 
@@ -344,8 +422,303 @@ LottoResult <- function( resNum=1, ...)
   }
 }
 
+LottoDraw <- function( ..., startNum=1)
+{
+  #---  Assert ONE (1) arguments:                                                   
+  #       ...:          optionally specify ANY of "powerball", "ozlotto", "satlotto", 
+  #                     "wedlotto", "toto", AND/OR "4d" (default: ALL)
+  #       startNum:     the start row that is used in forecast (default: 1)                 
+  
+  #---  Check that arguments are valid
+  userStr <- c(...)
+  typeStr <- c("powerball", "ozlotto", "satlotto", "wedlotto", "toto", "4d")
+  for( lottoStr in userStr )
+  {
+    if( length(which(typeStr==lottoStr)) == 0 )
+      stop("lottoStr MUST be ANY: powerball, ozlotto, satlotto, wedlotto, toto, AND/OR 4d")
+  }
+  if( as.numeric(startNum) < 1 | as.numeric(startNum) > 10 ) 
+    stop("startNum MUST be between ONE (1) and TEN (10)")
+  
+  if( length(userStr) > 0 ) typeStr <- userStr
+  dayChr <- c("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+  
+  #---  Display next draw date
+  for( lottoStr in typeStr )
+  {
+    nameStr <- c("Draw Date", "")
+    drawChr <- lottoDrawDateChr(lottoStr, startNum)
+    drawNum <- as.POSIXlt(as.Date(drawChr, "%Y/%m/%d"))$wday
+    rawDfr <- data.frame( drawChr, dayChr[drawNum+1] )
+    names( rawDfr ) <- nameStr
+    
+    print( toupper(lottoStr), row.names=FALSE )
+    print( rawDfr, row.names=FALSE )
+  }
+}
+
+LottoStandard <- function( ..., ticketNum=12, startNum=1 )
+{
+  #---  Assert THREE (3) arguments:                                                   
+  #       ...:          optionally specify ANY of "powerball", "ozlotto", "satlotto", 
+  #                     "wedlotto", "toto", AND/OR "4d" (default: ALL)
+  #       ticketNum:    integer value to specify number of tickets                 
+  #       startNum:     the start row that is used in forecast (default: 1)                 
+  
+  #---  Check that arguments are valid
+  if( as.numeric(ticketNum) < 1 ) 
+    stop("ticketNum MUST be greater than OR equal to ONE (1)")
+  if( as.numeric(startNum) < 1 | as.numeric(startNum) > 10 ) 
+    stop("startNum MUST be between ONE (1) and TEN (10)")
+  userStr <- c(...)
+  typeStr <- c("powerball", "ozlotto", "satlotto", "wedlotto", "toto", "4d")
+  for( lottoStr in userStr )
+  {
+    if( length(which(typeStr==lottoStr)) == 0 )
+      stop("lottoStr MUST be ANY: powerball, ozlotto, satlotto, wedlotto, toto, AND/OR 4d")
+  }
+  
+  #---  Display next draw date
+  for( lottoStr in typeStr )
+  {
+    print( toupper(lottoStr), row.names=FALSE )
+    print( Lotto(lottoStr, ticketNum, startNum), row.names=FALSE )
+  }
+}
+
+#|------------------------------------------------------------------------------------------|
+#|                          E X T E R N A L   C   F U N C T I O N S                         |
+#|------------------------------------------------------------------------------------------|
+Lotto4DSeq <- function( numChr, seqDfr )
+{
+  topChr <- character(0)
+  for( i in 1:length(numChr) )
+  {
+    #---  Call the Search Time function for EACH number
+    tNum <- lottoSeqAlongNum( "4d", numChr[i] )[1:6]
+    if( !is.na(tNum[1]) & !is.na(tNum[2]) & !is.na(tNum[3]) &
+      !is.na(tNum[4]) & !is.na(tNum[5]) & !is.na(tNum[6]) )
+    { 
+      sumNum <- tNum[1]+tNum[2]+tNum[3]+tNum[4]+tNum[5]+tNum[6]
+      if( tNum[1] >= seqDfr[1,1] & tNum[1] <= seqDfr[1,2] &
+        tNum[2] >= seqDfr[2,1] & tNum[2] <= seqDfr[2,2] &
+        tNum[3] >= seqDfr[3,1] & tNum[3] <= seqDfr[3,2] &
+        tNum[4] >= seqDfr[4,1] & tNum[4] <= seqDfr[4,2] &
+        tNum[5] >= seqDfr[5,1] & tNum[5] <= seqDfr[5,2] &
+        tNum[6] >= seqDfr[6,1] & tNum[6] <= seqDfr[6,2] &
+        sumNum >= seqDfr[7,1] & sumNum <= seqDfr[7,2] )
+      {
+        topChr <- rbind(topChr, numChr[i] )
+      }     
+    }
+  }
+  topChr
+}
+
+LottoSeqConf <- function( lottoStr, startNum=1 )
+{
+  #---  Check that arguments are valid
+  typeStr <- c("powerball", "ozlotto", "satlotto", "wedlotto", "toto", "4d")
+  if( length(which(typeStr==lottoStr)) == 0 )
+    stop("lottoStr MUST be either: powerball, ozlotto, satlotto, wedlotto, toto OR 4d")
+
+  rawDfr <- lottoReadDfr( lottoStr )
+  rawDfr <- rawDfr[startNum:nrow(rawDfr), ]
+  
+  #---  Generate a matrix of time differences
+  if( lottoStr == "toto" )
+    rawMtx <- lottoTotoSeqSplitMtx( rawDfr )
+  if( lottoStr == "4d" )
+    rawMtx <- lotto4DSeqSplitMtx( rawDfr )
+  
+  #---  Call the ARIMA function to get a confidence data frame
+  confDfr <- lottoArimaConfDfr( rawMtx, 1 )
+  confDfr
+}
+
 #|------------------------------------------------------------------------------------------|
 #|                            I N T E R N A L   F U N C T I O N S                           |
+#|------------------------------------------------------------------------------------------|
+#|------------------------------------------------------------------------------------------|
+#|                          I N T E R N A L   A   F U N C T I O N S                         |
+#|------------------------------------------------------------------------------------------|
+lottoArimaConfDfr <- function( rawMtx, mNum )
+{
+  rawMtx <- rawMtx[complete.cases(rawMtx), ]
+  colNum <- ncol(rawMtx)
+  #---  Compute min, max and sum
+  minNum <- rep.int(mNum, colNum)
+  mnsNum <- sum(minNum)
+  maxNum <- apply(rawMtx, 2, max)
+  rawMtx <- cbind(rawMtx, apply(rawMtx, 1, sum))
+  
+  #--- fit MA on individual numbers and forecast for ONE (1) look ahead
+  #       compute the confidence for EACH number
+  upperNum <- numeric(0)
+  lowerNum <- numeric(0)
+  for (i in 1:ncol(rawMtx))
+  {
+    #---  Compute difNum, which is a vector of differences between the rows
+    #       E.g. difNum[1] = row[1] - row[2]
+    difNum <- -diff(rawMtx[ ,i])
+    
+    #---  Fit MA on diff and forecast for ONE (1) look ahead
+    dif.arima <- suppressWarnings(auto.arima(difNum, max.p=0))
+    dif.forecast <- forecast(dif.arima, h=1)
+    
+    #---  Rearrange the formula for difNum, and compute the new row and confidence, 
+    #       based on the diff forecast
+    #       row[0] = difNum[0] + row[1]
+    upperNum <- c(upperNum, max(forecast(dif.arima, h=1)$upper) + rawMtx[1, i])
+    lowerNum <- c(lowerNum, min(forecast(dif.arima, h=1)$lower) + rawMtx[1, i])
+  }
+  
+  foreDfr <- data.frame(lower=lowerNum, upper=upperNum)
+  foreDfr$lower <- round(foreDfr$lower)
+  foreDfr$upper <- trunc(foreDfr$upper)
+  for (i in 1:colNum)
+  {
+    foreDfr[i, 1] <- max(foreDfr[i, 1], minNum[i])
+    foreDfr[i, 2] <- min(foreDfr[i, 2], maxNum[i])
+  }
+  foreDfr[colNum+1, 1] <- max(foreDfr[colNum+1, 1], mnsNum)
+  foreDfr
+}
+
+lotto4DSplitMtx <- function( rawDfr )
+{
+  #--- Coerce character into numeric or date
+  rawDfr[, 1] <- suppressWarnings( as.numeric( rawDfr[, 1] ) )    # Draw number
+  rawDfr[, 2] <- as.Date(rawDfr[, 2], "%Y/%m/%d")                 # Draw date
+  
+  rawDfr <- rawDfr[1:nrow(rawDfr), ]
+  topChr <- character(0)
+  for( i in 1:nrow(rawDfr) )
+  {
+    topChr <- rbind(topChr, rawDfr[i,5], rawDfr[i,4], rawDfr[i,3])
+  }
+  rawMtx <- cbind( as.numeric( substring(topChr, 1, 1) ),
+                   as.numeric( substring(topChr, 2, 2) ),
+                   as.numeric( substring(topChr, 3, 3) ),
+                   as.numeric( substring(topChr, 4, 4) ) )
+}
+
+lottoPowerSplitMtx <- function( rawDfr )
+{
+  #--- Coerce character into numeric or date
+  rawDfr[, 1] <- suppressWarnings( as.numeric( rawDfr[, 1] ) )    # Draw number
+  rawDfr[, 2] <- as.Date(rawDfr[, 2], "%Y/%m/%d")                 # Draw date
+  rawDfr[, 3] <- suppressWarnings( as.numeric( rawDfr[, 3] ) )    # Number 1-5 and Powerball
+  rawDfr[, 4] <- suppressWarnings( as.numeric( rawDfr[, 4] ) )    
+  rawDfr[, 5] <- suppressWarnings( as.numeric( rawDfr[, 5] ) )    
+  rawDfr[, 6] <- suppressWarnings( as.numeric( rawDfr[, 6] ) )    
+  rawDfr[, 7] <- suppressWarnings( as.numeric( rawDfr[, 7] ) )    
+  rawDfr[, 8] <- suppressWarnings( as.numeric( rawDfr[, 8] ) )    
+  
+  rawDfr <- rawDfr[1:nrow(rawDfr), ]
+  rawMtx <- cbind(rawDfr[, 3],rawDfr[, 4],rawDfr[, 5],rawDfr[, 6],rawDfr[, 7],rawDfr[, 8])
+}
+
+lottoOzSplitMtx <- function( rawDfr )
+{
+  #--- Coerce character into numeric or date
+  rawDfr[, 1] <- suppressWarnings( as.numeric( rawDfr[, 1] ) )    # Draw number
+  rawDfr[, 2] <- as.Date(rawDfr[, 2], "%Y/%m/%d")                 # Draw date
+  rawDfr[, 3] <- suppressWarnings( as.numeric( rawDfr[, 3] ) )    # Number 1-7
+  rawDfr[, 4] <- suppressWarnings( as.numeric( rawDfr[, 4] ) )    
+  rawDfr[, 5] <- suppressWarnings( as.numeric( rawDfr[, 5] ) )    
+  rawDfr[, 6] <- suppressWarnings( as.numeric( rawDfr[, 6] ) )    
+  rawDfr[, 7] <- suppressWarnings( as.numeric( rawDfr[, 7] ) )    
+  rawDfr[, 8] <- suppressWarnings( as.numeric( rawDfr[, 8] ) )    
+  rawDfr[, 9] <- suppressWarnings( as.numeric( rawDfr[, 9] ) )    
+  
+  rawDfr <- rawDfr[1:nrow(rawDfr), ]
+  rawMtx <- cbind(rawDfr[, 3],rawDfr[, 4],rawDfr[, 5],rawDfr[, 6],rawDfr[, 7],rawDfr[, 8],rawDfr[, 9])
+}
+
+lottoArimaNum <- function(lottoStr, startNum=1)
+{
+  #---  Assert TWO (2) arguments:                                                   
+  #       lottoStr:     MUST specify EITHER "powerball", "ozlotto", "satlotto", "wedlotto", "toto", OR "4d"
+  #       startNum:     the start row that is used in forecast (default: 1)                 
+  
+  #---  Check that arguments are valid
+  typeStr <- c("powerball", "ozlotto", "satlotto", "wedlotto", "toto", "4d")
+  if( length(which(typeStr==lottoStr)) == 0 )
+    stop("lottoStr MUST be either: powerball, ozlotto, satlotto, wedlotto, toto OR 4d")
+  if( as.numeric(startNum) < 1 | as.numeric(startNum) > 10 ) 
+    stop("startNum MUST be between ONE (1) and TEN (10)")
+  
+  #---  Call the ARIMA function to get a confidence data frame
+  confDfr <- LottoArimaConf(lottoStr, startNum)
+  confDfr$range <- confDfr$upper - confDfr$lower + 1
+  
+  sRow <- nrow(confDfr)
+  prod(confDfr[1:sRow-1,3])
+}
+
+#|------------------------------------------------------------------------------------------|
+#|                          I N T E R N A L   B   F U N C T I O N S                         |
+#|------------------------------------------------------------------------------------------|
+lottoWriteCsv <- function(datDfr, fileStr, 
+                         workDirStr="C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-nonsource")
+{
+  #---  Assert THREE (3) arguments:                                                   
+  #       datDfr:       data frame to be written                                               
+  #       fileStr:      name of the file (without the suffix "_part_xx" and extension ".csv"
+  #       workDirStr:   working directory                                             
+  
+  #---  Set working directory                                                         
+  setwd(workDirStr)
+  #---  Write data
+  #       Remove quotes from characters
+  write.table( datDfr, file=paste( fileStr, ".csv", sep="" ), sep=",", quote=FALSE )
+}
+
+lottoReadDfr <- function(fileStr, partNum=1, 
+                         workDirStr="C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-nonsource")
+{
+  #---  Assert THREE (3) arguments:                                                   
+  #       fileStr:      name of the file (without the suffix "_part_xx" and extension ".csv"
+  #       partNum:      number of parts                                               
+  #       workDirStr:   working directory                                             
+  #       retDfr:       NULL or a data frame (with partial OR full data)
+  
+  #---  Check that partNum is valid (between 1 to 999)                                 
+  if( as.numeric(partNum) < 1 || as.numeric(partNum) > 999 ) 
+    stop("partNum MUST be between 1 AND 999")
+  #---  Set working directory                                                         
+  setwd(workDirStr)
+  #---  Read data from split parts
+  #       Append suffix to the fileStr
+  #       Read each part and merge them together
+  
+  if( as.numeric(partNum) > 1 )
+  {
+    if( !file.exists( paste( fileStr, "_part001.csv", sep="" ) ) ) return( NULL )
+    retDfr <- read.csv( paste( fileStr, "_part001.csv", sep="" ), colClasses = "character" )
+    
+    for( id in 2:partNum )
+    {
+      #---  rbind() function will bind two data frames with the same header together
+      partStr <- paste( fileStr, "_part", sprintf("%03d", as.numeric(id)), ".csv", sep="" )
+      if( !file.exists( partStr ) ) break
+      tmpDfr <- read.csv( partStr, colClasses = "character")
+      retDfr <- rbind( retDfr, tmpDfr )
+    }
+  }
+  else
+  {
+    if( !file.exists( paste( fileStr, ".csv", sep="" ) ) ) return( NULL )
+    retDfr <- read.csv( paste( fileStr, ".csv", sep="" ), colClasses = "character" )
+  }
+  
+  #---  Return a data frame
+  return(retDfr)
+}
+
+#|------------------------------------------------------------------------------------------|
+#|                          I N T E R N A L   C   F U N C T I O N S                         |
 #|------------------------------------------------------------------------------------------|
 lotto4DResultChr <- function( drawNum )
 {
@@ -354,7 +727,7 @@ lotto4DResultChr <- function( drawNum )
                   drawNum, sep="")
   toto.HTML <- htmlParse(urlStr)
   toto.HTMLTable <- readHTMLTable(toto.HTML)
-
+  
   if( length(toto.HTMLTable) < 8 ) return( retNum )
   winDfr <- toto.HTMLTable[[6]]
   topChr <- levels( reorder(winDfr[ ,2], 1:3) )
@@ -406,7 +779,7 @@ lottoTotoResultNum <- function( drawNum )
                   drawNum, sep="")
   toto.HTML <- htmlParse(urlStr)
   toto.HTMLTable <- readHTMLTable(toto.HTML)
-
+  
   if( length(toto.HTMLTable) < 10 ) return( retNum )
   winDfr <- toto.HTMLTable[[8]]
   num.1 <- as.numeric( levels(winDfr[ ,1])[1] ) 
@@ -418,8 +791,8 @@ lottoTotoResultNum <- function( drawNum )
   winDfr <- toto.HTMLTable[[10]]
   num.7 <- as.numeric( levels(winDfr[ ,1])[1] )
   if( !is.na(num.1) & !is.na(num.2) & !is.na(num.3) &
-      !is.na(num.4) & !is.na(num.5) & !is.na(num.6) & 
-      !is.na(num.7) )
+    !is.na(num.4) & !is.na(num.5) & !is.na(num.6) & 
+    !is.na(num.7) )
   {
     retNum <- c( num.1, num.2, num.3, num.4, num.5, num.6, num.7 )
   }
@@ -511,7 +884,7 @@ lottoTattsUpdateNum <- function( lottoStr )
   typeStr <- c("powerball", "ozlotto", "satlotto", "wedlotto")
   if( length(which(typeStr==lottoStr)) == 0 )
     stop("lottoStr MUST be either: powerball, ozlotto, satlotto, OR wedlotto")
-
+  
   #---  Download from URL
   if(lottoStr == "powerball")
     urlStr <- "http://www.goldencasket.com/results/results_download_powerball.asp"
@@ -521,7 +894,7 @@ lottoTattsUpdateNum <- function( lottoStr )
     urlStr <- "http://www.goldencasket.com/results/results_download_gold_lotto.asp?type=wed"
   if(lottoStr == "ozlotto")
     urlStr <- "http://www.goldencasket.com/results/results_download_ozlotto.asp"
-
+  
   #---  There are TWO (2) conditions before updating the file
   #       (1) Download file MUST NOT be empty
   #       (2) Download max draw must be greater than OR equal to next file draw
@@ -581,7 +954,7 @@ lottoTotoUpdateNum <- function( startDrawNum=2480, endDrawNum=9999, silent=TRUE 
     }
     else break
   }
-
+  
   if( retNum > 0 ) 
   {
     formDfr <- as.data.frame(lapply(totoDfr, function(x) if (is(x, "Date")) format(x, "%Y/%m/%d") else x))
@@ -590,28 +963,110 @@ lottoTotoUpdateNum <- function( startDrawNum=2480, endDrawNum=9999, silent=TRUE 
   retNum
 }
 
-lottoArimaNum <- function(lottoStr, startNum=1)
+lottoDrawDateChr <- function( lottoStr, startNum=1 )
 {
   #---  Assert TWO (2) arguments:                                                   
-  #       lottoStr:     MUST specify EITHER "powerball", "ozlotto", "satlotto", "wedlotto", "toto", OR "4d"
+  #       lottoStr:     MUST specify EITHER "powerball", "ozlotto", "satlotto", "wedlotto", "toto" OR "4d"
   #       startNum:     the start row that is used in forecast (default: 1)                 
   
   #---  Check that arguments are valid
   typeStr <- c("powerball", "ozlotto", "satlotto", "wedlotto", "toto", "4d")
   if( length(which(typeStr==lottoStr)) == 0 )
     stop("lottoStr MUST be either: powerball, ozlotto, satlotto, wedlotto, toto OR 4d")
-  if( as.numeric(startNum) < 1 & as.numeric(startNum) > 10 ) 
+  if( as.numeric(startNum) < 1 | as.numeric(startNum) > 10 ) 
     stop("startNum MUST be between ONE (1) and TEN (10)")
   
-  #---  Call the ARIMA function to get a confidence data frame
-  confDfr <- LottoArimaConf(lottoStr, startNum)
-  confDfr$range <- confDfr$upper - confDfr$lower + 1
+  #---  Draw date mechanism
+  #       (1) Powerball draws ONE (1) time per week on Thursdays
+  #       (1) Ozlotto draws ONE (1) time per week on Tuesdays
+  #       (1) Gold Sat draws ONE (1) time per week on Saturdays
+  #       (1) Gold Wed draws ONE (1) time per week on Wednesdays
+  #       (2) Toto draws TWO (2) times per week on Mondays and Thursdays
+  #       (2) 4D draws THREE (3) times per week on Wednesdays, Saturdays and Sundays
+  rawDfr <- lottoReadDfr(lottoStr)
+  rawDfr <- rawDfr[startNum:nrow(rawDfr), ]
+
+  #---  Coerce character into numeric or date
+  #       Weekday [0-6] represents [Sun,Mon,..,Sat] 
+  rawDfr[, 2] <- as.Date(rawDfr[, 2], "%Y/%m/%d")                 # Draw date
+  latDte <- rawDfr[1, 2]
+  latNum <- as.POSIXlt(latDte)$wday
   
-  sRow <- nrow(confDfr)
-  prod(confDfr[1:sRow-1,3])
+  if(lottoStr == "powerball")
+    latDte <- latDte + 7
+  if(lottoStr == "ozlotto")
+    latDte <- latDte + 7
+  if(lottoStr == "satlotto")
+    latDte <- latDte + 7
+  if(lottoStr == "wedlotto")
+    latDte <- latDte + 7
+  if(lottoStr == "toto")
+  {
+    if( latNum == 1 ) latDte <- latDte + 3
+    else latDte <- latDte + 4
+  }
+  if(lottoStr == "4d")
+  {
+    if( latNum == 6 ) latDte <- latDte + 1
+    else latDte <- latDte + 3
+  }
+  format(latDte, "%Y/%m/%d")  
+}  
+
+#|------------------------------------------------------------------------------------------|
+#|                          I N T E R N A L   D   F U N C T I O N S                         |
+#|------------------------------------------------------------------------------------------|
+lottoTotoSeqSplitMtx <- function( rawDfr )
+{
+  #--- Coerce character into numeric or date
+  rawDfr[, 1] <- suppressWarnings( as.numeric( rawDfr[, 1] ) )    # Draw number
+  rawDfr[, 2] <- as.Date(rawDfr[, 2], "%Y/%m/%d")                 # Draw date
+  
+  rawDfr <- rawDfr[1:nrow(rawDfr), ]
+  topChr <- character(0)
+  for( i in 1:nrow(rawDfr) )
+  {
+    topChr <- rbind( topChr, rawDfr[i,9], rawDfr[i,8], rawDfr[i,7],
+                     rawDfr[i,6], rawDfr[i,5], rawDfr[i,4], rawDfr[i,3] )
+  }
+  
+  seqMtx <- matrix( nrow=nrow(topChr), ncol=6 )
+  for( i in 1:nrow(topChr) )
+  {
+    seqMtx[i, ] <- lottoSeqAlongNum( "toto", topChr[i] )[2:7] 
+  }
+  seqMtx
 }
 
-lotto4DSplitMtx <- function( rawDfr )
+lottoTotoSeqDfr <- function( numChr, allBln=TRUE )
+{
+  
+  #---  Check that arguments are valid
+  if( as.numeric(numChr) < 1 | as.numeric(numChr) > 45 ) 
+    stop("numChr MUST be between ONE (1) and FORTY-FIVE (45)")
+  
+  rawDfr <- lottoReadDfr("toto")
+  if( !allBln )
+  {
+    return( subset( rawDfr,
+                    rawDfr$Number_1 == numChr |
+                      rawDfr$Number_2 == numChr |
+                      rawDfr$Number_3 == numChr |
+                      rawDfr$Number_4 == numChr |
+                      rawDfr$Number_5 == numChr |
+                      rawDfr$Number_6 == numChr ) )
+  }
+  return( subset( rawDfr,
+                  rawDfr$Number_1 == numChr |
+                    rawDfr$Number_2 == numChr |
+                    rawDfr$Number_3 == numChr |
+                    rawDfr$Number_4 == numChr |
+                    rawDfr$Number_5 == numChr |
+                    rawDfr$Number_6 == numChr |
+                    rawDfr$Number_7 == numChr ) )
+}
+
+lotto4DSeqSplitMtx <- function( rawDfr )
 {
   #--- Coerce character into numeric or date
   rawDfr[, 1] <- suppressWarnings( as.numeric( rawDfr[, 1] ) )    # Draw number
@@ -623,100 +1078,103 @@ lotto4DSplitMtx <- function( rawDfr )
   {
     topChr <- rbind(topChr, rawDfr[i,5], rawDfr[i,4], rawDfr[i,3])
   }
-  rawMtx <- cbind( as.numeric( substring(topChr, 1, 1) ),
-                   as.numeric( substring(topChr, 2, 2) ),
-                   as.numeric( substring(topChr, 3, 3) ),
-                   as.numeric( substring(topChr, 4, 4) ) )
-}
-
-lottoPowerSplitMtx <- function( rawDfr )
-{
-  #--- Coerce character into numeric or date
-  rawDfr[, 1] <- suppressWarnings( as.numeric( rawDfr[, 1] ) )    # Draw number
-  rawDfr[, 2] <- as.Date(rawDfr[, 2], "%Y/%m/%d")                 # Draw date
-  rawDfr[, 3] <- suppressWarnings( as.numeric( rawDfr[, 3] ) )    # Number 1-5 and Powerball
-  rawDfr[, 4] <- suppressWarnings( as.numeric( rawDfr[, 4] ) )    
-  rawDfr[, 5] <- suppressWarnings( as.numeric( rawDfr[, 5] ) )    
-  rawDfr[, 6] <- suppressWarnings( as.numeric( rawDfr[, 6] ) )    
-  rawDfr[, 7] <- suppressWarnings( as.numeric( rawDfr[, 7] ) )    
-  rawDfr[, 8] <- suppressWarnings( as.numeric( rawDfr[, 8] ) )    
   
-  rawDfr <- rawDfr[1:nrow(rawDfr), ]
-  rawMtx <- cbind(rawDfr[, 3],rawDfr[, 4],rawDfr[, 5],rawDfr[, 6],rawDfr[, 7],rawDfr[, 8])
-}
-
-lottoOzSplitMtx <- function( rawDfr )
-{
-  #--- Coerce character into numeric or date
-  rawDfr[, 1] <- suppressWarnings( as.numeric( rawDfr[, 1] ) )    # Draw number
-  rawDfr[, 2] <- as.Date(rawDfr[, 2], "%Y/%m/%d")                 # Draw date
-  rawDfr[, 3] <- suppressWarnings( as.numeric( rawDfr[, 3] ) )    # Number 1-7
-  rawDfr[, 4] <- suppressWarnings( as.numeric( rawDfr[, 4] ) )    
-  rawDfr[, 5] <- suppressWarnings( as.numeric( rawDfr[, 5] ) )    
-  rawDfr[, 6] <- suppressWarnings( as.numeric( rawDfr[, 6] ) )    
-  rawDfr[, 7] <- suppressWarnings( as.numeric( rawDfr[, 7] ) )    
-  rawDfr[, 8] <- suppressWarnings( as.numeric( rawDfr[, 8] ) )    
-  rawDfr[, 9] <- suppressWarnings( as.numeric( rawDfr[, 9] ) )    
-  
-  rawDfr <- rawDfr[1:nrow(rawDfr), ]
-  rawMtx <- cbind(rawDfr[, 3],rawDfr[, 4],rawDfr[, 5],rawDfr[, 6],rawDfr[, 7],rawDfr[, 8],rawDfr[, 9])
-}
-
-lottoWriteCsv <- function(datDfr, fileStr, 
-                         workDirStr="C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-nonsource")
-{
-  #---  Assert THREE (3) arguments:                                                   
-  #       datDfr:       data frame to be written                                               
-  #       fileStr:      name of the file (without the suffix "_part_xx" and extension ".csv"
-  #       workDirStr:   working directory                                             
-  
-  #---  Set working directory                                                         
-  setwd(workDirStr)
-  #---  Write data
-  #       Remove quotes from characters
-  write.table( datDfr, file=paste( fileStr, ".csv", sep="" ), sep=",", quote=FALSE )
-}
-
-lottoReadDfr <- function(fileStr, partNum=1, 
-                         workDirStr="C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-nonsource")
-{
-  #---  Assert THREE (3) arguments:                                                   
-  #       fileStr:      name of the file (without the suffix "_part_xx" and extension ".csv"
-  #       partNum:      number of parts                                               
-  #       workDirStr:   working directory                                             
-  #       retDfr:       NULL or a data frame (with partial OR full data)
-  
-  #---  Check that partNum is valid (between 1 to 999)                                 
-  if( as.numeric(partNum) < 1 || as.numeric(partNum) > 999 ) 
-    stop("partNum MUST be between 1 AND 999")
-  #---  Set working directory                                                         
-  setwd(workDirStr)
-  #---  Read data from split parts
-  #       Append suffix to the fileStr
-  #       Read each part and merge them together
-  
-  if( as.numeric(partNum) > 1 )
+  tmeMtx <- matrix( nrow=nrow(topChr), ncol=6 )
+  for( i in 1:nrow(topChr) )
   {
-    if( !file.exists( paste( fileStr, "_part001.csv", sep="" ) ) ) return( NULL )
-    retDfr <- read.csv( paste( fileStr, "_part001.csv", sep="" ), colClasses = "character" )
-    
-    for( id in 2:partNum )
-    {
-      #---  rbind() function will bind two data frames with the same header together
-      partStr <- paste( fileStr, "_part", sprintf("%03d", as.numeric(id)), ".csv", sep="" )
-      if( !file.exists( partStr ) ) break
-      tmpDfr <- read.csv( partStr, colClasses = "character")
-      retDfr <- rbind( retDfr, tmpDfr )
-    }
+    tmeMtx[i, ] <- lottoSeqAlongNum( "4d", topChr[i] )[2:7] 
   }
-  else
+  tmeMtx
+}
+
+lotto4DSeqDfr <- function( numChr, allBln=TRUE )
+{
+  rawDfr <- lottoReadDfr("4d")
+  perChr <- lotto4DSystemChr(numChr)
+  if( !allBln )
   {
-    if( !file.exists( paste( fileStr, ".csv", sep="" ) ) ) return( NULL )
-    retDfr <- read.csv( paste( fileStr, ".csv", sep="" ), colClasses = "character" )
+    return( subset( rawDfr,
+                    rawDfr$Number_1 %in% perChr |
+                      rawDfr$Number_2 %in% perChr |
+                      rawDfr$Number_3 %in% perChr ) )
+  }
+  subset( rawDfr, 
+          rawDfr$Number_1 %in% perChr |
+            rawDfr$Number_2 %in% perChr |
+            rawDfr$Number_3 %in% perChr |
+            rawDfr$Number_4 %in% perChr |
+            rawDfr$Number_5 %in% perChr |
+            rawDfr$Number_6 %in% perChr |
+            rawDfr$Number_7 %in% perChr |
+            rawDfr$Number_8 %in% perChr |
+            rawDfr$Number_9 %in% perChr |
+            rawDfr$Number_10 %in% perChr |
+            rawDfr$Number_11 %in% perChr |
+            rawDfr$Number_12 %in% perChr |
+            rawDfr$Number_13 %in% perChr |
+            rawDfr$Number_14 %in% perChr |
+            rawDfr$Number_15 %in% perChr |
+            rawDfr$Number_16 %in% perChr |
+            rawDfr$Number_17 %in% perChr |
+            rawDfr$Number_18 %in% perChr |
+            rawDfr$Number_19 %in% perChr |
+            rawDfr$Number_20 %in% perChr |
+            rawDfr$Number_21 %in% perChr |
+            rawDfr$Number_22 %in% perChr |
+            rawDfr$Number_23 %in% perChr )
+}
+
+lottoSeqAlongNum <- function( lottoStr, numChr, allBln=TRUE )
+{
+  #---  Check that arguments are valid
+  typeStr <- c("powerball", "ozlotto", "satlotto", "wedlotto", "toto", "4d")
+  if( length(which(typeStr==lottoStr)) == 0 )
+    stop("lottoStr MUST be either: powerball, ozlotto, satlotto, wedlotto, toto, OR 4d")
+  
+  #if(lottoStr == "powerball")
+  #if(lottoStr == "satlotto")
+  #if(lottoStr == "wedlotto")
+  if(lottoStr == "toto")
+    subDfr <- lottoTotoSeqDfr( numChr, allBln )
+  #if(lottoStr == "ozlotto")
+  if(lottoStr == "4d")
+    subDfr <- lotto4DSeqDfr( numChr, allBln )
+  
+  #---  Add today as reference
+  dteChr <- c(lottoDrawDateChr(lottoStr), subDfr$Draw_date)
+  
+  #---  Compute time differences in days
+  as.numeric(-diff(as.Date(dteChr, "%Y/%m/%d")))
+}
+
+lotto4DSystemChr <- function( numChr )
+{
+  dChr <- character(0)
+  perChr <- character(0)
+  
+  if( nchar(numChr) != 4 )
+    stop("numChr MUST be a FOUR(4)-digit number as a character")
+  for( pos in 1:4 )
+  {
+    dChr <- rbind(dChr, substring(numChr,pos,pos))
+    if(is.na(suppressWarnings( as.numeric(dChr[pos]) )))
+      stop("numChr MUST be a FOUR(4)-digit number as a character")
   }
   
-  #---  Return a data frame
-  return(retDfr)
+  #---  Generate a matrix of ALL permutations for 4x4 orders
+  #       Create a set of numbers for ALL permutations
+  #       Remove duplicates
+  perMtx <- permutations(4,4)
+  for( i in 1:nrow(perMtx) )
+  {
+    nChr <- paste0( dChr[ perMtx[i,1] ], 
+                    dChr[ perMtx[i,2] ], 
+                    dChr[ perMtx[i,3] ], 
+                    dChr[ perMtx[i,4] ] )
+    perChr <- rbind(perChr, nChr[1])
+  }
+  perChr <- unique(perChr)
+  perChr
 }
 
 #|------------------------------------------------------------------------------------------|
