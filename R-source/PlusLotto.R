@@ -86,6 +86,9 @@
 #|        }                                                                                 |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.0.3   Replaced TWO (2) functions: lottoReadDfr() and lottoWriteCsv() with functions   |
+#|          fileReadDfr() and fileWriteCsv(), respectively, from package PlusFile.R.        |
+#|                                                                                          |
 #|  1.0.2   Added THREE (3) external functions: LottoSystem(), LottoStandard(), and         |
 #|          LottoDraw(). Using the Gap analysis from Win4D, I have added EIGHT (8)          |
 #|          functions: LottoSeqConf(), Lotto4DSeq(), lottoTotoSeqSplitMtx(),                |
@@ -319,7 +322,7 @@ LottoArimaConf <- function(lottoStr, startNum=1)
   #---  Init loading data
   #       (1) Power, Gold (sat and wed), and Toto uses SIX (6) numbers
   #       (2) Toto7 and Oz uses SEVEN (7) numbers
-  rawDfr <- lottoReadDfr(lottoStr)
+  rawDfr <- fileReadDfr(lottoStr)
   rawDfr <- rawDfr[startNum:nrow(rawDfr), ]
   if(lottoStr == "powerball")
     rawMtx <- lottoPowerSplitMtx( rawDfr )
@@ -402,7 +405,7 @@ LottoResult <- function( ..., resNum=1 )
                    "Sta", "Sta", "Sta", "Sta", "Sta")
       nam2Str <- c("Consolation", "Con", "Con", "Con", "Con", "Con", "Con", "Con", "Con", "Con")
       
-      rawDfr <- lottoReadDfr( lottoStr )
+      rawDfr <- fileReadDfr( lottoStr )
       ra2Dfr <- rawDfr[, re2Col]
       rawDfr <- rawDfr[, resCol]
       names( rawDfr ) <- nameStr
@@ -413,7 +416,7 @@ LottoResult <- function( ..., resNum=1 )
     }
     else
     {
-      rawDfr <- lottoReadDfr( lottoStr )
+      rawDfr <- fileReadDfr( lottoStr )
       rawDfr <- rawDfr[, resCol]
       names( rawDfr ) <- nameStr
       print( toupper(lottoStr), row.names=FALSE )
@@ -522,7 +525,7 @@ LottoSeqConf <- function( lottoStr, startNum=1 )
   if( length(which(typeStr==lottoStr)) == 0 )
     stop("lottoStr MUST be either: powerball, ozlotto, satlotto, wedlotto, toto OR 4d")
 
-  rawDfr <- lottoReadDfr( lottoStr )
+  rawDfr <- fileReadDfr( lottoStr )
   rawDfr <- rawDfr[startNum:nrow(rawDfr), ]
   
   #---  Generate a matrix of time differences
@@ -660,62 +663,6 @@ lottoArimaNum <- function(lottoStr, startNum=1)
 #|------------------------------------------------------------------------------------------|
 #|                          I N T E R N A L   B   F U N C T I O N S                         |
 #|------------------------------------------------------------------------------------------|
-lottoWriteCsv <- function(datDfr, fileStr, 
-                         workDirStr="C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-nonsource")
-{
-  #---  Assert THREE (3) arguments:                                                   
-  #       datDfr:       data frame to be written                                               
-  #       fileStr:      name of the file (without the suffix "_part_xx" and extension ".csv"
-  #       workDirStr:   working directory                                             
-  
-  #---  Set working directory                                                         
-  setwd(workDirStr)
-  #---  Write data
-  #       Remove quotes from characters
-  write.table( datDfr, file=paste( fileStr, ".csv", sep="" ), sep=",", quote=FALSE )
-}
-
-lottoReadDfr <- function(fileStr, partNum=1, 
-                         workDirStr="C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-nonsource")
-{
-  #---  Assert THREE (3) arguments:                                                   
-  #       fileStr:      name of the file (without the suffix "_part_xx" and extension ".csv"
-  #       partNum:      number of parts                                               
-  #       workDirStr:   working directory                                             
-  #       retDfr:       NULL or a data frame (with partial OR full data)
-  
-  #---  Check that partNum is valid (between 1 to 999)                                 
-  if( as.numeric(partNum) < 1 || as.numeric(partNum) > 999 ) 
-    stop("partNum MUST be between 1 AND 999")
-  #---  Set working directory                                                         
-  setwd(workDirStr)
-  #---  Read data from split parts
-  #       Append suffix to the fileStr
-  #       Read each part and merge them together
-  
-  if( as.numeric(partNum) > 1 )
-  {
-    if( !file.exists( paste( fileStr, "_part001.csv", sep="" ) ) ) return( NULL )
-    retDfr <- read.csv( paste( fileStr, "_part001.csv", sep="" ), colClasses = "character" )
-    
-    for( id in 2:partNum )
-    {
-      #---  rbind() function will bind two data frames with the same header together
-      partStr <- paste( fileStr, "_part", sprintf("%03d", as.numeric(id)), ".csv", sep="" )
-      if( !file.exists( partStr ) ) break
-      tmpDfr <- read.csv( partStr, colClasses = "character")
-      retDfr <- rbind( retDfr, tmpDfr )
-    }
-  }
-  else
-  {
-    if( !file.exists( paste( fileStr, ".csv", sep="" ) ) ) return( NULL )
-    retDfr <- read.csv( paste( fileStr, ".csv", sep="" ), colClasses = "character" )
-  }
-  
-  #---  Return a data frame
-  return(retDfr)
-}
 
 #|------------------------------------------------------------------------------------------|
 #|                          I N T E R N A L   C   F U N C T I O N S                         |
@@ -821,7 +768,7 @@ lottoTotoDrawDte <- function( drawNum )
 
 lotto4DUpdateNum <- function( startDrawNum=2771, endDrawNum=9999, silent=TRUE )
 {
-  fourDfr <- lottoReadDfr("4d")
+  fourDfr <- fileReadDfr("4d")
   if( is.null(fourDfr) )
   {
     fourDfr <- dataFrame( colClasses=c(Draw_number="character", Draw_date="character", 
@@ -869,7 +816,7 @@ lotto4DUpdateNum <- function( startDrawNum=2771, endDrawNum=9999, silent=TRUE )
   if( retNum > 0 ) 
   {
     formDfr <- as.data.frame(lapply(fourDfr, function(x) if (is(x, "Date")) format(x, "%Y/%m/%d") else x))
-    lottoWriteCsv(formDfr, "4d")
+    fileWriteCsv(formDfr, "4d")
   }
   retNum
 }
@@ -905,7 +852,7 @@ lottoTattsUpdateNum <- function( lottoStr )
   maxDrawNum <- max( suppressWarnings( as.numeric( newDfr[, 1] ) ) )
   nxtDrawNum <- 1
   
-  fileDfr <- lottoReadDfr(lottoStr)
+  fileDfr <- fileReadDfr(lottoStr)
   if( !is.null(fileDfr) )
     nxtDrawNum <- max( suppressWarnings( as.numeric( fileDfr[, 1] ) ) ) + 1
   
@@ -913,7 +860,7 @@ lottoTattsUpdateNum <- function( lottoStr )
   else
   {
     formDfr <- as.data.frame(lapply(newDfr, function(x) if (is(x, "Date")) format(x, "%Y/%m/%d") else x))
-    lottoWriteCsv(formDfr, lottoStr)
+    fileWriteCsv(formDfr, lottoStr)
     retNum <- maxDrawNum - nxtDrawNum + 1
   }
   retNum
@@ -921,7 +868,7 @@ lottoTattsUpdateNum <- function( lottoStr )
 
 lottoTotoUpdateNum <- function( startDrawNum=2480, endDrawNum=9999, silent=TRUE )
 {
-  totoDfr <- lottoReadDfr("toto")
+  totoDfr <- fileReadDfr("toto")
   if( is.null(totoDfr) )
   {
     totoDfr <- dataFrame( colClasses=c(Draw_number="character", Draw_date="character", 
@@ -958,7 +905,7 @@ lottoTotoUpdateNum <- function( startDrawNum=2480, endDrawNum=9999, silent=TRUE 
   if( retNum > 0 ) 
   {
     formDfr <- as.data.frame(lapply(totoDfr, function(x) if (is(x, "Date")) format(x, "%Y/%m/%d") else x))
-    lottoWriteCsv(formDfr, "toto")
+    fileWriteCsv(formDfr, "toto")
   }
   retNum
 }
@@ -983,7 +930,7 @@ lottoDrawDateChr <- function( lottoStr, startNum=1 )
   #       (1) Gold Wed draws ONE (1) time per week on Wednesdays
   #       (2) Toto draws TWO (2) times per week on Mondays and Thursdays
   #       (2) 4D draws THREE (3) times per week on Wednesdays, Saturdays and Sundays
-  rawDfr <- lottoReadDfr(lottoStr)
+  rawDfr <- fileReadDfr(lottoStr)
   rawDfr <- rawDfr[startNum:nrow(rawDfr), ]
 
   #---  Coerce character into numeric or date
@@ -1045,7 +992,7 @@ lottoTotoSeqDfr <- function( numChr, allBln=TRUE )
   if( as.numeric(numChr) < 1 | as.numeric(numChr) > 45 ) 
     stop("numChr MUST be between ONE (1) and FORTY-FIVE (45)")
   
-  rawDfr <- lottoReadDfr("toto")
+  rawDfr <- fileReadDfr("toto")
   if( !allBln )
   {
     return( subset( rawDfr,
@@ -1089,7 +1036,7 @@ lotto4DSeqSplitMtx <- function( rawDfr )
 
 lotto4DSeqDfr <- function( numChr, allBln=TRUE )
 {
-  rawDfr <- lottoReadDfr("4d")
+  rawDfr <- fileReadDfr("4d")
   perChr <- lotto4DSystemChr(numChr)
   if( !allBln )
   {
