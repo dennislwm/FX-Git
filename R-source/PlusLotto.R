@@ -86,6 +86,8 @@
 #|        }                                                                                 |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.0.4   Added ONE (1) internal function lottoUpdateBln().                               |
+#|                                                                                          |
 #|  1.0.3   Replaced TWO (2) functions: lottoReadDfr() and lottoWriteCsv() with functions   |
 #|          fileReadDfr() and fileWriteCsv(), respectively, from package PlusFile.R.        |
 #|                                                                                          |
@@ -663,6 +665,38 @@ lottoArimaNum <- function(lottoStr, startNum=1)
 #|------------------------------------------------------------------------------------------|
 #|                          I N T E R N A L   B   F U N C T I O N S                         |
 #|------------------------------------------------------------------------------------------|
+lottoUpdateBln <- function( timeStamp.POSIXct, now.POSIXct=as.POSIXct(Sys.time()) )
+{
+  #---  Assert determine day of week
+  dayStr <- c("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+  dayNum <- as.POSIXlt(now.POSIXct)$wday + 1
+  
+  #---  Assert calculate time difference
+  yNum <- as.POSIXlt(now.POSIXct)$year+1900
+  mNum <- as.POSIXlt(now.POSIXct)$mon+1
+  dNum <- as.POSIXlt(now.POSIXct)$mday
+  day.difftime <- difftime(as.POSIXct(now.POSIXct), as.POSIXct(timeStamp.POSIXct), units="hours")
+  std.difftime <- difftime(as.POSIXct(now.POSIXct), ISOdatetime(yNum,mNum,dNum,0,0,0), units="hours")
+  difNum <- as.numeric(day.difftime - std.difftime)
+  
+  #---  Assert expectations
+  #       (1) If today is Sun 00:00, then update if gtimestamp is >= 6 hours
+  #       (2) If today is Mon 00:00, then update if gtimestamp is >= 6 hours
+  #       (3) If today is Tue 00:00, then update if gtimestamp is >= 6 hours
+  #       (4) If today is Wed 00:00, then update if gtimestamp is >= 30 hours
+  #       (5) If today is Thu 00:00, then update if gtimestamp is >= 6 hours
+  #       (6) If today is Fri 00:00, then update if gtimestamp is >= 6 hours
+  #       (7) If today is Sat 00:00, then update if gtimestamp is >= 30 hours
+  if( dayStr[dayNum] == "Wed" | dayStr[dayNum] == "Sat" )
+  {
+    if( difNum >= 30 ) return( TRUE )
+  }
+  else
+  {
+    if( difNum >= 6 ) return( TRUE )
+  }
+  return(FALSE)
+}
 
 #|------------------------------------------------------------------------------------------|
 #|                          I N T E R N A L   C   F U N C T I O N S                         |
