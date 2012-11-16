@@ -26,6 +26,7 @@
 #|        }                                                                                 |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.0.1   Created unit test file testPlusFile.R to test read and write functions.         |
 #|  1.0.0   Contains R functions to manipulate data to and from files.                      |
 #|------------------------------------------------------------------------------------------|
 
@@ -63,7 +64,7 @@ fileWriteCsv <- function(datDfr, fileStr,
 }
 
 fileReadDfr <- function(fileStr, partNum=1, 
-                          workDirStr="C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-nonsource")
+                          workDirStr="C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-nonsource", ...)
 {
   #---  Assert THREE (3) arguments:                                                   
   #       fileStr:      name of the file (without the suffix "_partxxx" and extension ".csv")
@@ -86,18 +87,28 @@ fileReadDfr <- function(fileStr, partNum=1,
   
   if( as.numeric(partNum) > 1 )
   {
-    retDfr <- read.csv( paste( fileStr, "_part001.csv", sep="" ), colClasses = "character", sep="," )
+    if( !file.exists( paste0( fileStr, "_part001.csv" ) ) ) return( NULL )
+    tryDfr <- tryCatch( retDfr <- read.csv( paste0( fileStr, "_part001.csv" ), colClasses = "character", sep=",", ... ),
+                        error=function(e) { NULL }, finally={} )
+    if( is.null(tryDfr) ) return( NULL )
     
     for( id in 2:partNum )
     {
       #---  rbind() function will bind two data frames with the same header together
       partStr <- paste( fileStr, "_part", sprintf("%03d", as.numeric(id)), ".csv", sep="" )
-      tmpDfr <- read.csv( partStr, colClasses = "character", sep="," )
+      if( !file.exists( partStr ) ) 
+        return( retDfr )
+      tmpDfr <- read.csv( partStr, colClasses = "character", sep=",", ... )
       retDfr <- rbind( retDfr, tmpDfr )
     }
   }
   else
-    retDfr <- read.csv( paste( fileStr, ".csv", sep="" ), colClasses = "character" )
+  {
+    if( !file.exists( paste0( fileStr, ".csv" ) ) ) return( NULL )
+    tryDfr <- tryCatch( retDfr <- read.csv( paste0( fileStr, ".csv" ), colClasses = "character", sep=",", ... ),
+                   error=function(e) { NULL }, finally={} )
+    if( is.null(tryDfr) ) return( NULL )
+  }
   
   #---  Return a data frame
   return(retDfr)
