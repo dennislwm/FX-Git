@@ -33,6 +33,7 @@
 #|        }                                                                                 |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.0.1   Added ONE (1) internal function forexAtcUserReadDfr().                          |
 #|  1.0.0   Contains R functions to manipulate data from the MQL5.com web site.             |
 #|          There are TWO (2) external functions: ForexAcfPlot() and ForexBoxplotFtr(), and |
 #|          there are THREE (3) internal fns: forexAtcReadDfr(), freqDfr() and freqVtr().   |
@@ -196,6 +197,100 @@ freqVtr <- function(inDfr, orderVtr)
   
   #---  Assert return value is a numeric vector
   return(outVtr)
+}
+
+#|------------------------------------------------------------------------------------------|
+#|                          I N T E R N A L   C   F U N C T I O N S                         |
+#|------------------------------------------------------------------------------------------|
+forexAtcUserReadDfr <- function( userChr )
+{
+  if( missing(userChr) )
+    stop("userChr CANNOT be EMPTY")
+  userNum <- length(userChr)
+  
+  retDfr <- dataFrame( colClasses=c( user="character",
+                                     gprofit="character",     gloss="character", 
+                                     nprofit="character",     pfactor="character",
+                                     epayoff="character",     absdraw="character",
+                                     maxdraw="character",     reldraw="character", 
+                                     trades="character",      shorts="character",
+                                     longs="character",       winners="character",
+                                     losers="character",      maxwin="character",
+                                     maxloss="character",     avewin="character",
+                                     aveloss="character",     seqwinners="character",
+                                     seqlosers="character",   seqwin="character",
+                                     seqloss="character",     ghpr="character",
+                                     ahpr="character",        sharpe="character",
+                                     zscore="character",      regcorr="character",
+                                     regse="character",       mfepftcorr="character",
+                                     maepftcorr="character",  mfemaecorr="character"), 
+                       nrow=userNum )
+  
+  #---  Initialize page rank
+  #       Page rank is a cumulative rank starting from page 1
+  for( r in 1:userNum )
+  {
+    urlStr <- paste0("http://championship.mql5.com/2012/en/users/", userChr[r])
+    usr.Htm <- htmlParse(urlStr)
+    #---  Remove error in names by setting header=F
+    #       Alternatively, only parse the table you want
+    usrDfr <- readHTMLTable(usr.Htm, which=9)
+    
+    if( is.null(usrDfr) ) break
+    
+    #---  Note the columns do NOT have the same length, due to NAs.
+    desChr <- as.character( reorder(usrDfr[, 1], 1:33) )
+    valChr <- as.character( reorder(usrDfr[, 2], 1:33) )
+    
+    #---  Clean up values
+    #       Remove $, % and white space
+    #       Remove brackets and any value inside
+    valChr <- gsub("\\$", "", valChr)
+    valChr <- gsub("%", "", valChr)
+    valChr <- gsub(" ", "", valChr)
+    val.reg <- regexpr("\\(.*\\)", valChr)
+    for( i in 1:length(valChr) )
+    {
+      if( !is.na(val.reg[i]) & val.reg[i]>0 )
+        valChr[i] <- substring(valChr[i], 1, val.reg[i]-1)
+    }
+
+    if( length(desChr)!=33 | length(valChr)!=33 ) break
+
+    retDfr[r, 1] <- userChr[r]
+    retDfr[r, 2] <- valChr[2]
+    retDfr[r, 3] <- valChr[3]
+    retDfr[r, 4] <- valChr[4]
+    retDfr[r, 5] <- valChr[5]
+    retDfr[r, 6] <- valChr[6]
+    retDfr[r, 7] <- valChr[7]
+    retDfr[r, 8] <- valChr[8]
+    retDfr[r, 9] <- valChr[9]
+    retDfr[r, 10] <- valChr[10]
+    retDfr[r, 11] <- valChr[11]
+    retDfr[r, 12] <- valChr[12]
+    retDfr[r, 13] <- valChr[13]
+    retDfr[r, 14] <- valChr[14]
+    retDfr[r, 15] <- valChr[15]
+    retDfr[r, 16] <- valChr[16]
+    retDfr[r, 17] <- valChr[17]
+    retDfr[r, 18] <- valChr[18]
+    retDfr[r, 19] <- valChr[19]
+    retDfr[r, 20] <- valChr[20]
+    retDfr[r, 21] <- valChr[21]
+    retDfr[r, 22] <- valChr[22]
+    retDfr[r, 23] <- valChr[23]
+    retDfr[r, 24] <- valChr[24]
+    retDfr[r, 25] <- valChr[25]
+    retDfr[r, 26] <- valChr[26]
+    retDfr[r, 27] <- valChr[27]
+    retDfr[r, 28] <- valChr[28]
+    
+    retDfr[r, 29] <- valChr[30]
+    retDfr[r, 30] <- valChr[32]
+    retDfr[r, 31] <- valChr[33]
+  }
+  retDfr
 }
 
 #|------------------------------------------------------------------------------------------|
