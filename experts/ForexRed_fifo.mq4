@@ -2,6 +2,10 @@
 //|                                                                            ForexRed.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.1.3   Works with PlusTD 1.0.2, which has been unit tested.                            |
+//| 1.1.2   Check if MagicNumber is returned correctly by broker. If not then set           |
+//|            MaxAccountTrades=0 (disable the EA).                                         |
+//|         Added function GetAccountOrdersTotal() to ensure total trades do not exceed.    |
 //| 1.1.0   Added PlusTD to fix a MAJOR bug where the EA should NOT open trades when ANY    |
 //|            of a pair of TDST lines is broken.                                           |
 //| 1.0.7   Use GlobalVariableCheck() in function init(). If ANY of the FOUR (4) global     |
@@ -50,12 +54,11 @@ extern   string   s4             ="-->PlusTurtle Settings<--";
 extern   string   s5             ="-->PlusGhost Settings<--";
 #include <plusghost.mqh>
 
-
 //|------------------------------------------------------------------------------------------|
 //|                           I N T E R N A L   V A R I A B L E S                            |
 //|------------------------------------------------------------------------------------------|
 string   EaName      ="ForexRed";
-string   EaVer       ="1.1.0";
+string   EaVer       ="1.1.3";
 int      EaDebugCount;
 
 //|------------------------------------------------------------------------------------------|
@@ -131,7 +134,7 @@ int start()
       {
       //--- Check SmartExit condition (default: exit condition fails)
       //--- Assert check exit condition for SELL basket
-         if( TDIsOkUpLine(true) == false && TDIsOk2UpLine(true) == false )
+         if( TDGetUpBln(1) == false && TDGetUpBln(2) == false )
          {
             EasyBuyToCloseBasket( Fred1Magic, Symbol(), EasyMaxAccountTrades );
             EaDebugPrint(0, "start",
@@ -148,7 +151,7 @@ int start()
       {
       //--- Check SmartExit condition (default: exit condition fails)
       //--- Assert check exit condition for BUY basket
-         if( TDIsOkDnLine(true) == false && TDIsOk2DnLine(true) == false )
+         if( TDGetDnBln(1) == false && TDGetDnBln(2) == false )
          {
             EasySellToCloseBasket( Fred1Magic, Symbol(), EasyMaxAccountTrades );
             EaDebugPrint(0, "start",
@@ -241,11 +244,28 @@ int start()
    if( FredDoNotTrade<0 && wave<0 )
       wave = 0;
 
+//--- Assert max account trades
+   if( GetAccountOrdersTotal() >= EasyMaxAccountTrades )
+   {
+      EaDebugPrint( 1, "start",
+         EaDebugStr("EaName", EaName)+
+         EaDebugStr("EaVer", EaVer)+
+         EaDebugStr("sym", Symbol())+
+         EaDebugInt("mgc", Fred1Magic)+
+         EaDebugInt("wave_old", wave)+
+         EaDebugInt("wave_new", 0)+
+         " Maximum account trades = "+
+         EaDebugInt("EasyMaxAccountTrades", EasyMaxAccountTrades)+
+         " has been exceeded.");
+      wave = 0;
+   }
+      
    switch(wave)
    {
       case 1:  
          ticket = EasyOrderSell(Fred1Magic,Symbol(),RedBaseLot,EasySL,EasyTP,EaName,EasyMaxAccountTrades);
-         if(ticket>0) strtmp = EaName+": "+Fred1Magic+" "+Symbol()+" Open "+ticket+" sell at " + DoubleToStr(Close[0],Digits);   
+         if(ticket>0) 
+            strtmp = EaName+": "+Fred1Magic+" "+Symbol()+" Open "+ticket+" sell at " + DoubleToStr(Close[0],Digits);   
          break;
       case -1: 
          ticket = EasyOrderBuy(Fred1Magic,Symbol(),RedBaseLot,EasySL,EasyTP,EaName,EasyMaxAccountTrades); 
@@ -260,9 +280,65 @@ int start()
          if(ticket>0) strtmp = EaName+": "+Fred2Magic+" "+Symbol()+" Open "+ticket+" buy at " + DoubleToStr(Close[0],Digits);   
          break;
    }
-   if (wave!=0) EaDebugPrint( 0, "start", strtmp );
+   if (wave!=0) 
+   {
+      EaDebugPrint( 0, "start", strtmp );
+   
+      if (ticket > 0) 
+      {
+      //--- Assert 1: Init OrderSelect #2
+         GhostInitSelect(true,ticket,SELECT_BY_TICKET,MODE_TRADES);
+         if( GhostOrderSelect(ticket, SELECT_BY_TICKET, MODE_TRADES) ) 
+         {
+         //--- Check if Magic is set correctly by broker
+            if( GhostOrderMagicNumber() == Fred1Magic || GhostOrderMagicNumber() == Fred2Magic)
+            {}
+            else
+            {
+               EaDebugPrint( 0, "start",
+                  EaDebugStr("EaName", EaName)+
+                  EaDebugStr("EaVer", EaVer)+
+                  EaDebugStr("sym", Symbol())+
+                  EaDebugInt("period", Period())+
+                  EaDebugInt("mgc", GhostOrderMagicNumber())+
+                  EaDebugInt("ticket", ticket)+
+                  EaDebugInt("type", GhostOrderType())+
+                  EaDebugDbl("lot", GhostOrderLots())+
+                  EaDebugDbl("openPrice", GhostOrderOpenPrice())+
+                  " Magic number not returned by broker. Set MaxAccountTrades=0." );
+               EasyMaxAccountTrades=0;
+            }
+         }
+      //--- Assert 1: Free OrderSelect #2
+         GhostFreeSelect(false);
+      }
+   }
    
    return(0);
+}
+
+double GetAccountOrdersTotal() 
+{
+   int ret;
+//--- Assert 2: Init OrderSelect #13
+   int total = GhostOrdersTotal();
+   GhostInitSelect(true,0,SELECT_BY_POS,MODE_TRADES);
+   for( int pos = 0; pos <= total - 1; pos++ ) 
+   {
+      if( GhostOrderSelect(pos, SELECT_BY_POS, MODE_TRADES) )
+      {
+      //--- Count ALL trades in account
+      //       For ALL symbols
+      //       For ALL magic / non-magic numbers
+      //       For ALL opened trades
+      //       Exclude pending orders
+      //       Exclude historical orders
+         if (GhostOrderType() <= OP_SELL) ret ++;
+      }
+   }
+//--- Assert 1: Free OrderSelect #13
+   GhostFreeSelect(false);
+   return (ret);
 }
 
 //|-----------------------------------------------------------------------------------------|
