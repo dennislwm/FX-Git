@@ -2,6 +2,11 @@
 //|                                                                              PlusTD.mqh |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.0.2    Replace global variables gTDIsOkUpLineStr, gTDIsOk2UpLineStr, gTDIsOkDnLineStr |
+//|            and gTDIsOk2DnLineStr with new functions TDGlobalUpStr() and TDGlobalDnStr().|
+//|            Replace global variables isOkUpLine, isOk2UpLine, isOkDnLine and isOk2DnLine |
+//|            with new functions TDGetUpBln() and TDGetDnBln().                            |
+//|          Replace function TDDebugPrintDiagnose() with a new script TestPlusTD.mq4.      |
 //| 1.0.1    Added several support functions: Wave1Buy(), Wave1Sell(), GlobalCheck(),       |
 //|            IsOkUpLine(), IsOkDnLine(), IsOk2UpLine(), IsOk2DnLine().                    |
 //| 1.0.0    Created PlusTD for Tom DeMark indicators.                                      |
@@ -32,15 +37,7 @@ extern int        TDDoNotSell2DnLine         = 0;
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string TDName     ="PlusTD";
-string TDVer      ="1.0.1";
-string gTDIsOkUpLineStr;
-string gTDIsOk2UpLineStr;
-string gTDIsOkDnLineStr;
-string gTDIsOk2DnLineStr;
-bool isOkUpLine   = false;
-bool isOk2UpLine  = false;
-bool isOkDnLine   = false;
-bool isOk2DnLine  = false;
+string TDVer      ="1.0.2";
 extern string     d1                         = "Debug Properties";
 extern bool       TDViewDebugNotify          = false;
 extern int        TDViewDebug                = 0;
@@ -59,29 +56,23 @@ void TDInit()
    if( TDUseWave1 )
    {
       bool found = true;
-      gTDIsOkUpLineStr  = StringConcatenate( Symbol(), "_", TDPeriod, "_IsOkUpLine" );
-      gTDIsOk2UpLineStr = StringConcatenate( Symbol(), "_", TDPeriod, "_IsOk2UpLine" );
-      gTDIsOkDnLineStr  = StringConcatenate( Symbol(), "_", TDPeriod, "_IsOkDnLine" );
-      gTDIsOk2DnLineStr = StringConcatenate( Symbol(), "_", TDPeriod, "_IsOk2DnLine" );
-      found = found && GlobalVariableCheck( gTDIsOkUpLineStr );
-      found = found && GlobalVariableCheck( gTDIsOk2UpLineStr );
-      found = found && GlobalVariableCheck( gTDIsOkDnLineStr );
-      found = found && GlobalVariableCheck( gTDIsOk2DnLineStr );
+      found = found && GlobalVariableCheck( TDGlobalUpStr(1) );
+      found = found && GlobalVariableCheck( TDGlobalUpStr(2) );
+      found = found && GlobalVariableCheck( TDGlobalDnStr(1) );
+      found = found && GlobalVariableCheck( TDGlobalDnStr(2) );
       if( !found )
       {
-         EaDebugPrint( 0, "init",
-            EaDebugStr("TDName",TDName)+
-            EaDebugStr("TDVer",TDVer)+
-            EaDebugStr("sym",Symbol())+
-            EaDebugInt("AccountNumber",AccountNumber())+
-            EaDebugInt("TDPeriod", TDPeriod)+
-            EaDebugBln("found", found)+
+         TDDebugPrint( 0, "init",
+            TDDebugStr("TDName",TDName)+
+            TDDebugStr("TDVer",TDVer)+
+            TDDebugStr("sym",Symbol())+
+            TDDebugStr("AccountNumber",AccountNumber())+
+            TDDebugStr("TDPeriod", TDPeriod)+
+            TDDebugStr("found", found)+
             " At least ONE of FOUR (4) global variables do not exist." );
       }
    }
    
-//--- Assert Print Diagnostic for dbg>=1
-   TDDebugPrintDiagnose();
    return(0);
 }
 
@@ -91,45 +82,105 @@ void TDInit()
 bool TDWave1Buy()
 {
    TDGlobalLoad( OP_BUY );
-   return( TDIsOkWave1Buy( isOkUpLine, isOk2UpLine, isOkDnLine, isOk2DnLine ) );
+   return( TDIsOkWave1Buy( TDGetUpBln(1), 
+                           TDGetUpBln(2), 
+                           TDGetDnBln(1), 
+                           TDGetDnBln(2) ) );
 }
 bool TDWave1Sell()
 {
    TDGlobalLoad( OP_SELL );
-   return( TDIsOkWave1Sell( isOkUpLine, isOk2UpLine, isOkDnLine, isOk2DnLine ) );
+   return( TDIsOkWave1Sell( TDGetUpBln(1), 
+                            TDGetUpBln(2), 
+                            TDGetDnBln(1), 
+                            TDGetDnBln(2) ) );
 }
 
 bool TDIsOkWave1Buy(bool isOkUp, bool isOk2Up, bool isOkDn, bool isOk2Dn)
 {
 //--- Assert default is Ok to trade
-   if( !TDUseWave1 )  return(TDAllowTradeOnError);
+   if( !TDUseWave1 )  return(true);
    
-   bool ret=true;
-   if( TDDoNotBuyUpLine == 1 )   ret = ret && isOkUp == false;
-   if( TDDoNotBuyUpLine == 2 )   ret = ret && isOkUp == true;
-   if( TDDoNotBuy2UpLine == 1 )  ret = ret && isOk2Up == false;
-   if( TDDoNotBuy2UpLine == 2 )  ret = ret && isOk2Up == true;
-   if( TDDoNotBuyDnLine == 1 )   ret = ret && isOkDn == false;
-   if( TDDoNotBuyDnLine == 2 )   ret = ret && isOkDn == true;
-   if( TDDoNotBuy2DnLine == 1 )  ret = ret && isOk2Dn == false;
-   if( TDDoNotBuy2DnLine == 2 )  ret = ret && isOk2Dn == true;
-   return(ret);
+   if( !TDAllowTradeOnError )
+   {
+      if( ! TDGlobalCheck() ) return( false );
+   }
+   if( TDDoNotBuyUpLine == 1 )
+   {
+      if( ! (isOkUp == false) ) return( false );
+   }
+   if( TDDoNotBuyUpLine == 2 )
+   {
+      if( ! (isOkUp == true) ) return( false );
+   }
+   if( TDDoNotBuy2UpLine == 1 )
+   {
+      if( ! (isOk2Up == false) ) return( false );
+   }
+   if( TDDoNotBuy2UpLine == 2 )  
+   {
+      if( ! (isOk2Up == true) ) return( false );
+   }
+   if( TDDoNotBuyDnLine == 1 )
+   {
+      if( ! (isOkDn == false) ) return( false );
+   }
+   if( TDDoNotBuyDnLine == 2 )
+   {
+      if( ! (isOkDn == true) ) return( false );
+   }
+   if( TDDoNotBuy2DnLine == 1 )
+   {
+      if( ! (isOk2Dn == false) ) return( false );
+   }
+   if( TDDoNotBuy2DnLine == 2 )  
+   {
+      if( ! (isOk2Dn == true) ) return( false );
+   }
+   return(true);
 }
 bool TDIsOkWave1Sell(bool isOkUp, bool isOk2Up, bool isOkDn, bool isOk2Dn)
 {
 //--- Assert default is Ok to trade
-   if( !TDUseWave1 )  return(TDAllowTradeOnError);
+   if( !TDUseWave1 )  return(true);
 
-   bool ret=true;
-   if( TDDoNotSellUpLine == 1 )  ret = ret && isOkUp == false;
-   if( TDDoNotSellUpLine == 2 )  ret = ret && isOkUp == true;
-   if( TDDoNotSell2UpLine == 1 ) ret = ret && isOk2Up == false;
-   if( TDDoNotSell2UpLine == 2 ) ret = ret && isOk2Up == true;
-   if( TDDoNotSellDnLine == 1 )  ret = ret && isOkDn == false;
-   if( TDDoNotSellDnLine == 2 )  ret = ret && isOkDn == true;
-   if( TDDoNotSell2DnLine == 1 ) ret = ret && isOk2Dn == false;
-   if( TDDoNotSell2DnLine == 2 ) ret = ret && isOk2Dn == true;
-   return(ret);
+   if( !TDAllowTradeOnError )
+   {
+      if( ! TDGlobalCheck() ) return( false );
+   }
+   if( TDDoNotSellUpLine == 1 )
+   {
+      if( ! (isOkUp == false) ) return( false );
+   }
+   if( TDDoNotSellUpLine == 2 )
+   {
+      if( ! (isOkUp == true) ) return( false );
+   }
+   if( TDDoNotSell2UpLine == 1 )
+   {
+      if( ! (isOk2Up == false) ) return( false );
+   }
+   if( TDDoNotSell2UpLine == 2 )
+   {
+      if( ! (isOk2Up == true) ) return( false );
+   }
+   if( TDDoNotSellDnLine == 1 )
+   {
+      if( ! (isOkDn == false) ) return( false );
+   }
+   if( TDDoNotSellDnLine == 2 )
+   {
+      if( ! (isOkDn == true) ) return( false );
+   }
+   if( TDDoNotSell2DnLine == 1 )
+   {
+      if( ! (isOk2Dn == false) ) return( false );
+   }
+   if( TDDoNotSell2DnLine == 2 )
+   {
+      if( ! (isOk2Dn == true) ) return( false );
+   }
+   return(true);
 }
 void TDGlobalLoad(int type)
 {
@@ -162,72 +213,92 @@ void TDGlobalLoad(int type)
    
    if( !TDUseWave1 )
    {
-      isOkUpLine  = isOkUp;
-      isOk2UpLine = isOk2Up;
-      isOkDnLine  = isOkDn;
-      isOk2DnLine = isOk2Dn;
       return(0);
    }
-   
-   if( GlobalVariableCheck( gTDIsOkUpLineStr ) ) 
-      isOkUpLine  = GlobalVariableGet( gTDIsOkUpLineStr );
-   else
-      isOkUpLine  = isOkUp;
-   if( GlobalVariableCheck( gTDIsOk2UpLineStr ) ) 
-      isOk2UpLine = GlobalVariableGet( gTDIsOk2UpLineStr );
-   else
-      isOk2UpLine = isOk2Up;
-      
-   if( GlobalVariableCheck( gTDIsOkDnLineStr ) ) 
-      isOkDnLine = GlobalVariableGet( gTDIsOkDnLineStr );
-   else
-      isOkDnLine = isOkDn;
-   if( GlobalVariableCheck( gTDIsOk2DnLineStr ) ) 
-      isOk2DnLine = GlobalVariableGet( gTDIsOk2DnLineStr );
-   else
-      isOk2DnLine = isOk2Dn;
 }
 
 //|-----------------------------------------------------------------------------------------|
 //|                           I N T E R N A L   F U N C T I O N S                           |
 //|-----------------------------------------------------------------------------------------|
-bool TDIsOkUpLine(bool isOkUp)
-{
-   if( GlobalVariableCheck( gTDIsOkUpLineStr ) ) 
-      isOkUpLine  = GlobalVariableGet( gTDIsOkUpLineStr );
-   else
-      isOkUpLine  = isOkUp;
-   return(isOkUpLine);
-}
-bool TDIsOk2UpLine(bool isOk2Up)
-{
-   if( GlobalVariableCheck( gTDIsOk2UpLineStr ) ) 
-      isOk2UpLine  = GlobalVariableGet( gTDIsOk2UpLineStr );
-   else
-      isOk2UpLine  = isOk2Up;
-   return(isOk2UpLine);
-}
-bool TDIsOkDnLine(bool isOkDn)
-{
-   if( GlobalVariableCheck( gTDIsOkDnLineStr ) ) 
-      isOkDnLine  = GlobalVariableGet( gTDIsOkDnLineStr );
-   else
-      isOkDnLine  = isOkDn;
-   return(isOkDnLine);
-}
-bool TDIsOk2DnLine(bool isOk2Dn)
-{
-   if( GlobalVariableCheck( gTDIsOk2DnLineStr ) ) 
-      isOk2DnLine  = GlobalVariableGet( gTDIsOk2DnLineStr );
-   else
-      isOk2DnLine  = isOk2Dn;
-   return(isOk2DnLine);
-}
 bool TDGlobalCheck()
 {
 //--- return false if at least ONE (1) check failed.
-   return( GlobalVariableCheck( gTDIsOkUpLineStr ) && GlobalVariableCheck( gTDIsOk2UpLineStr ) &&
-      GlobalVariableCheck( gTDIsOkDnLineStr ) && GlobalVariableCheck( gTDIsOk2DnLineStr ) );
+   return( GlobalVariableCheck( TDGlobalUpStr(1) ) && 
+           GlobalVariableCheck( TDGlobalUpStr(2) ) &&
+           GlobalVariableCheck( TDGlobalDnStr(1) ) && 
+           GlobalVariableCheck( TDGlobalDnStr(2) ) );
+}
+string TDGlobalUpStr( int num )
+{
+   string retStr = "";
+   if( num == 1 ) retStr = StringConcatenate( Symbol(), "_", TDPeriod, "_IsOkUpLine" );
+   if( num == 2 ) retStr = StringConcatenate( Symbol(), "_", TDPeriod, "_IsOk2UpLine" );
+   return( retStr );
+}
+string TDGlobalDnStr( int num )
+{
+   string retStr = "";
+   if( num == 1 ) retStr = StringConcatenate( Symbol(), "_", TDPeriod, "_IsOkDnLine" );
+   if( num == 2 ) retStr = StringConcatenate( Symbol(), "_", TDPeriod, "_IsOk2DnLine" );
+   return( retStr );
+}
+bool TDGetUpBln( int num )
+{
+//--- Assume missing global var, we have to estimate whether the line is ok OR not
+//       (1) DoNotBuyUpLine=Ok with AllowTrade TRUE, then UpLine is ALWAYS Brk
+//       (2) DoNotBuyUpLine=Ok with AllowTrade FALSE, then UpLine is ALWAYS Ok
+//       (3) DoNotBuyUpLine=Brk with AllowTrade TRUE, then UpLine is ALWAYS Ok
+//       (3) DoNotBuyUpLine=Brk with AllowTrade FALSE, then UpLine is ALWAYS Brk
+   bool upLine;
+   bool missingBln = !GlobalVariableCheck( TDGlobalUpStr(1) );
+
+   if( num == 1 )
+   {
+   //--- Assume AllowTrade FALSE
+      if( TDDoNotBuyUpLine == 1 )   upLine=true;
+      if( TDDoNotBuyUpLine == 2 )   upLine=false;
+   }
+   if( num == 2 )
+   {
+   //--- Assume AllowTrade FALSE
+      if( TDDoNotBuy2UpLine == 1 )   upLine=true;
+      if( TDDoNotBuy2UpLine == 2 )   upLine=false;
+   }
+   if( TDAllowTradeOnError ) upLine = !upLine;
+   
+   if( missingBln ) 
+      return( upLine );
+   else
+      return( GlobalVariableGet( TDGlobalUpStr(num) ) );
+}
+bool TDGetDnBln( int num )
+{
+//--- Assume missing global var, we have to estimate whether the line is ok OR not
+//       (1) DoNotBuyDnLine=Ok with AllowTrade TRUE, then DnLine is ALWAYS Brk
+//       (2) DoNotBuyDnLine=Ok with AllowTrade FALSE, then DnLine is ALWAYS Ok
+//       (3) DoNotBuyDnLine=Brk with AllowTrade TRUE, then DnLine is ALWAYS Ok
+//       (3) DoNotBuyDnLine=Brk with AllowTrade FALSE, then DnLine is ALWAYS Brk
+   bool dnLine;
+   bool missingBln = !GlobalVariableCheck( TDGlobalDnStr(1) );
+
+   if( num == 1 )
+   {
+   //--- Assume AllowTrade FALSE
+      if( TDDoNotBuyDnLine == 1 )   dnLine=true;
+      if( TDDoNotBuyDnLine == 2 )   dnLine=false;
+   }
+   if( num == 2 )
+   {
+   //--- Assume AllowTrade FALSE
+      if( TDDoNotBuy2DnLine == 1 )   dnLine=true;
+      if( TDDoNotBuy2DnLine == 2 )   dnLine=false;
+   }
+   if( TDAllowTradeOnError ) dnLine = !dnLine;
+   
+   if( missingBln ) 
+      return( dnLine );
+   else
+      return( GlobalVariableGet( TDGlobalDnStr(num) ) );
 }
 
 //|-----------------------------------------------------------------------------------------|
@@ -248,7 +319,7 @@ string TDComment(string cmt="")
 
    if(TDUseWave1)
    {
-      strtmp=strtmp+"  Wave1 Enabled.";
+      strtmp=strtmp+"    Wave1 Enabled.";
       strtmp=strtmp+"  Period="+TDPeriod;
       strtmp=strtmp+"  Check=";
       if( TDGlobalCheck() )
@@ -259,7 +330,7 @@ string TDComment(string cmt="")
    //--- Wave1 logic for Do Not Buy
       if( TDDoNotBuyUpLine>0 || TDDoNotBuy2UpLine>0 || TDDoNotBuyDnLine>0 || TDDoNotBuy2DnLine>0 )
       {
-         strtmp=strtmp+"  Do Not Buy Cond:";
+         strtmp=strtmp+"    Do Not Buy Cond:";
          if( TDDoNotBuyUpLine==1 )  strtmp=strtmp+"  UpOk";
          if( TDDoNotBuyUpLine==2 )  strtmp=strtmp+"  UpBrk";
          if( TDDoNotBuy2UpLine==1 ) strtmp=strtmp+"  Up2Ok";
@@ -273,7 +344,7 @@ string TDComment(string cmt="")
    //--- Wave 1 logic for Do Not Sell
       if( TDDoNotSellUpLine>0 || TDDoNotSell2UpLine>0 || TDDoNotSellDnLine>0 || TDDoNotSell2DnLine>0 )
       {
-         strtmp=strtmp+"  Do Not Sell Cond:";
+         strtmp=strtmp+"    Do Not Sell Cond:";
          if( TDDoNotSellUpLine==1 )  strtmp=strtmp+"  UpOk";
          if( TDDoNotSellUpLine==2 )  strtmp=strtmp+"  UpBrk";
          if( TDDoNotSell2UpLine==1 ) strtmp=strtmp+"  Up2Ok";
@@ -287,153 +358,6 @@ string TDComment(string cmt="")
    }
    
    return(strtmp);
-}
-void TDDebugPrintDiagnose()
-{
-   if(!TDUseWave1)   return(0);
-   if(TDViewDebug<1) return(0);
-
-//--- Assert print every combination of global var inputs and the wave signal output
-   TDDebugPrint(1, "PrintDiagnose",
-      TDDebugInt("DoNotBuyUpLine",TDDoNotBuyUpLine)+
-      TDDebugInt("DoNotBuy2UpLine",TDDoNotBuy2UpLine)+
-      TDDebugInt("DoNotBuyDnLine",TDDoNotBuyDnLine)+
-      TDDebugInt("DoNotBuy2DnLine",TDDoNotBuy2DnLine) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",1)+
-      TDDebugBln("isOkUp",true)+TDDebugBln("isOk2Up",true)+
-      TDDebugBln("isOkDn",true)+TDDebugBln("isOk2Dn",true)+
-      TDDebugBln("isOkWave1Buy",TDIsOkWave1Buy(true,true,true,true)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",2)+
-      TDDebugBln("isOkUp",true)+TDDebugBln("isOk2Up",true)+
-      TDDebugBln("isOkDn",true)+TDDebugBln("isOk2Dn",false)+
-      TDDebugBln("isOkWave1Buy",TDIsOkWave1Buy(true,true,true,false)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",3)+
-      TDDebugBln("isOkUp",true)+TDDebugBln("isOk2Up",true)+
-      TDDebugBln("isOkDn",false)+TDDebugBln("isOk2Dn",true)+
-      TDDebugBln("isOkWave1Buy",TDIsOkWave1Buy(true,true,false,true)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",4)+
-      TDDebugBln("isOkUp",true)+TDDebugBln("isOk2Up",false)+
-      TDDebugBln("isOkDn",true)+TDDebugBln("isOk2Dn",true)+
-      TDDebugBln("isOkWave1Buy",TDIsOkWave1Buy(true,false,true,true)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",5)+
-      TDDebugBln("isOkUp",false)+TDDebugBln("isOk2Up",true)+
-      TDDebugBln("isOkDn",true)+TDDebugBln("isOk2Dn",true)+
-      TDDebugBln("isOkWave1Buy",TDIsOkWave1Buy(false,true,true,true)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",6)+
-      TDDebugBln("isOkUp",false)+TDDebugBln("isOk2Up",true)+
-      TDDebugBln("isOkDn",true)+TDDebugBln("isOk2Dn",false)+
-      TDDebugBln("isOkWave1Buy",TDIsOkWave1Buy(false,true,true,false)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",7)+
-      TDDebugBln("isOkUp",false)+TDDebugBln("isOk2Up",true)+
-      TDDebugBln("isOkDn",false)+TDDebugBln("isOk2Dn",true)+
-      TDDebugBln("isOkWave1Buy",TDIsOkWave1Buy(false,true,false,true)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",8)+
-      TDDebugBln("isOkUp",false)+TDDebugBln("isOk2Up",false)+
-      TDDebugBln("isOkDn",true)+TDDebugBln("isOk2Dn",true)+
-      TDDebugBln("isOkWave1Buy",TDIsOkWave1Buy(false,false,true,true)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",9)+
-      TDDebugBln("isOkUp",true)+TDDebugBln("isOk2Up",false)+
-      TDDebugBln("isOkDn",true)+TDDebugBln("isOk2Dn",false)+
-      TDDebugBln("isOkWave1Buy",TDIsOkWave1Buy(true,false,true,false)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",10)+
-      TDDebugBln("isOkUp",true)+TDDebugBln("isOk2Up",false)+
-      TDDebugBln("isOkDn",false)+TDDebugBln("isOk2Dn",true)+
-      TDDebugBln("isOkWave1Buy",TDIsOkWave1Buy(true,false,false,true)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",11)+
-      TDDebugBln("isOkUp",true)+TDDebugBln("isOk2Up",true)+
-      TDDebugBln("isOkDn",false)+TDDebugBln("isOk2Dn",false)+
-      TDDebugBln("isOkWave1Buy",TDIsOkWave1Buy(true,true,false,false)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",12)+
-      TDDebugBln("isOkUp",false)+TDDebugBln("isOk2Up",false)+
-      TDDebugBln("isOkDn",true)+TDDebugBln("isOk2Dn",false)+
-      TDDebugBln("isOkWave1Buy",TDIsOkWave1Buy(false,false,true,false)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",13)+
-      TDDebugBln("isOkUp",false)+TDDebugBln("isOk2Up",false)+
-      TDDebugBln("isOkDn",false)+TDDebugBln("isOk2Dn",true)+
-      TDDebugBln("isOkWave1Buy",TDIsOkWave1Buy(false,false,false,true)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",14)+
-      TDDebugBln("isOkUp",false)+TDDebugBln("isOk2Up",true)+
-      TDDebugBln("isOkDn",false)+TDDebugBln("isOk2Dn",false)+
-      TDDebugBln("isOkWave1Buy",TDIsOkWave1Buy(false,true,false,false)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",15)+
-      TDDebugBln("isOkUp",true)+TDDebugBln("isOk2Up",false)+
-      TDDebugBln("isOkDn",false)+TDDebugBln("isOk2Dn",false)+
-      TDDebugBln("isOkWave1Buy",TDIsOkWave1Buy(true,false,false,false)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",16)+
-      TDDebugBln("isOkUp",false)+TDDebugBln("isOk2Up",false)+
-      TDDebugBln("isOkDn",false)+TDDebugBln("isOk2Dn",false)+
-      TDDebugBln("isOkWave1Buy",TDIsOkWave1Buy(false,false,false,false)) );
-      
-//--- Assert print every combination of global var inputs and the wave signal output
-   TDDebugPrint(1, "PrintDiagnose",
-      TDDebugInt("DoNotSellUpLine",TDDoNotSellUpLine)+
-      TDDebugInt("DoNotSell2UpLine",TDDoNotSell2UpLine)+
-      TDDebugInt("DoNotSellDnLine",TDDoNotSellDnLine)+
-      TDDebugInt("DoNotSell2DnLine",TDDoNotSell2DnLine) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",1)+
-      TDDebugBln("isOkUp",true)+TDDebugBln("isOk2Up",true)+
-      TDDebugBln("isOkDn",true)+TDDebugBln("isOk2Dn",true)+
-      TDDebugBln("isOkWave1Sell",TDIsOkWave1Sell(true,true,true,true)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",2)+
-      TDDebugBln("isOkUp",true)+TDDebugBln("isOk2Up",true)+
-      TDDebugBln("isOkDn",true)+TDDebugBln("isOk2Dn",false)+
-      TDDebugBln("isOkWave1Sell",TDIsOkWave1Sell(true,true,true,false)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",3)+
-      TDDebugBln("isOkUp",true)+TDDebugBln("isOk2Up",true)+
-      TDDebugBln("isOkDn",false)+TDDebugBln("isOk2Dn",true)+
-      TDDebugBln("isOkWave1Sell",TDIsOkWave1Sell(true,true,false,true)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",4)+
-      TDDebugBln("isOkUp",true)+TDDebugBln("isOk2Up",false)+
-      TDDebugBln("isOkDn",true)+TDDebugBln("isOk2Dn",true)+
-      TDDebugBln("isOkWave1Sell",TDIsOkWave1Sell(true,false,true,true)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",5)+
-      TDDebugBln("isOkUp",false)+TDDebugBln("isOk2Up",true)+
-      TDDebugBln("isOkDn",true)+TDDebugBln("isOk2Dn",true)+
-      TDDebugBln("isOkWave1Sell",TDIsOkWave1Sell(false,true,true,true)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",6)+
-      TDDebugBln("isOkUp",false)+TDDebugBln("isOk2Up",true)+
-      TDDebugBln("isOkDn",true)+TDDebugBln("isOk2Dn",false)+
-      TDDebugBln("isOkWave1Sell",TDIsOkWave1Sell(false,true,true,false)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",7)+
-      TDDebugBln("isOkUp",false)+TDDebugBln("isOk2Up",true)+
-      TDDebugBln("isOkDn",false)+TDDebugBln("isOk2Dn",true)+
-      TDDebugBln("isOkWave1Sell",TDIsOkWave1Sell(false,true,false,true)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",8)+
-      TDDebugBln("isOkUp",false)+TDDebugBln("isOk2Up",false)+
-      TDDebugBln("isOkDn",true)+TDDebugBln("isOk2Dn",true)+
-      TDDebugBln("isOkWave1Sell",TDIsOkWave1Sell(false,false,true,true)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",9)+
-      TDDebugBln("isOkUp",true)+TDDebugBln("isOk2Up",false)+
-      TDDebugBln("isOkDn",true)+TDDebugBln("isOk2Dn",false)+
-      TDDebugBln("isOkWave1Sell",TDIsOkWave1Sell(true,false,true,false)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",10)+
-      TDDebugBln("isOkUp",true)+TDDebugBln("isOk2Up",false)+
-      TDDebugBln("isOkDn",false)+TDDebugBln("isOk2Dn",true)+
-      TDDebugBln("isOkWave1Sell",TDIsOkWave1Sell(true,false,false,true)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",11)+
-      TDDebugBln("isOkUp",true)+TDDebugBln("isOk2Up",true)+
-      TDDebugBln("isOkDn",false)+TDDebugBln("isOk2Dn",false)+
-      TDDebugBln("isOkWave1Sell",TDIsOkWave1Sell(true,true,false,false)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",12)+
-      TDDebugBln("isOkUp",false)+TDDebugBln("isOk2Up",false)+
-      TDDebugBln("isOkDn",true)+TDDebugBln("isOk2Dn",false)+
-      TDDebugBln("isOkWave1Sell",TDIsOkWave1Sell(false,false,true,false)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",13)+
-      TDDebugBln("isOkUp",false)+TDDebugBln("isOk2Up",false)+
-      TDDebugBln("isOkDn",false)+TDDebugBln("isOk2Dn",true)+
-      TDDebugBln("isOkWave1Sell",TDIsOkWave1Sell(false,false,false,true)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",14)+
-      TDDebugBln("isOkUp",false)+TDDebugBln("isOk2Up",true)+
-      TDDebugBln("isOkDn",false)+TDDebugBln("isOk2Dn",false)+
-      TDDebugBln("isOkWave1Sell",TDIsOkWave1Sell(false,true,false,false)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",15)+
-      TDDebugBln("isOkUp",true)+TDDebugBln("isOk2Up",false)+
-      TDDebugBln("isOkDn",false)+TDDebugBln("isOk2Dn",false)+
-      TDDebugBln("isOkWave1Sell",TDIsOkWave1Sell(true,false,false,false)) );
-   TDDebugPrint(1, "PrintDiagnose", TDDebugInt("#",16)+
-      TDDebugBln("isOkUp",false)+TDDebugBln("isOk2Up",false)+
-      TDDebugBln("isOkDn",false)+TDDebugBln("isOk2Dn",false)+
-      TDDebugBln("isOkWave1Sell",TDIsOkWave1Sell(false,false,false,false)) );
 }
 void TDDebugPrint(int dbg, string fn, string msg)
 {
@@ -478,13 +402,11 @@ string TDDebugGlobal()
    if(!TDUseWave1)   return("");
 
 //--- Assert print every combination of global var inputs and the wave signal output
-   return( TDDebugBln("isOkUpLine",isOkUpLine)+
-      TDDebugBln("isOk2UpLine",isOk2UpLine)+
-      TDDebugBln("isOkDnLine",isOkDnLine)+
-      TDDebugBln("isOk2DnLine",isOk2DnLine) );
+   return( TDDebugBln("isOkUpLine", TDGetUpBln(1))+
+           TDDebugBln("isOk2UpLine",TDGetUpBln(2))+
+           TDDebugBln("isOkDnLine", TDGetDnBln(1))+
+           TDDebugBln("isOk2DnLine",TDGetDnBln(2)) );
 }
-
 //|-----------------------------------------------------------------------------------------|
 //|                       E N D   O F   E X P E R T   A D V I S O R                         |
 //|-----------------------------------------------------------------------------------------|
-
