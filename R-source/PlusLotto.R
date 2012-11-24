@@ -86,6 +86,10 @@
 #|        }                                                                                 |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.0.5   Updated function LottoUpdateNum() to return the number of results updated.      |
+#|          Changed internal functions lottoUpdateBln() and lottoArimaConfDfr().            |
+#|          Created a test script testPlusLotto.R to perform unit tests on functions.       |
+#|                                                                                          |
 #|  1.0.4   Added ONE (1) internal function lottoUpdateBln().                               |
 #|                                                                                          |
 #|  1.0.3   Replaced TWO (2) functions: lottoReadDfr() and lottoWriteCsv() with functions   |
@@ -117,6 +121,8 @@ library(forecast)
 library(XML)
 library(R.utils)
 library(gtools)
+source("C:/Users/denbrige/100 FXOption/103 FXOptionVerBack/080 FX Git/R-source/PlusReg.R")
+source("C:/Users/denbrige/100 FXOption/103 FXOptionVerBack/080 FX Git/R-source/PlusFile.R")
 
 #|------------------------------------------------------------------------------------------|
 #|                            E X T E R N A L   F U N C T I O N S                           |
@@ -137,7 +143,7 @@ Lotto <- function(lottoStr, ticketNum=12, startNum=1)
     stop("lottoStr MUST be either: powerball, ozlotto, satlotto, wedlotto, toto, OR 4d")
   if( as.numeric(ticketNum) < 1 ) 
     stop("ticketNum MUST be greater than OR equal to ONE (1)")
-
+  
   #---  Draw mechanism
   #       (1) Power draws Number 1-5 from same pool, then powerball from another pool
   #       (2) Gold (sat and wed) draws Number 1-6 from same pool
@@ -179,7 +185,7 @@ Lotto <- function(lottoStr, ticketNum=12, startNum=1)
     #---  Check for condition (2)
     sumNum <- apply(tmpMtx, 1, sum)
     if( length(sumNum[sumNum >= confDfr[sRow,1]]) == ticketNum && 
-        length(sumNum[sumNum <= confDfr[sRow,2]]) == ticketNum )
+      length(sumNum[sumNum <= confDfr[sRow,2]]) == ticketNum )
     {
       #---  Check for condition (3)
       if( length(dupCol) > 1 )
@@ -260,11 +266,12 @@ LottoSystem <- function(systemNum, lottoStr, ticketNum=12, startNum=1)
   outMtx
 }  
 
-LottoUpdate <- function(silent=TRUE)
+LottoUpdateNum <- function(silent=TRUE)
 {
+  sNum <- 0
   #---  Assert ONE (1) arguments:                                                   
   #       silent:     Do not display print messages (default: FALSE)
-
+  
   #---  Update the result files
   typeStr <- c("powerball", "ozlotto", "satlotto", "wedlotto", "toto", "4d")
   for( lottoStr in typeStr )
@@ -275,6 +282,8 @@ LottoUpdate <- function(silent=TRUE)
       updNum <- lotto4DUpdateNum(silent=silent)
     else 
       updNum <- lottoTattsUpdateNum(lottoStr)
+    
+    sNum <- sNum + updNum
     if( updNum == 0 ) 
       msgStr = paste("The ", lottoStr, " file is the latest.", sep="")
     else
@@ -285,6 +294,7 @@ LottoUpdate <- function(silent=TRUE)
     }
     print(msgStr)
   }
+  sNum
 }
 
 LottoArimaSummary <- function(startNum=1)
@@ -296,7 +306,7 @@ LottoArimaSummary <- function(startNum=1)
   typeStr <- c("powerball", "ozlotto", "satlotto", "wedlotto", "toto", "4d")
   if( as.numeric(startNum) < 1 | as.numeric(startNum) > 10 ) 
     stop("startNum MUST be between ONE (1) and TEN (10)")
-
+  
   #---  Compute power of odds
   pwrNum <- c( 45*factorial(45)/factorial(40)/lottoArimaNum("powerball", startNum),
                factorial(45)/factorial(38)/lottoArimaNum("ozlotto", startNum),
@@ -304,7 +314,7 @@ LottoArimaSummary <- function(startNum=1)
                factorial(45)/factorial(39)/lottoArimaNum("wedlotto", startNum),
                factorial(45)/factorial(38)/lottoArimaNum("toto", startNum),
                10000/lottoArimaNum("4d", startNum) )
-               
+  
   data.frame(lotto=typeStr, power=round(pwrNum,1))
 }
 
@@ -338,7 +348,7 @@ LottoArimaConf <- function(lottoStr, startNum=1)
     rawMtx <- lottoOzSplitMtx( rawDfr )
   if(lottoStr == "4d")
     rawMtx <- lotto4DSplitMtx( rawDfr )
-
+  
   #---  Compute min, max and sum confidence intervals
   if(lottoStr == "4d")
     lottoArimaConfDfr(rawMtx, 0)
@@ -526,7 +536,7 @@ LottoSeqConf <- function( lottoStr, startNum=1 )
   typeStr <- c("powerball", "ozlotto", "satlotto", "wedlotto", "toto", "4d")
   if( length(which(typeStr==lottoStr)) == 0 )
     stop("lottoStr MUST be either: powerball, ozlotto, satlotto, wedlotto, toto OR 4d")
-
+  
   rawDfr <- fileReadDfr( lottoStr )
   rawDfr <- rawDfr[startNum:nrow(rawDfr), ]
   
@@ -547,14 +557,55 @@ LottoSeqConf <- function( lottoStr, startNum=1 )
 #|------------------------------------------------------------------------------------------|
 #|                          I N T E R N A L   A   F U N C T I O N S                         |
 #|------------------------------------------------------------------------------------------|
-lottoArimaConfDfr <- function( rawMtx, mNum )
+lottoArimaConfDfr <- function( rawMtx, lNum, uNum=NULL )
 {
-  rawMtx <- rawMtx[complete.cases(rawMtx), ]
+  #---  Assert THREE (3) arguments:                                                   
+  #       rawMtx:       a numeric matrix with at least (3 rows x 1 col) to be forecasted
+  #       lNum:         a numeric vector containing lower bounds                 
+  #       uNum:         a numeric vector containing upper bounds (default: NULL)                 
+
+  #---  Check that arguments are valid
+  if( is.null(rawMtx) )
+    stop("rawMtx MUST be a numeric matrix with at least (3 rows x 1 col) to be forecasted")
+  if( RegIsEmptyBln(rawMtx) )
+    stop("rawMtx MUST be a numeric matrix with at least (3 rows x 1 col) to be forecasted")
+  if( is.null(ncol(rawMtx)) )
+    stop("rawMtx MUST be a numeric matrix with at least (3 rows x 1 col) to be forecasted")
+  if( ncol(rawMtx)==0 )
+    stop("rawMtx MUST be a numeric matrix with at least (3 rows x 1 col) to be forecasted")
+  if( nrow(rawMtx)<3 )
+    stop("rawMtx MUST be a numeric matrix with at least (3 rows x 1 col) to be forecasted")
+  if( is.null(lNum) )
+    stop("lNum MUST be a numeric vector containing lower bounds")
+  if( RegIsEmptyBln(lNum) )
+    stop("lNum MUST be a numeric vector containing lower bounds")
+  if( length(lNum)>1 & length(lNum)!=ncol(rawMtx) )
+    stop("lNum MUST be a numeric vector of length EQUAL to number of columns in the matrix")
+  if( !is.null(uNum) )
+    if( RegIsEmptyBln(uNum) )
+      stop("uNum MUST be a numeric vector containing upper bounds")
+  if( length(uNum)>1 & length(uNum)!=ncol(rawMtx) )
+    stop("uNum MUST be a numeric vector of length EQUAL to number of columns in the matrix")
+  if( ncol(rawMtx)>1 )
+    rawMtx <- rawMtx[complete.cases(rawMtx), ]
+  else
+    rawMtx <- na.omit(rawMtx)
+  if( nrow(rawMtx)<3 )
+    stop("rawMtx contains LESS THAN THREE (3) complete rows to be forecasted")
+  
+  #---  Initialize variables
   colNum <- ncol(rawMtx)
   #---  Compute min, max and sum
-  minNum <- rep.int(mNum, colNum)
+  if( length(lNum)==1 )
+    minNum <- rep.int(lNum, colNum)
   mnsNum <- sum(minNum)
-  maxNum <- apply(rawMtx, 2, max)
+  if( is.null(uNum) )
+    maxNum <- apply(rawMtx, 2, max)
+  else
+    maxNum <- rep.int(uNum, colNum)
+  if( !RegIsEmptyBln(which(maxNum<minNum)) )
+    stop("lNum MUST BE LESS THAN uNum")
+  
   rawMtx <- cbind(rawMtx, apply(rawMtx, 1, sum))
   
   #--- fit MA on individual numbers and forecast for ONE (1) look ahead
@@ -667,35 +718,70 @@ lottoArimaNum <- function(lottoStr, startNum=1)
 #|------------------------------------------------------------------------------------------|
 lottoUpdateBln <- function( timeStamp.POSIXct, now.POSIXct=as.POSIXct(Sys.time()) )
 {
-  #---  Assert determine day of week
-  dayStr <- c("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
-  dayNum <- as.POSIXlt(now.POSIXct)$wday + 1
+  #---  Assert determine latest draw date
+  last.POSIXct <- lottoDrawLastDte(now.POSIXct)
   
   #---  Assert calculate time difference
+  time.difftime <- difftime(now.POSIXct, timeStamp.POSIXct, units="hours")
+  last.difftime <- difftime(now.POSIXct, last.POSIXct, units="hours")
+  
+  #---  Assert timestamp is larger than last
+  if( abs(as.double(time.difftime)) > abs(as.double(last.difftime)) )
+  {
+    updNum <- LottoUpdateNum()
+    if( updNum > 0 ) return(TRUE)
+  }
+  return(FALSE)
+}
+
+lottoDrawLastDte <- function( now.POSIXct=as.POSIXct(Sys.time()) )
+{
+  eventBln <- FALSE
+  
+  #---  Assert compute the date and time of last draw
+  #       Decompose today's date
+  #       Compare with today's date and time of 18:00
   yNum <- as.POSIXlt(now.POSIXct)$year+1900
   mNum <- as.POSIXlt(now.POSIXct)$mon+1
   dNum <- as.POSIXlt(now.POSIXct)$mday
-  day.difftime <- difftime(as.POSIXct(now.POSIXct), as.POSIXct(timeStamp.POSIXct), units="hours")
-  std.difftime <- difftime(as.POSIXct(now.POSIXct), ISOdatetime(yNum,mNum,dNum,0,0,0), units="hours")
-  difNum <- as.numeric(day.difftime - std.difftime)
+  wNum <- as.POSIXlt(now.POSIXct)$wday + 1
+  date.POSIXct <- ISOdatetime(yNum,mNum,dNum,0,0,0)
+  std.POSIXct <- ISOdatetime(yNum,mNum,dNum,18,0,0)
+  std.difftime <- difftime(now.POSIXct, std.POSIXct, units="hours")
+  if( now.POSIXct > std.POSIXct )
+    eventBln <- TRUE
   
-  #---  Assert expectations
-  #       (1) If today is Sun 00:00, then update if gtimestamp is >= 6 hours
-  #       (2) If today is Mon 00:00, then update if gtimestamp is >= 6 hours
-  #       (3) If today is Tue 00:00, then update if gtimestamp is >= 6 hours
-  #       (4) If today is Wed 00:00, then update if gtimestamp is >= 30 hours
-  #       (5) If today is Thu 00:00, then update if gtimestamp is >= 6 hours
-  #       (6) If today is Fri 00:00, then update if gtimestamp is >= 6 hours
-  #       (7) If today is Sat 00:00, then update if gtimestamp is >= 30 hours
-  if( dayStr[dayNum] == "Wed" | dayStr[dayNum] == "Sat" )
+  #---  Assert determine day of week of last draw
+  dayStr <- c("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+  if( eventBln )
   {
-    if( difNum >= 30 ) return( TRUE )
+    if( dayStr[wNum] == "Sun" |
+      dayStr[wNum] == "Mon" |
+      dayStr[wNum] == "Wed" |
+      dayStr[wNum] == "Thu" |
+      dayStr[wNum] == "Sat" ) 
+      last.POSIXct <- as.POSIXct(date.POSIXct)
+    else 
+      last.POSIXct <- as.POSIXct(date.POSIXct - 1)
   }
   else
   {
-    if( difNum >= 6 ) return( TRUE )
+    if( dayStr[wNum] == "Mon" |
+      dayStr[wNum] == "Tue" |
+      dayStr[wNum] == "Thu" |
+      dayStr[wNum] == "Fri" |
+      dayStr[wNum] == "Sun" ) 
+      last.POSIXct <- as.POSIXct(date.POSIXct - 1)
+    else 
+      last.POSIXct <- as.POSIXct(date.POSIXct - 2)
   }
-  return(FALSE)
+  #---  Assert compute the date and time of last draw
+  #       Decompose today's date
+  #       Compare with today's date and time of 18:00
+  yNum <- as.POSIXlt(last.POSIXct)$year+1900
+  mNum <- as.POSIXlt(last.POSIXct)$mon+1
+  dNum <- as.POSIXlt(last.POSIXct)$mday
+  ISOdatetime(yNum,mNum,dNum,18,0,0)
 }
 
 #|------------------------------------------------------------------------------------------|
@@ -966,7 +1052,7 @@ lottoDrawDateChr <- function( lottoStr, startNum=1 )
   #       (2) 4D draws THREE (3) times per week on Wednesdays, Saturdays and Sundays
   rawDfr <- fileReadDfr(lottoStr)
   rawDfr <- rawDfr[startNum:nrow(rawDfr), ]
-
+  
   #---  Coerce character into numeric or date
   #       Weekday [0-6] represents [Sun,Mon,..,Sat] 
   rawDfr[, 2] <- as.Date(rawDfr[, 2], "%Y/%m/%d")                 # Draw date
