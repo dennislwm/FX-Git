@@ -86,26 +86,23 @@
 #|        }                                                                                 |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.0.6   Incorporated Roulette (r) into several external functions, and added TWO (2)    |
+#|          internal functions lottoRandUpdateNum() and lottoRandSplitMtx().                |
 #|  1.0.5   Updated function LottoUpdateNum() to return the number of results updated.      |
 #|          Changed internal functions lottoUpdateBln() and lottoArimaConfDfr().            |
 #|          Created a test script testPlusLotto.R to perform unit tests on functions.       |
-#|                                                                                          |
 #|  1.0.4   Added ONE (1) internal function lottoUpdateBln().                               |
-#|                                                                                          |
 #|  1.0.3   Replaced TWO (2) functions: lottoReadDfr() and lottoWriteCsv() with functions   |
 #|          fileReadDfr() and fileWriteCsv(), respectively, from package PlusFile.R.        |
-#|                                                                                          |
 #|  1.0.2   Added THREE (3) external functions: LottoSystem(), LottoStandard(), and         |
 #|          LottoDraw(). Using the Gap analysis from Win4D, I have added EIGHT (8)          |
 #|          functions: LottoSeqConf(), Lotto4DSeq(), lottoTotoSeqSplitMtx(),                |
 #|          lotto4DSeqSplitMtx(), lottoTotoSeqDfr(), lotto4DSeqDfr(), lottoSeqAlongNum(),   |
 #|          and lotto4DSystemChr().                                                         |
-#|                                                                                          |
 #|  1.0.1   Incorporated 4D results into the FIVE (5) external functions, including the new |
 #|          function LottoResult(). Fixed the missing Supplementary Number in the toto      |
 #|          results file. Completed FOUR (4) internal 4D functions: lotto4DResultChr(),     |
 #|          lotto4DDrawDte(), lotto4DUpdateNum() and lotto4DSplitMtx().                     |
-#|                                                                                          |
 #|  1.0.0   This library contains external R functions to update, summarize, analyze, and   |
 #|          forecast lotto results. The FOUR (4) external functions are LottoUpdate(),      |
 #|          LottoArimaSummary(), LottoArimaConf(), and Lotto(). There are also several      |
@@ -121,8 +118,8 @@ library(forecast)
 library(XML)
 library(R.utils)
 library(gtools)
-source("C:/Users/denbrige/100 FXOption/103 FXOptionVerBack/080 FX Git/R-source/PlusReg.R")
-source("C:/Users/denbrige/100 FXOption/103 FXOptionVerBack/080 FX Git/R-source/PlusFile.R")
+source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusReg.R")
+source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusFile.R")
 
 #|------------------------------------------------------------------------------------------|
 #|                            E X T E R N A L   F U N C T I O N S                           |
@@ -138,7 +135,7 @@ Lotto <- function(lottoStr, ticketNum=12, startNum=1)
   #       ticketNum:    integer value to specify number of tickets                 
   
   #---  Check that arguments are valid
-  typeStr <- c("powerball", "ozlotto", "satlotto", "wedlotto", "toto", "4d")
+  typeStr <- c("powerball", "ozlotto", "satlotto", "wedlotto", "toto", "4d", "r")
   if( length(which(typeStr==lottoStr)) == 0 )
     stop("lottoStr MUST be either: powerball, ozlotto, satlotto, wedlotto, toto, OR 4d")
   if( as.numeric(ticketNum) < 1 ) 
@@ -161,6 +158,8 @@ Lotto <- function(lottoStr, ticketNum=12, startNum=1)
   if(lottoStr == "ozlotto")
     dupCol <- 1:7
   if(lottoStr == "4d")
+    dupCol <- 1:1
+  if(lottoStr == "r")
     dupCol <- 1:1
   
   #---  Call the ARIMA function to get a confidence data frame
@@ -202,6 +201,8 @@ Lotto <- function(lottoStr, ticketNum=12, startNum=1)
   }
   if( lottoStr == "4d" )
     paste0(outMtx[,1], outMtx[,2], outMtx[,3], outMtx[,4])
+  else if( lottoStr == "r" )
+    outMtx[,1]
   else
     outMtx
 }  
@@ -325,7 +326,7 @@ LottoArimaConf <- function(lottoStr, startNum=1)
   #       startNum:     the start row that is used in forecast (default: 1)                 
   
   #---  Check that arguments are valid
-  typeStr <- c("powerball", "ozlotto", "satlotto", "wedlotto", "toto", "4d")
+  typeStr <- c("powerball", "ozlotto", "satlotto", "wedlotto", "toto", "4d", "r")
   if( length(which(typeStr==lottoStr)) == 0 )
     stop("lottoStr MUST be either: powerball, ozlotto, satlotto, wedlotto, toto OR 4d")
   if( as.numeric(startNum) < 1 | as.numeric(startNum) > 10 ) 
@@ -348,9 +349,11 @@ LottoArimaConf <- function(lottoStr, startNum=1)
     rawMtx <- lottoOzSplitMtx( rawDfr )
   if(lottoStr == "4d")
     rawMtx <- lotto4DSplitMtx( rawDfr )
+  if(lottoStr == "r")
+    rawMtx <- lottoRandSplitMtx( rawDfr )
   
   #---  Compute min, max and sum confidence intervals
-  if(lottoStr == "4d")
+  if(lottoStr == "4d" | lottoStr == "r")
     lottoArimaConfDfr(rawMtx, 0)
   else
     lottoArimaConfDfr(rawMtx, 1)
@@ -368,7 +371,7 @@ LottoResult <- function( ..., resNum=1 )
   
   #---  Check that arguments are valid
   userStr <- c(...)
-  typeStr <- c("powerball", "ozlotto", "satlotto", "wedlotto", "toto", "4d")
+  typeStr <- c("powerball", "ozlotto", "satlotto", "wedlotto", "toto", "4d", "r")
   for( lottoStr in userStr )
   {
     if( length(which(typeStr==lottoStr)) == 0 )
@@ -409,6 +412,11 @@ LottoResult <- function( ..., resNum=1 )
       resCol <- 1:11
       nameStr <- c(nameStr, "Number", "Num", "Num", "Num", "Num", "Num", "Num", "Supplement", "Supp")
     }
+    if(lottoStr == "r")
+    {
+      resCol <- 1:3
+      nameStr <- c(nameStr, "Number")
+    }
     if(lottoStr == "4d")
     {
       resCol <- 1:15
@@ -429,10 +437,14 @@ LottoResult <- function( ..., resNum=1 )
     else
     {
       rawDfr <- fileReadDfr( lottoStr )
-      rawDfr <- rawDfr[, resCol]
-      names( rawDfr ) <- nameStr
-      print( toupper(lottoStr), row.names=FALSE )
-      print( rawDfr[1:resNum,], row.names=FALSE )
+      if( !is.null(rawDfr) )
+      {
+        resNum <- min(resNum, nrow(rawDfr))
+        rawDfr <- rawDfr[, resCol]
+        names( rawDfr ) <- nameStr
+        print( toupper(lottoStr), row.names=FALSE )
+        print( rawDfr[1:resNum,], row.names=FALSE )
+      }
     }
   }
 }
@@ -563,7 +575,7 @@ lottoArimaConfDfr <- function( rawMtx, lNum, uNum=NULL )
   #       rawMtx:       a numeric matrix with at least (3 rows x 1 col) to be forecasted
   #       lNum:         a numeric vector containing lower bounds                 
   #       uNum:         a numeric vector containing upper bounds (default: NULL)                 
-
+  
   #---  Check that arguments are valid
   if( is.null(rawMtx) )
     stop("rawMtx MUST be a numeric matrix with at least (3 rows x 1 col) to be forecasted")
@@ -673,6 +685,18 @@ lottoPowerSplitMtx <- function( rawDfr )
   
   rawDfr <- rawDfr[1:nrow(rawDfr), ]
   rawMtx <- cbind(rawDfr[, 3],rawDfr[, 4],rawDfr[, 5],rawDfr[, 6],rawDfr[, 7],rawDfr[, 8])
+}
+
+lottoRandSplitMtx <- function( rawDfr )
+{
+  #--- Coerce character into numeric or date
+  rawDfr[, 1] <- suppressWarnings( as.numeric( rawDfr[, 1] ) )    # Draw number
+  rawDfr[, 2] <- as.Date(rawDfr[, 2], "%Y/%m/%d")                 # Draw date
+  rawDfr[, 3] <- suppressWarnings( as.numeric( rawDfr[, 3] ) )    # Number 1-2
+  rawDfr[, 4] <- suppressWarnings( as.numeric( rawDfr[, 4] ) )    
+  
+  rawDfr <- rawDfr[1:nrow(rawDfr), ]
+  rawMtx <- cbind(rawDfr[,3], rawDfr[,4])
 }
 
 lottoOzSplitMtx <- function( rawDfr )
@@ -1028,6 +1052,45 @@ lottoTotoUpdateNum <- function( startDrawNum=2480, endDrawNum=9999, silent=TRUE 
     fileWriteCsv(formDfr, "toto")
   }
   retNum
+}
+
+lottoRandUpdateNum <- function( randNum, startDrawNum=1, endDrawNum=9999, silent=TRUE )
+{
+  randDfr <- fileReadDfr("r")
+  if( is.null(randDfr) )
+  {
+    randDfr <- dataFrame( colClasses=c(Draw_number="character", Draw_date="character", 
+                                       Number_1="character", Number_2="character"),
+                          nrow=0 )
+  }
+  
+  if( nrow(randDfr)>0 )
+  {
+    #--- Coerce character into numeric or date
+    nextDrawNum <- max( suppressWarnings( as.numeric( randDfr[, 1] ) ) ) + 1
+    if( nextDrawNum > startDrawNum ) startDrawNum <- nextDrawNum
+  }
+  if( startDrawNum > endDrawNum ) return(0)
+  
+  retNum <- 0
+  
+  d <- startDrawNum
+  rNum <- as.numeric(randNum)
+  rNum <- c(rNum, rNum)
+  rDte <- Sys.Date()
+  
+  rDfr <- data.frame(d, format(rDte, "%Y/%m/%d"), rNum[1], rNum[2])
+  names(rDfr) <- names(randDfr)
+  randDfr <- rbind(rDfr, randDfr)
+  retNum <- retNum + 1
+  if( !silent ) print( paste("Imported random draw ", d, sep="") )
+  
+  if( retNum > 0 ) 
+  {
+    formDfr <- as.data.frame(lapply(randDfr, function(x) if (is(x, "Date")) format(x, "%Y/%m/%d") else x))
+    fileWriteCsv(formDfr, "r")
+  }
+  nrow(formDfr)
 }
 
 lottoDrawDateChr <- function( lottoStr, startNum=1 )
