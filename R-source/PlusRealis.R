@@ -7,6 +7,8 @@
 #|  the caveats lodged for EVERY property transaction in Singapore.                         |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.0.1   Function RealisReadDfr() allows multipart files to be read into a data frame    |
+#|          starting from ANY number to ANY number, instead of from ONE (1) to ANY number.  |
 #|  1.0.0   Contains R functions to manipulate data from the URA Realis web site.           |
 #|          Functions include RealisReadDfr(), RealisBoxplotFtr(), RealisDateSplitDfr(),    |
 #|          and RealisAddressSplitDfr().                                                    |
@@ -26,37 +28,40 @@ library(scales)
 #|------------------------------------------------------------------------------------------|
 #|                            E X T E R N A L   F U N C T I O N S                           |
 #|------------------------------------------------------------------------------------------|
-RealisReadDfr <- function(fileStr, partNum=1, 
+RealisReadDfr <- function(fileStr, seqNum=1:1, 
                           workDirStr="C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-nonsource")
 {
   #---  Assert THREE (3) arguments:                                                   
   #       fileStr:      name of the file (without the suffix "_part_xx" and extension ".csv"
-  #       partNum:      number of parts                                               
+  #       seqNum:       numeric vector with bgn:end (default: 1:1)                                               
   #       workDirStr:   working directory                                             
   
   #---  Check that partNum is valid (between 1 to 999)                                 
-  if( as.numeric(partNum) < 1 || as.numeric(partNum) > 999 ) 
-    stop("partNum MUST be between 1 AND 99")
+  if( as.numeric(seqNum[1]) < 1 || as.numeric(seqNum[length(seqNum)]) > 999 ) 
+    stop("seqNum MUST be between 1 AND 999")
   #---  Set working directory                                                         
   setwd(workDirStr)
   #---  Read data from split parts
   #       Append suffix to the fileStr
   #       Read each part and merge them together
   
-  if( as.numeric(partNum) > 1 )
+  if( length(seqNum) > 1 )
   {
-    retDfr <- read.csv( paste( fileStr, "_part001.csv", sep="" ), colClasses = "character" )
-    
-    for( id in 2:partNum )
+    for( id in seqNum )
     {
       #---  rbind() function will bind two data frames with the same header together
-      partStr <- paste( fileStr, "_part", sprintf("%03d", as.numeric(id)), ".csv", sep="" )
-      tmpDfr <- read.csv( partStr, colClasses = "character")
-      retDfr <- rbind( retDfr, tmpDfr )
+      partStr <- paste0( fileStr, "_part", sprintf("%03d", as.numeric(id)), ".csv" )
+      if( id==seqNum[1] )
+        retDfr <- read.csv( partStr, colClasses = "character" )
+      else
+      {
+        tmpDfr <- read.csv( partStr, colClasses = "character" )
+        retDfr <- rbind( retDfr, tmpDfr )
+      }
     }
   }
   else
-    retDfr <- read.csv( paste( fileStr, ".csv", sep="" ), colClasses = "character" )
+    retDfr <- read.csv( paste0( fileStr, ".csv" ), colClasses = "character" )
   
   #---  Return a data frame
   return(retDfr)
