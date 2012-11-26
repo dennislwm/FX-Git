@@ -19,48 +19,50 @@
 #|  you can also run it in a separate process. You can do this by opening a bash shell or   |
 #|  console window and executing the following:                                             |
 #|                                                                                          |
-#|    $ R -e "shiny::runApp('~/100 FXOption/103 FXOptionVerBack/080 FX Git/R-shiny-01/')"   |
+#|    $ R -e "shiny::runApp('~/100 FXOption/103 FXOptionVerBack/080 FX Git/R-shiny-02/',    |
+#|                          port=8103L)"                                                    |
 #|                                                                                          |
 #|  Note: To kill a process, type 'ps' to search for the pid, and then type 'kill -9 <pid>'.|
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.0.1   Fixed some minor bugs when loading the file and tweaked the graph plot.         |
 #|  1.0.0   This script contains the shinyServer() function for PlusRealis.R                |
 #|------------------------------------------------------------------------------------------|
 library(shiny)
-source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusFile.R")
-source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusRealis.R")
+source("~/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusFile.R")
+source("~/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusRealis.R")
 
 myServer <- function(input, output) 
 {
-#---  The interaction flow
-#       (1) UI disabled, wait for database to load
-#         (i)   Database loaded from 1 January 2012 (start seq: 371)
-#       (1) UI disabled, enabled for Region, which is dynamic
-#         (i)   Database loaded from 1 January 2012
-#       (2) Click Ok, UI enabled for Area, which is dynamic
-#         (ii)  Database subset for Area
-#       (3) Click Ok, UI enabled for Project, which is dynamic
-#         (iii) Database subset for Project
-#       (4) Click Ok, UI enabled for Floor, Psf, Price and Level
-#         (iv)  Database subset for Floor, Psf, Price and Level
-#     Note: The file seq is from 371 for 1 January 2012 onwards 
-#           (Mar to Jan not in order)
-
-#---  Output variables
-#       (0) raw.FUN() returns a data.frame
-#       (1) output$region.selectInput is a UI
-#       (2) reg.FUN() returns a data.frame
-#       (3) output$area.selectInput is a UI
-#       (4) area.FUN() returns a data.frame
-#       (5) output$project.selectInput is a UI
-#       (6) project.FUN() returns a data.frame
-#       (7) table.FUN() returns a data.frame
-#       (8) threshold.FUN() returns a boolean
-#       (9) output$floor.selectInput is a UI
-#       (10) floor.FUN() returns a data.frame  
-#       (11) output$summaryTxt is a Print
-#       (12) output$summary.plot is a Plot
-#       (13) output$tableDfr is a Print  
+  #---  The interaction flow
+  #       (1) UI disabled, wait for database to load
+  #         (i)   Database loaded from 1 January 2012 (start seq: 371)
+  #       (1) UI disabled, enabled for Region, which is dynamic
+  #         (i)   Database loaded from 1 January 2012
+  #       (2) Click Ok, UI enabled for Area, which is dynamic
+  #         (ii)  Database subset for Area
+  #       (3) Click Ok, UI enabled for Project, which is dynamic
+  #         (iii) Database subset for Project
+  #       (4) Click Ok, UI enabled for Floor, Psf, Price and Level
+  #         (iv)  Database subset for Floor, Psf, Price and Level
+  #     Note: The file seq is from 371 for 1 January 2012 onwards 
+  #           (Mar to Jan not in order)
+  
+  #---  Output variables
+  #       (0) raw.FUN() returns a data.frame
+  #       (1) output$region.selectInput is a UI
+  #       (2) reg.FUN() returns a data.frame
+  #       (3) output$area.selectInput is a UI
+  #       (4) area.FUN() returns a data.frame
+  #       (5) output$project.selectInput is a UI
+  #       (6) project.FUN() returns a data.frame
+  #       (7) table.FUN() returns a data.frame
+  #       (8) threshold.FUN() returns a boolean
+  #       (9) output$floor.selectInput is a UI
+  #       (10) floor.FUN() returns a data.frame  
+  #       (11) output$summaryTxt is a Print
+  #       (12) output$summary.plot is a Plot
+  #       (13) output$tableDfr is a Print  
   raw.FUN <- reactive(function() {
     rawDfr <- RealisReadDfr("realis_residential_database_1995_jan",
                             371:402)
@@ -69,48 +71,61 @@ myServer <- function(input, output)
   
   output$region.selectInput <- reactiveUI( function() 
   {
-    selectInput("regionChr", "Choose Region:", 
-                          sort( unique(rawDfr$Planning.Region) ) )
+    rawDfr <- raw.FUN()
+    tryCatch( selectInput("regionChr", "Choose Region:", 
+                          sort( unique(rawDfr[,18]) ) ),
+              error=function(e) { NULL }, finally={} )
   } )
   
-#       (2) reg.FUN() returns a data.frame
+  #       (2) reg.FUN() returns a data.frame
   reg.FUN <- reactive(function() {
     rawDfr <- raw.FUN()
-    rawDfr[rawDfr$Planning.Region==input$regionChr, ]
+    if( !is.null(rawDfr) )
+      rawDfr[rawDfr[,18]==input$regionChr, ]
+    else
+      NULL
   } )
   
-#       (3) area.selectInput is a UI
+  #       (3) area.selectInput is a UI
   output$area.selectInput <- reactiveUI( function()
   {
     regDfr <- reg.FUN()
     tryCatch( selectInput("areaChr", "Choose an Area:",
-                          sort( unique(regDfr$Planning.Area) ) ),
+                          sort( unique(regDfr[,19]) ) ),
               error=function(e) { NULL }, finally={} )
   } )
   
-#       (4) area.FUN() returns a data.frame
+  #       (4) area.FUN() returns a data.frame
   area.FUN <- reactive(function() {
-    rawDfr[rawDfr$Planning.Region==input$regionChr 
-           & rawDfr$Planning.Area==input$areaChr, ]
+    rawDfr <- raw.FUN()
+    if( !is.null(rawDfr) )
+      rawDfr[rawDfr[,18]==input$regionChr 
+             & rawDfr[,19]==input$areaChr, ]
+    else
+      NULL
   } )
-
-#       (5) output$project.selectInput is a UI
+  
+  #       (5) output$project.selectInput is a UI
   output$project.selectInput <- reactiveUI( function()
   {
     areaDfr <- area.FUN()
     tryCatch( selectInput("projectChr", "Choose a Project:",
-                sort( unique(areaDfr$Project.Name) ) ),
+                          sort( unique(areaDfr[,1]) ) ),
               error=function(e) { NULL }, finally={} )
   } )
   
-#       (6) project.FUN() returns a data.frame
+  #       (6) project.FUN() returns a data.frame
   project.FUN <- reactive(function() {
-    rawDfr[rawDfr$Planning.Region==input$regionChr 
-           & rawDfr$Planning.Area==input$areaChr
-           & rawDfr$Project.Name==input$projectChr, ]
+    rawDfr <- raw.FUN()
+    if( !is.null(rawDfr) )
+      rawDfr[rawDfr[,18]==input$regionChr 
+             & rawDfr[,19]==input$areaChr
+             & rawDfr[,1]==input$projectChr, ]
+    else
+      NULL
   } )
-
-#       (7) table.FUN() returns a data.frame  
+  
+  #       (7) table.FUN() returns a data.frame  
   table.FUN <- reactive(function() {
     pDfr <- project.FUN()
     if(nrow(pDfr)>0)
@@ -132,9 +147,9 @@ myServer <- function(input, output)
     }
     else
       NULL
-    } )
+  } )
   
-#       (8) threshold.FUN() returns a boolean
+  #       (8) threshold.FUN() returns a boolean
   threshold.FUN <- reactive(function() {
     tDfr <- table.FUN()
     thresholdNum <- 20
@@ -149,7 +164,7 @@ myServer <- function(input, output)
       FALSE
   })
   
-#       (9) output$floor.selectInput is a UI
+  #       (9) output$floor.selectInput is a UI
   output$floor.selectInput <- reactiveUI( function()
   {
     tDfr <- table.FUN()
@@ -181,8 +196,8 @@ myServer <- function(input, output)
     else
       NULL
   } )  
-
-#       (10) floor.FUN() returns a data.frame  
+  
+  #       (10) floor.FUN() returns a data.frame  
   floor.FUN <- reactive(function() {
     tDfr <- table.FUN()
     okBln <- threshold.FUN()
@@ -206,7 +221,7 @@ myServer <- function(input, output)
       NULL
   } )
   
-#       (11) output$summaryTxt is a Print
+  #       (11) output$summaryTxt is a Print
   output$summaryTxt <- reactivePrint(function() {
     tDfr <- table.FUN()
     fDfr <- floor.FUN()
@@ -227,39 +242,39 @@ myServer <- function(input, output)
     else
       "Choose a Region, Area and Project"
   })
-
   
-#       (12) output$summary.plot is a Plot
+  
+  #       (12) output$summary.plot is a Plot
   output$summary.plot <- reactivePlot(function() {
     fsNum <- 1.5
-    par( mfcol = c(1,3), las=2, mar=c(2.1,3.1,2.1,2.1),
+    par( mfcol = c(1,3), las=2, mar=c(2.1,5.1,2.1,2.1),
          cex.lab=fsNum, cex.axis=fsNum, cex.main=fsNum, cex.sub=fsNum ) 
     tDfr <- table.FUN()
     fDfr <- floor.FUN()
     if( !is.null(fDfr) )
     {
-      boxplot( as.numeric(fDfr[,4]), outchar = T, 
-               main = "Unit Price Psf", col = "grey")
       boxplot( as.numeric(fDfr[,2]), outchar = T,
                main = "Floor Size", col = "lightgray")
+      boxplot( as.numeric(fDfr[,4]), outchar = T, 
+               main = "Unit Price Psf", col = "grey")
       boxplot( as.numeric(fDfr[,3]), outchar = T, 
-               main = "Purchase Price", col = "black")
+               main = "Purchase Price", col = "darkgray")
     }
     else if( !is.null(tDfr) )
     {
-      boxplot( as.numeric(tDfr[,4]), outchar = T, 
-               main = "Unit Price Psf", col = "grey")
       boxplot( as.numeric(tDfr[,2]), outchar = T,  
                main = "Floor Size", col = "lightgray")
+      boxplot( as.numeric(tDfr[,4]), outchar = T, 
+               main = "Unit Price Psf", col = "grey")
       boxplot( as.numeric(tDfr[,3]), outchar = T, 
-               main = "Purchase Price", col = "black")
+               main = "Purchase Price", col = "darkgray")
     }
     else
       "Choose a Region, Area and Project"
   })
   
   
-#       (13) output$tableDfr is a Print
+  #       (13) output$tableDfr is a Print
   output$tableDfr <- reactivePrint(function() {
     tDfr <- table.FUN()
     fDfr <- floor.FUN()
