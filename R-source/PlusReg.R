@@ -4,6 +4,7 @@
 #| Assert Function                                                                          |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.0.1   Fixed RegIsEmailBln() to check for repeating ".xxx" pattern.                    |
 #|  1.0.0   This library contains external R functions to perform text manipulation.        |
 #|------------------------------------------------------------------------------------------|
 
@@ -106,10 +107,14 @@ RegIsEmailBln <- function( emailChr )
   
   #---  Email pattern
   #       Does not restrict abc@yahoo.com.au.au.au, which is incorrect
-  patStr <- "^([a-zA-Z0-9]+[a-zA-Z0-9._%-]*@(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,4})$"
+  patStr <- "^([a-zA-Z0-9]+[a-zA-Z0-9._%-]*@(?:[a-zA-Z0-9-])+(\\.+[a-zA-Z]{2,4}){1,2})$"
   grepl(patStr, emailChr)
 }
 RegIsTypeBln <- function(aChr, typeChr)
 {
   return( length(which(typeChr==aChr)) != 0 )
+}
+RegIsEmptyBln <- function(x)
+{
+  return( length(x)==0 )
 }
