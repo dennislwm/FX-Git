@@ -86,6 +86,17 @@
 #|        }                                                                                 |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.0.7   Major changes to the inputs to the auto.arima() function. First, we use the     |
+#|          diff(log(data)) instead of the diff(data) as input, as this reduces the AIC     |
+#|          to about ONE-THIRD (1/3). Second, we use a zoo object instead of a matrix as    |
+#|          input to ensure that the time series is in the correct order when using the     |
+#|          forecast() function. Third, we added a new parameter, c80Bln, in FOUR (4)       |
+#|          external functions Lotto(), LottoSystem(), LottoArimaSummary(), and             |
+#|          LottoArimaConf() and internal function lottoArimaConfZooDfr(), to select either |
+#|          EIGHTY (80%) percent or NINETY-FIVE (95%) percent confidence interval           |
+#|          (default: 95%). We maintain compatibility by adding new internal functions      |
+#|          lottoPowerSplitZoo(), lottoOzSplitZoo(), lotto4DSplitZoo(), and                 |
+#|          lottoRandSplitZoo(). Added test_that() for function lottoArimaConfZooDfr().     |
 #|  1.0.6   Incorporated Roulette (r) into several external functions, and added TWO (2)    |
 #|          internal functions lottoRandUpdateNum() and lottoRandSplitMtx().                |
 #|  1.0.5   Updated function LottoUpdateNum() to return the number of results updated.      |
@@ -118,6 +129,7 @@ library(forecast)
 library(XML)
 library(R.utils)
 library(gtools)
+library(zoo)
 source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusReg.R")
 source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusFile.R")
 
@@ -127,7 +139,7 @@ source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/P
 #|------------------------------------------------------------------------------------------|
 #|                          E X T E R N A L   A   F U N C T I O N S                         |
 #|------------------------------------------------------------------------------------------|
-Lotto <- function(lottoStr, ticketNum=12, startNum=1)
+Lotto <- function(lottoStr, ticketNum=12, startNum=1, c80Bln=FALSE)
 {
   #---  Assert TWO (2) arguments:                                                   
   #       lottoStr:     MUST specify EITHER "powerball", "ozlotto", "satlotto", "wedlotto",
@@ -163,7 +175,7 @@ Lotto <- function(lottoStr, ticketNum=12, startNum=1)
     dupCol <- 1:1
   
   #---  Call the ARIMA function to get a confidence data frame
-  confDfr <- LottoArimaConf(lottoStr, startNum)
+  confDfr <- LottoArimaConf(lottoStr, startNum, c80Bln=c80Bln)
   
   sRow <- nrow(confDfr)
   
@@ -207,7 +219,7 @@ Lotto <- function(lottoStr, ticketNum=12, startNum=1)
     outMtx
 }  
 
-LottoSystem <- function(systemNum, lottoStr, ticketNum=12, startNum=1)
+LottoSystem <- function(systemNum, lottoStr, ticketNum=12, startNum=1, c80Bln=FALSE)
 {
   #---  Assert THREE (3) arguments:
   #       systemNum:    MUST be an integer between SEVEN (7) and TWELVE (12)
@@ -242,7 +254,7 @@ LottoSystem <- function(systemNum, lottoStr, ticketNum=12, startNum=1)
   
   outMtx <- matrix(nrow = ticketNum, ncol = systemNum)
   perMtx <- permutations(max(numCol), max(numCol))
-  lotMtx <- Lotto( lottoStr, ticketNum, startNum )
+  lotMtx <- Lotto( lottoStr, ticketNum, startNum, c80Bln=c80Bln )
   for( t in 1:nrow(lotMtx) )
   {
     #---  System mechanism
@@ -250,10 +262,10 @@ LottoSystem <- function(systemNum, lottoStr, ticketNum=12, startNum=1)
     #       If there is no intersection, then randomly draw n number
     #       Append n number to the end of ticket for System
     #       Discard the standard ticket and repeat again
-    stdMtx <- Lotto( lottoStr, 1, startNum )
+    stdMtx <- Lotto( lottoStr, 1, startNum, c80Bln=c80Bln )
     while( length(intersect( stdMtx[1,], lotMtx[t,] )) > 0 )
     {
-      stdMtx <- Lotto( lottoStr, 1, startNum )
+      stdMtx <- Lotto( lottoStr, 1, startNum, c80Bln=c80Bln )
     }
     idxNum <- round(runif(1, min=1, max=nrow(perMtx)))
     perNum <- perMtx[idxNum, ]
@@ -298,7 +310,7 @@ LottoUpdateNum <- function(silent=TRUE)
   sNum
 }
 
-LottoArimaSummary <- function(startNum=1)
+LottoArimaSummary <- function(startNum=1, c80Bln=FALSE)
 {
   #---  Assert ONE (1) arguments:                                                   
   #       startNum:     the start row that is used in forecast (default: 1)                 
@@ -309,17 +321,17 @@ LottoArimaSummary <- function(startNum=1)
     stop("startNum MUST be between ONE (1) and TEN (10)")
   
   #---  Compute power of odds
-  pwrNum <- c( 45*factorial(45)/factorial(40)/lottoArimaNum("powerball", startNum),
-               factorial(45)/factorial(38)/lottoArimaNum("ozlotto", startNum),
-               factorial(45)/factorial(39)/lottoArimaNum("satlotto", startNum),
-               factorial(45)/factorial(39)/lottoArimaNum("wedlotto", startNum),
-               factorial(45)/factorial(38)/lottoArimaNum("toto", startNum),
-               10000/lottoArimaNum("4d", startNum) )
+  pwrNum <- c( 45*factorial(45)/factorial(40)/lottoArimaNum("powerball", startNum, c80Bln),
+               factorial(45)/factorial(38)/lottoArimaNum("ozlotto", startNum, c80Bln),
+               factorial(45)/factorial(39)/lottoArimaNum("satlotto", startNum, c80Bln),
+               factorial(45)/factorial(39)/lottoArimaNum("wedlotto", startNum, c80Bln),
+               factorial(45)/factorial(38)/lottoArimaNum("toto", startNum, c80Bln),
+               10000/lottoArimaNum("4d", startNum, c80Bln) )
   
   data.frame(lotto=typeStr, power=round(pwrNum,1))
 }
 
-LottoArimaConf <- function(lottoStr, startNum=1)
+LottoArimaConf <- function(lottoStr, startNum=1, c80Bln=FALSE)
 {
   #---  Assert TWO (2) arguments:                                                   
   #       lottoStr:     MUST specify EITHER "powerball", "ozlotto", "satlotto", "wedlotto", "toto" OR "4d"
@@ -338,25 +350,25 @@ LottoArimaConf <- function(lottoStr, startNum=1)
   rawDfr <- fileReadDfr(lottoStr)
   rawDfr <- rawDfr[startNum:nrow(rawDfr), ]
   if(lottoStr == "powerball")
-    rawMtx <- lottoPowerSplitMtx( rawDfr )
+    rawZoo <- lottoPowerSplitZoo( rawDfr )
   if(lottoStr == "satlotto")
-    rawMtx <- lottoPowerSplitMtx( rawDfr )
+    rawZoo <- lottoPowerSplitZoo( rawDfr )
   if(lottoStr == "wedlotto")
-    rawMtx <- lottoPowerSplitMtx( rawDfr )
+    rawZoo <- lottoPowerSplitZoo( rawDfr )
   if(lottoStr == "toto")
-    rawMtx <- lottoOzSplitMtx( rawDfr )
+    rawZoo <- lottoOzSplitZoo( rawDfr )
   if(lottoStr == "ozlotto")
-    rawMtx <- lottoOzSplitMtx( rawDfr )
+    rawZoo <- lottoOzSplitZoo( rawDfr )
   if(lottoStr == "4d")
-    rawMtx <- lotto4DSplitMtx( rawDfr )
+    rawZoo <- lotto4DSplitZoo( rawDfr )
   if(lottoStr == "r")
-    rawMtx <- lottoRandSplitMtx( rawDfr )
+    rawZoo <- lottoRandSplitZoo( rawDfr )
   
   #---  Compute min, max and sum confidence intervals
   if(lottoStr == "4d" | lottoStr == "r")
-    lottoArimaConfDfr(rawMtx, 0)
+    lottoArimaConfZooDfr(rawZoo, 0, c80Bln=c80Bln)
   else
-    lottoArimaConfDfr(rawMtx, 1)
+    lottoArimaConfZooDfr(rawZoo, 1, c80Bln=c80Bln)
 }
 
 #|------------------------------------------------------------------------------------------|
@@ -652,6 +664,116 @@ lottoArimaConfDfr <- function( rawMtx, lNum, uNum=NULL )
   foreDfr[colNum+1, 1] <- max(foreDfr[colNum+1, 1], mnsNum)
   foreDfr
 }
+lottoArimaConfZooDfr <- function( rawZoo, lNum, uNum=NULL, c80Bln=FALSE )
+{
+  #---  Assert THREE (3) arguments:                                                   
+  #       rawZoo:       a zoo object with AT LEAST (3 rows x 2 cols) to be forecasted
+  #       lNum:         a numeric vector containing lower bounds                 
+  #       uNum:         a numeric vector containing upper bounds (default: NULL)                 
+  
+  #---  Check that arguments are valid
+  if( is.null(rawZoo) )
+    stop("rawZoo MUST be a zoo object with at least (3 rows x 2 cols) to be forecasted")
+  if( RegIsEmptyBln(rawZoo) )
+    stop("rawZoo MUST be a zoo object with at least (3 rows x 2 cols) to be forecasted")
+  if( is.null(NCOL(rawZoo)) )
+    stop("rawZoo MUST be a zoo object with at least (3 rows x 2 cols) to be forecasted")
+  if( NCOL(rawZoo)<2 )
+    stop("rawZoo MUST be a zoo object with at least (3 rows x 2 cols) to be forecasted")
+  if( NROW(rawZoo)<3 )
+    stop("rawZoo MUST be a zoo object with at least (3 rows x 2 cols) to be forecasted")
+  if( is.null(lNum) )
+    stop("lNum MUST be a numeric vector containing lower bounds")
+  if( RegIsEmptyBln(lNum) )
+    stop("lNum MUST be a numeric vector containing lower bounds")
+  if( length(lNum)>1 & length(lNum)!=NCOL(rawZoo) )
+    stop("lNum MUST be a numeric vector of length EQUAL to number of columns in the matrix")
+  if( !is.null(uNum) )
+    if( RegIsEmptyBln(uNum) )
+      stop("uNum MUST be a numeric vector containing upper bounds")
+  if( length(uNum)>1 & length(uNum)!=NCOL(rawZoo) )
+    stop("uNum MUST be a numeric vector of length EQUAL to number of columns in the matrix")
+  if( NCOL(rawZoo)>1 )
+    rawZoo <- rawZoo[complete.cases(rawZoo), ]
+  else
+    rawZoo <- na.omit(rawZoo)
+  if( NROW(rawZoo)<3 )
+    stop("rawZoo contains LESS THAN THREE (3) complete rows to be forecasted")
+  if( !RegIsDateBln(index(rawZoo)) )
+    stop("rawZoo MUST be a time series, i.e. index(rawZoo) MUST be a date")
+    
+  #---  Initialize variables
+  colNum <- NCOL(rawZoo)
+  #---  Compute min, max and sum
+  if( length(lNum)==1 )
+    minNum <- rep.int(lNum, colNum)
+  mnsNum <- sum(minNum)
+  if( is.null(uNum) )
+    maxNum <- apply(rawZoo, 2, max)
+  else
+    maxNum <- rep.int(uNum, colNum)
+  if( !RegIsEmptyBln(which(maxNum<minNum)) )
+    stop("lNum MUST BE LESS THAN uNum")
+  
+  rawZoo <- cbind(rawZoo, apply(rawZoo, 1, sum))
+  
+  #--- fit MA on individual numbers and forecast for ONE (1) look ahead
+  #       compute the confidence for EACH number
+  upperNum <- numeric(0)
+  lowerNum <- numeric(0)
+  for (i in 1:(colNum+1))
+  {
+    #---  Compute difNum, which is a vector of differences between the rows
+    #       E.g. difNum[1] = row[1] - row[2]
+    #       If lNum=0, shift by 1 because log(0) is Infinity
+    if( lNum==0 )
+      difNum <- diff(log(rawZoo[ ,i]+1))
+    else
+      difNum <- diff(log(rawZoo[ ,i]))
+    
+    #---  Fit MA on diff and forecast for ONE (1) look ahead
+    dif.arima <- suppressWarnings(auto.arima(difNum))
+    dif.forecast <- suppressWarnings(forecast(dif.arima, h=1))
+    
+    #---  Rearrange the formula for difNum, and compute the new row and confidence, 
+    #       based on the diff forecast
+    #       row[0] = difNum[0] + row[1]
+    #       For 95% confidence interval, use max(forecast$upper) and min(forecast$lower)
+    #       For 80% confidence interval, use min(forecast$upper) and max(forecast$lower)
+    if( !c80Bln )
+    {
+      forecastUpperNum <- max(dif.forecast$upper)
+      forecastLowerNum <- min(dif.forecast$lower)
+    }
+    else
+    {
+      forecastUpperNum <- min(dif.forecast$upper)
+      forecastLowerNum <- max(dif.forecast$lower)
+    }
+    #       If lNum=0, shift back by -1 because log(0) is Infinity
+    if( lNum==0 )
+    {
+      upperNum <- c(upperNum, exp( log(rawZoo[NROW(rawZoo), i]+1) + forecastUpperNum )-1 )
+      lowerNum <- c(lowerNum, exp( log(rawZoo[NROW(rawZoo), i]+1) + forecastLowerNum )-1 )
+    }
+    else
+    {
+      upperNum <- c(upperNum, exp( log(rawZoo[NROW(rawZoo), i]) + forecastUpperNum ) )
+      lowerNum <- c(lowerNum, exp( log(rawZoo[NROW(rawZoo), i]) + forecastLowerNum ) )
+    }
+  }
+  
+  foreDfr <- data.frame(lower=lowerNum, upper=upperNum)
+  foreDfr$lower <- round(foreDfr$lower)
+  foreDfr$upper <- trunc(foreDfr$upper)
+  for (i in 1:colNum)
+  {
+    foreDfr[i, 1] <- max(foreDfr[i, 1], minNum[i])
+    foreDfr[i, 2] <- min(foreDfr[i, 2], maxNum[i])
+  }
+  foreDfr[colNum+1, 1] <- max(foreDfr[colNum+1, 1], mnsNum)
+  foreDfr
+}
 
 lotto4DSplitMtx <- function( rawDfr )
 {
@@ -670,7 +792,25 @@ lotto4DSplitMtx <- function( rawDfr )
                    as.numeric( substring(topChr, 3, 3) ),
                    as.numeric( substring(topChr, 4, 4) ) )
 }
-
+lotto4DSplitZoo <- function( rawDfr )
+{
+  #--- Coerce character into numeric or date
+  rawDfr[, 1] <- suppressWarnings( as.numeric( rawDfr[, 1] ) )    # Draw number
+  rawDfr[, 2] <- as.Date(rawDfr[, 2], "%Y/%m/%d")                 # Draw date
+  
+  rawDfr <- rawDfr[1:nrow(rawDfr), ]
+  topChr <- character(0)
+  for( i in 1:nrow(rawDfr) )
+  {
+    topChr <- rbind(topChr, rawDfr[i,5], rawDfr[i,4], rawDfr[i,3])
+  }
+  rawZoo <- zoo(matrix(cbind( as.numeric( substring(topChr, 1, 1) ),
+                              as.numeric( substring(topChr, 2, 2) ),
+                              as.numeric( substring(topChr, 3, 3) ),
+                              as.numeric( substring(topChr, 4, 4) ) ),
+                       ncol=4),
+                rawDfr[, 2])
+}
 lottoPowerSplitMtx <- function( rawDfr )
 {
   #--- Coerce character into numeric or date
@@ -686,7 +826,23 @@ lottoPowerSplitMtx <- function( rawDfr )
   rawDfr <- rawDfr[1:nrow(rawDfr), ]
   rawMtx <- cbind(rawDfr[, 3],rawDfr[, 4],rawDfr[, 5],rawDfr[, 6],rawDfr[, 7],rawDfr[, 8])
 }
-
+lottoPowerSplitZoo <- function( rawDfr )
+{
+  #--- Coerce character into numeric or date
+  rawDfr[, 1] <- suppressWarnings( as.numeric( rawDfr[, 1] ) )    # Draw number
+  rawDfr[, 2] <- as.Date(rawDfr[, 2], "%Y/%m/%d")                 # Draw date
+  rawDfr[, 3] <- suppressWarnings( as.numeric( rawDfr[, 3] ) )    # Number 1-5 and Powerball
+  rawDfr[, 4] <- suppressWarnings( as.numeric( rawDfr[, 4] ) )    
+  rawDfr[, 5] <- suppressWarnings( as.numeric( rawDfr[, 5] ) )    
+  rawDfr[, 6] <- suppressWarnings( as.numeric( rawDfr[, 6] ) )    
+  rawDfr[, 7] <- suppressWarnings( as.numeric( rawDfr[, 7] ) )    
+  rawDfr[, 8] <- suppressWarnings( as.numeric( rawDfr[, 8] ) )    
+  
+  rawDfr <- rawDfr[1:nrow(rawDfr), ]
+  rawZoo <- zoo(matrix(cbind(rawDfr[, 3],rawDfr[, 4],rawDfr[, 5],rawDfr[, 6],rawDfr[, 7],rawDfr[, 8]),
+                       ncol=6),
+                rawDfr[, 2])
+}
 lottoRandSplitMtx <- function( rawDfr )
 {
   #--- Coerce character into numeric or date
@@ -698,7 +854,19 @@ lottoRandSplitMtx <- function( rawDfr )
   rawDfr <- rawDfr[1:nrow(rawDfr), ]
   rawMtx <- cbind(rawDfr[,3], rawDfr[,4])
 }
-
+lottoRandSplitZoo <- function( rawDfr )
+{
+  #--- Coerce character into numeric or date
+  rawDfr[, 1] <- suppressWarnings( as.numeric( rawDfr[, 1] ) )    # Draw number
+  rawDfr[, 2] <- as.Date(rawDfr[, 2], "%Y/%m/%d")                 # Draw date
+  rawDfr[, 3] <- suppressWarnings( as.numeric( rawDfr[, 3] ) )    # Number 1-2
+  rawDfr[, 4] <- suppressWarnings( as.numeric( rawDfr[, 4] ) )    
+  
+  rawDfr <- rawDfr[1:nrow(rawDfr), ]
+  rawMtx <- zoo(matrix(cbind(rawDfr[,3], rawDfr[,4]),
+                       ncol=2),
+                rawDfr[, 2])
+}
 lottoOzSplitMtx <- function( rawDfr )
 {
   #--- Coerce character into numeric or date
@@ -715,8 +883,26 @@ lottoOzSplitMtx <- function( rawDfr )
   rawDfr <- rawDfr[1:nrow(rawDfr), ]
   rawMtx <- cbind(rawDfr[, 3],rawDfr[, 4],rawDfr[, 5],rawDfr[, 6],rawDfr[, 7],rawDfr[, 8],rawDfr[, 9])
 }
+lottoOzSplitZoo <- function( rawDfr )
+{
+  #--- Coerce character into numeric or date
+  rawDfr[, 1] <- suppressWarnings( as.numeric( rawDfr[, 1] ) )    # Draw number
+  rawDfr[, 2] <- as.Date(rawDfr[, 2], "%Y/%m/%d")                 # Draw date
+  rawDfr[, 3] <- suppressWarnings( as.numeric( rawDfr[, 3] ) )    # Number 1-7
+  rawDfr[, 4] <- suppressWarnings( as.numeric( rawDfr[, 4] ) )    
+  rawDfr[, 5] <- suppressWarnings( as.numeric( rawDfr[, 5] ) )    
+  rawDfr[, 6] <- suppressWarnings( as.numeric( rawDfr[, 6] ) )    
+  rawDfr[, 7] <- suppressWarnings( as.numeric( rawDfr[, 7] ) )    
+  rawDfr[, 8] <- suppressWarnings( as.numeric( rawDfr[, 8] ) )    
+  rawDfr[, 9] <- suppressWarnings( as.numeric( rawDfr[, 9] ) )    
+  
+  rawDfr <- rawDfr[1:nrow(rawDfr), ]
+  rawZoo <- zoo(matrix(cbind(rawDfr[, 3],rawDfr[, 4],rawDfr[, 5],rawDfr[, 6],rawDfr[, 7],rawDfr[, 8],rawDfr[, 9]),
+                       ncol=7),
+                rawDfr[, 2])
+}
 
-lottoArimaNum <- function(lottoStr, startNum=1)
+lottoArimaNum <- function(lottoStr, startNum=1, c80Bln=FALSE)
 {
   #---  Assert TWO (2) arguments:                                                   
   #       lottoStr:     MUST specify EITHER "powerball", "ozlotto", "satlotto", "wedlotto", "toto", OR "4d"
@@ -730,7 +916,7 @@ lottoArimaNum <- function(lottoStr, startNum=1)
     stop("startNum MUST be between ONE (1) and TEN (10)")
   
   #---  Call the ARIMA function to get a confidence data frame
-  confDfr <- LottoArimaConf(lottoStr, startNum)
+  confDfr <- LottoArimaConf(lottoStr, startNum, c80Bln=c80Bln)
   confDfr$range <- confDfr$upper - confDfr$lower + 1
   
   sRow <- nrow(confDfr)
@@ -1064,11 +1250,13 @@ lottoRandUpdateNum <- function( randNum, startDrawNum=1, endDrawNum=9999, silent
                           nrow=0 )
   }
   
+  startDrawDte <- Sys.Date()
   if( nrow(randDfr)>0 )
   {
     #--- Coerce character into numeric or date
     nextDrawNum <- max( suppressWarnings( as.numeric( randDfr[, 1] ) ) ) + 1
     if( nextDrawNum > startDrawNum ) startDrawNum <- nextDrawNum
+    startDrawDte <- max( suppressWarnings( as.Date( randDfr[, 2], "%Y/%m/%d") ) ) + 1
   }
   if( startDrawNum > endDrawNum ) return(0)
   
@@ -1077,7 +1265,7 @@ lottoRandUpdateNum <- function( randNum, startDrawNum=1, endDrawNum=9999, silent
   d <- startDrawNum
   rNum <- as.numeric(randNum)
   rNum <- c(rNum, rNum)
-  rDte <- Sys.Date()
+  rDte <- startDrawDte
   
   rDfr <- data.frame(d, format(rDte, "%Y/%m/%d"), rNum[1], rNum[2])
   names(rDfr) <- names(randDfr)
