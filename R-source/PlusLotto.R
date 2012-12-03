@@ -86,6 +86,8 @@
 #|        }                                                                                 |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.0.8   Minor fix to function lottoArimaNum() so that computed power CANNOT be LESS     |
+#|          THAN ONE (1).                                                                   |
 #|  1.0.7   Major changes to the inputs to the auto.arima() function. First, we use the     |
 #|          diff(log(data)) instead of the diff(data) as input, as this reduces the AIC     |
 #|          to about ONE-THIRD (1/3). Second, we use a zoo object instead of a matrix as    |
@@ -919,8 +921,29 @@ lottoArimaNum <- function(lottoStr, startNum=1, c80Bln=FALSE)
   confDfr <- LottoArimaConf(lottoStr, startNum, c80Bln=c80Bln)
   confDfr$range <- confDfr$upper - confDfr$lower + 1
   
+  #---  Calculate the power by multipying the individual ranges
   sRow <- nrow(confDfr)
-  prod(confDfr[1:sRow-1,3])
+  pNum <- 1
+  if( lottoStr == "powerball" )
+  {
+    for( i in 1:(sRow-2) )
+    {
+      pNum <- pNum * (confDfr[i, 3] - (i - 1))
+    }
+    pNum <- pNum * confDfr[(sRow-1), 3]
+  }
+  else if( lottoStr == "4d" )
+  {
+    pNum <- prod(confDfr[1:sRow-1,3])
+  }
+  else
+  {
+    for( i in 1:(sRow-1) )
+    {
+      pNum <- pNum * (confDfr[i, 3] - (i - 1))
+    }
+  }
+  pNum
 }
 
 #|------------------------------------------------------------------------------------------|
