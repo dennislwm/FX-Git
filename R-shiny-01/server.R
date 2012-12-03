@@ -24,6 +24,9 @@
 #|  Note: To kill a process, type 'ps' to search for the pid, and then type 'kill -9 <pid>'.|
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.0.2   Modified script to work with a major revision of PlusLotto 1.0.7. Added TWO (2) |
+#|          reactive functions output$ci.selectInput() is a UI, and ci.FUN() returns a      |
+#|          boolean.
 #|  1.0.1   Major bug fixes including interaction flow, output variables and reactiveUI.    |
 #|            Incorporated Roulette (r) into both server and ui.                            | 
 #|  1.0.0   This script contains the shinyServer() function for PlusLotto.R.                |
@@ -47,6 +50,8 @@ myServer <- function(input, output)
   #---  Output variables
   #       (1) update.FUN() returns a number
   #       (2) output$lotto.selectInput is a UI
+  #       (2)(a)  output$ci.selectInput is a UI
+  #       (2)(b)  ci.FUN() returns a boolean
   #       (3) output$ticket.selectInput is a UI
   #       (4) output$system.selectInput is a UI
   #       (5) output$number.selectInput is a UI
@@ -64,6 +69,26 @@ myServer <- function(input, output)
       selectInput( "lottoStr", "Choose a Lotto game:",
                    choices=c("powerball", "ozlotto", "satlotto", "wedlotto",
                              "toto", "4d", "r") )
+    else
+      NULL
+  } )
+  #       (2)(a)  output$ci.selectInput is a UI
+  output$ci.selectInput <- reactiveUI(function() {
+    if( is.numeric(update.FUN()) )
+      selectInput( "ciStr", "Choose a Confidence percentage:",
+                   choices=c("80%", "95%") )
+    else
+      NULL
+  } )
+  #       (2)(b)  ci.FUN() returns a boolean
+  ci.FUN <- reactive(function() {
+    if( length(input$ciStr)>0 )
+    {
+      if( input$ciStr == "80%" )
+        TRUE
+      else
+        FALSE
+    }
     else
       NULL
   } )
@@ -114,7 +139,11 @@ myServer <- function(input, output)
   #       (6) output$summaryTxt is a Print
   output$summaryTxt <- reactivePrint(function() {
     if( is.numeric(update.FUN()) )
-      LottoArimaSummary()
+    {
+      ciBln <- TRUE
+      if( is.logical(ci.FUN()) ) ciBln <- ci.FUN()
+      LottoArimaSummary(c80Bln=ciBln)
+    }
     else
       "Select a Lotto game."
   })
@@ -169,7 +198,9 @@ myServer <- function(input, output)
             else retNum <- nrow(randDfr)
             if( retNum>=3 )
             {
-              confDfr <- LottoArimaConf( input$lottoStr )
+              ciBln <- TRUE
+              if( is.logical(ci.FUN()) ) ciBln <- ci.FUN()
+              confDfr <- LottoArimaConf( input$lottoStr, c80Bln=ciBln )
               confDfr[1,]
             }
             else
@@ -182,7 +213,9 @@ myServer <- function(input, output)
             #   (3) Arima Confidence Interval with update
             if( retNum>=3 )
             {
-              confDfr <- LottoArimaConf( input$lottoStr )
+              ciBln <- TRUE
+              if( is.logical(ci.FUN()) ) ciBln <- ci.FUN()
+              confDfr <- LottoArimaConf( input$lottoStr, c80Bln=ciBln )
               confDfr[1,]
             }
             else
@@ -193,7 +226,11 @@ myServer <- function(input, output)
           "Select a R number."
       }
       else
-        LottoArimaConf( input$lottoStr )
+      {
+        ciBln <- TRUE
+        if( is.logical(ci.FUN()) ) ciBln <- ci.FUN()
+        LottoArimaConf( input$lottoStr, c80Bln=ciBln )
+      }
     }
     else
       "Select a Lotto game."
@@ -236,7 +273,11 @@ myServer <- function(input, output)
               if( !is.null(rDfr) )
               {
                 if( nrow(rDfr)>=3 )
-                  Lotto( input$lottoStr, as.numeric(input$ticketNum) )
+                {
+                  ciBln <- TRUE
+                  if( is.logical(ci.FUN()) ) ciBln <- ci.FUN()
+                  Lotto( input$lottoStr, as.numeric(input$ticketNum), c80Bln=ciBln )
+                }
                 else
                   "R contains LESS THAN THREE (3) numbers"
               }
@@ -250,7 +291,11 @@ myServer <- function(input, output)
             if( !is.null(rDfr) )
             {
               if( nrow(rDfr)>=3 )
-                Lotto( input$lottoStr, as.numeric(input$ticketNum) )
+              {
+                ciBln <- TRUE
+                if( is.logical(ci.FUN()) ) ciBln <- ci.FUN()
+                Lotto( input$lottoStr, as.numeric(input$ticketNum), c80Bln=ciBln )
+              }
               else
                 "R contains LESS THAN THREE (3) numbers"
             }
@@ -259,7 +304,11 @@ myServer <- function(input, output)
           }
         }
         else if( input$lottoStr == "4d" )
-          Lotto( input$lottoStr, as.numeric(input$ticketNum) )
+        {
+          ciBln <- TRUE
+          if( is.logical(ci.FUN()) ) ciBln <- ci.FUN()
+          Lotto( input$lottoStr, as.numeric(input$ticketNum), c80Bln=ciBln )
+        }
         else
         {
           if( length(input$systemChr)>0 )
@@ -268,20 +317,40 @@ myServer <- function(input, output)
             {
               systemNum <- as.numeric(input$systemChr)
               if( systemNum > 7 )
-                LottoSystem( systemNum, input$lottoStr, as.numeric(input$ticketNum) )
+              {
+                ciBln <- TRUE
+                if( is.logical(ci.FUN()) ) ciBln <- ci.FUN()
+                LottoSystem( systemNum, input$lottoStr, as.numeric(input$ticketNum), c80Bln=ciBln )
+              }
               else
               {
                 if( input$lottoStr == "ozlotto" | input$lottoStr == "toto" )
-                  Lotto( input$lottoStr, as.numeric(input$ticketNum) )
+                {
+                  ciBln <- TRUE
+                  if( is.logical(ci.FUN()) ) ciBln <- ci.FUN()
+                  Lotto( input$lottoStr, as.numeric(input$ticketNum), c80Bln=ciBln )
+                }
                 else
-                  LottoSystem( systemNum, input$lottoStr, as.numeric(input$ticketNum) )
+                {
+                  ciBln <- TRUE
+                  if( is.logical(ci.FUN()) ) ciBln <- ci.FUN()
+                  LottoSystem( systemNum, input$lottoStr, as.numeric(input$ticketNum), c80Bln=ciBln )
+                }
               }
             }
             else
-              Lotto( input$lottoStr, as.numeric(input$ticketNum) )
+            {
+              ciBln <- TRUE
+              if( is.logical(ci.FUN()) ) ciBln <- ci.FUN()
+              Lotto( input$lottoStr, as.numeric(input$ticketNum), c80Bln=ciBln )
+            }
           }
           else
-            Lotto( input$lottoStr, as.numeric(input$ticketNum) )
+          {
+            ciBln <- TRUE
+            if( is.logical(ci.FUN()) ) ciBln <- ci.FUN()
+            Lotto( input$lottoStr, as.numeric(input$ticketNum), c80Bln=ciBln )
+          }
         }
       }
       else
