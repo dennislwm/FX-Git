@@ -4,6 +4,7 @@
 #| Assert Function                                                                          |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.0.2   Added function RegIsDateBln() to check for variables of type Date.              |
 #|  1.0.1   Fixed RegIsEmailBln() to check for repeating ".xxx" pattern.                    |
 #|  1.0.0   This library contains external R functions to perform text manipulation.        |
 #|------------------------------------------------------------------------------------------|
@@ -117,4 +118,8 @@ RegIsTypeBln <- function(aChr, typeChr)
 RegIsEmptyBln <- function(x)
 {
   return( length(x)==0 )
+}
+RegIsDateBln <- function(aDte)
+{
+  return( is(aDte, "Date") )
 }
