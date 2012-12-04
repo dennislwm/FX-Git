@@ -2,6 +2,15 @@
 //|                                                  Cointegration Search Engine_SqLite.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.1.2   Added a function ConditionalGlobalVariableSet() to replace a portion of code.   |
+//|         This is to facilitate unit testing. Variable Rplot is now an extern, to show    |
+//|         the Arb-O-Mat plot. In addition, there are FIVE (5) diagnostic plots:           |
+//|         (1) y vs x; (2) residuals vs fitted; (3) Normal Q-Q; (4) residuals; and         |
+//|         (5) predicted model. There are THREE (3) data frames written to CSV files in    |
+//|         folder "C:/Users/user/My Documents/" are used to recreate the model in RStudio. |
+//|         TODO: There appears to be a MAJOR bug where the newdata is reversed when passed |
+//|         as input to the function predict(), which causes a prediction price based on    |
+//|         the oldest price, instead of the newest price (see plot (5) predicted model).   |
 //| 1.11    Added externs symbol 1-8, and debug functions.                                  |
 //| 1.10    Added PlusGhost. (Note: EA does not use MagicNumber.)                           |
 //| 1.00    Originated from Steve Hopwood Co-Integration System downloaded on 11 July 2012. |
@@ -39,6 +48,9 @@ extern double Lots = 0.1;
 extern bool UseCoefficient = true;
 extern double CoefThresh = 2;
 extern bool UseADF = false;
+//--- Augmented Dickey-Fuller (ADF) test 
+//       The null-hypothesis for an ADF test is that the data is non-stationary 
+//       Therefore, usually p<0.05 is stationary (default: 0.10 is unusually high)
 extern double pthresh = 0.10;
 extern bool UseCorrelation = false;
 extern double PositivCorr = 75;
@@ -50,7 +62,10 @@ extern bool UseAbsolutExit = true;
 extern double StdDevExit = 1;
 extern bool UseAlert = false;
 extern bool UseExitAlert = true;
+//--- Set UseTradeLimiter=true to prevent the same currency from being traded TWICE.
+//       Checks to see if either of the currencies in the pair is already being traded twice.
 extern bool UseTradeLimiter = false;
+//--- Set StopOpenNewOrders=true to prevent new orders, however it does NOT close opened orders.
 extern bool StopOpenNewOrders = false;
 extern bool ReentryInsteadExit = true;
 extern string info0 = "Set Spread to 0(zero) for no limiting";
@@ -70,9 +85,9 @@ extern int EaViewDebugNoStackEnd = 0;
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string EaName = "Cointegration Search Engine_SqLite";
-string EaVer = "1.11";
+string EaVer = "1.1.2";
 bool trend = false;
-bool Rplot = false;
+extern bool Rplot = false;
 double pair1[];
 double pair2[];
 
@@ -251,7 +266,7 @@ int start()
                      onTick();
                   }
                }
-               EaDebugPrint( 2, "start",
+               EaDebugPrint( 1, "start",
                   EaDebugInt("sp",sp)+
                   EaDebugInt("fp",fp)+
                   EaDebugStr("s[sp]",s[sp])+
@@ -310,15 +325,32 @@ void onOpen(){
       for (j=0; j<pairs; j++){
          ishift = iBarShift(symb[j], 0, Time[i]);
          regressors[i * pairs + j] = iClose(symb[j], 0, ishift);
-         EaDebugPrint( 2, "onOpen",
-            EaDebugInt("i",i)+
-            EaDebugInt("j",j)+
-            EaDebugInt("x (i*pairs+j)",i*pairs+j)+
-            EaDebugDbl("regressors[x]",regressors[i*pairs+j]) );
+         if(i==0){
+            EaDebugPrint( 1, "onOpen",
+               EaDebugInt("i",i)+
+               EaDebugDbl("iClose", iClose(symb[j], 0, ishift))+
+               EaDebugInt("j",j)+
+               EaDebugStr("symb[j]",symb[j])+
+               EaDebugInt("element x",i*pairs+j)+
+               EaDebugDbl("regressors[x]",regressors[i*pairs+j]) );
+         }
       }
    }
+//--- Filling a R matrix is tricky, as it requires an MT4 array with alternating values
+//       Example of a NxM R matrix, where N=back and M=pairs
+//       Fill an MT4 array=regressors with values such that 
+//          (1) [0] is the bar[0] price of pair 1
+//          (2) [1] is the bar[0] price of pair 2
+//          (3) [2] is the bar[1] price of pair 1
+//          (4) [3] is the bar[1] price of pair 2, and so on.
+//       Call function Rm() to create a NxM R matrix with parameters
+//          (1) array:  an MT4 array with alternating values
+//          (2) rows:   an MT4 integer with number of rows, i.e. back
+//          (3) cols:   an MT4 integer with number of columns, i.e. pairs
    Rm("regressors", regressors, back, pairs);
-   
+   /*Rs("colName1", symb[0] );
+   /Rs("colName2", symb[1] );
+   /Rx("names(regressors) <- c(colName1, colName2)");*/
       
    // do the regression
    // first we need a regressand
@@ -337,7 +369,9 @@ void onOpen(){
    Rx("x <- regressors");                          // have to be careful how we name them in the formula
    Rx("model <- lm(y ~ x)");                       // fit the model
    Rp("summary(model)");
-   
+   Rx("nonsource.wd <- 'C:/Users/user/My Documents/'");
+   Rx("write.table( regressand, file=paste0( nonsource.wd, 'regressand.csv' ), sep=',', quote=FALSE, row.names=FALSE )");
+   Rx("write.table( regressors, file=paste0( nonsource.wd, 'regressors.csv' ), sep=',', quote=FALSE, row.names=FALSE )");
    
    // get the coefficients
    //Rx("beta <- coef(model)[-1]");
@@ -508,7 +542,7 @@ void onTick(){
    for(int Lvl=StdDevEntryLevel+8;Lvl>=StdDevEntryLevel;Lvl--)
    {
       StddevOrders(Lvl);
-      EaDebugPrint( 2, "onTick",
+      EaDebugPrint( 1, "onTick",
          EaDebugInt("Lvl",Lvl)+
          " Entry check" );
    }   
@@ -582,7 +616,7 @@ void TradeLevel(double Level)
       coefratio = maxcoef / mincoef;
       if(coefratio <= CoefThresh)
       {
-         EaDebugPrint( 2, "TradeLevel",
+         EaDebugPrint( 1, "TradeLevel",
             EaDebugInt("sp",sp)+
             EaDebugInt("fp",fp)+
             EaDebugStr("s[sp]",s[sp])+
@@ -623,29 +657,19 @@ void TradeLevel(double Level)
    {
       if( (GlobalVariableCheck(s[fp]+s[sp]) == false && GlobalVariableCheck(s[sp]+s[fp]) == false) ) 
       {
-         double pval=ADF();
+         if( ConditionalGlobalVariableSet( s[fp]+s[sp], ADF(), pthresh, pred[1], stddev, StdDevEntryLevel ) )
+            EaDebugPrint( 1, "ConditionalGlobalVariableSet",
+               EaDebugStr("gvar",s[fp]+s[sp])+
+               EaDebugDbl("Get(gvar)",GlobalVariableGet(s[fp]+s[sp]))+
+               " as THREE (3) conditions have been satisfied." );
+               
+         /*double pval=ADF();
          
          if( (pred[1] > StdDevEntryLevel*stddev) && (pval<=pthresh) && (pval !=0))
-         {
             GlobalVariableSet(s[fp]+s[sp],NormalizeDouble(StdDevEntryLevel-1,2));
-            EaDebugPrint( 2, "TradeLevel",
-               EaDebugInt("sp",sp)+
-               EaDebugInt("fp",fp)+
-               EaDebugStr("s[sp]",s[sp])+
-               EaDebugStr("s[fp]",s[fp])+
-               EaDebugDbl("pval",pval) );
-         }
              
          if( (pred[1] < -StdDevEntryLevel*stddev)&& (pval<=pthresh) && (pval !=0))
-         {
-            GlobalVariableSet(s[fp]+s[sp],NormalizeDouble(-StdDevEntryLevel+1,2));
-            EaDebugPrint( 2, "TradeLevel",
-               EaDebugInt("sp",sp)+
-               EaDebugInt("fp",fp)+
-               EaDebugStr("s[sp]",s[sp])+
-               EaDebugStr("s[fp]",s[fp])+
-               EaDebugDbl("pval",pval) );
-         }
+            GlobalVariableSet(s[fp]+s[sp],NormalizeDouble(-StdDevEntryLevel+1,2));*/
       }  
    }
    if (pred[2] > ( Level * stddev) && pred[1] < ( Level * stddev)/*&& alert_time<Time[0]*/)
@@ -653,7 +677,7 @@ void TradeLevel(double Level)
       if( (GlobalVariableCheck(s[fp]+s[sp]) == false && GlobalVariableCheck(s[sp]+s[fp]) == false && StopOpenNewOrders == false && UseADF == false && tradecoef0 == true && tradecoef1 ==true) 
          || (Level > GlobalVariableGet(s[fp]+s[sp]) && GlobalVariableGet(s[fp]+s[sp]) > 0 && tradecoef0 == true && tradecoef1 == true) )
       {
-            EaDebugPrint( 2, "TradeLevel",
+            EaDebugPrint( 1, "TradeLevel",
                EaDebugDbl("units0",units0)+
                EaDebugDbl("units1",units1)+
                EaDebugDbl("coef[0]",coef[0],2)+
@@ -695,7 +719,7 @@ void TradeLevel(double Level)
       if( (GlobalVariableCheck(s[fp]+s[sp]) == false && GlobalVariableCheck(s[sp]+s[fp]) == false && StopOpenNewOrders == false && UseADF == false && tradecoef0 == true && tradecoef1 ==true) ||
          (-Level < GlobalVariableGet(s[fp]+s[sp]) && GlobalVariableGet(s[fp]+s[sp]) < 0 && tradecoef0 == true && tradecoef1 == true) )
       {
-         EaDebugPrint( 2, "TradeLevel",
+         EaDebugPrint( 1, "TradeLevel",
             EaDebugDbl("units0",units0)+
             EaDebugDbl("units1",units1)+
             EaDebugDbl("coef[0]",coef[0],2)+
@@ -1004,6 +1028,26 @@ void plot(){
          Rs("lbly", "spread");
          Rx("linea <- 0");
       }
+      //--- Six plots (selectable by which) are currently available for LM model
+      //       (1) a plot of residuals against fitted values, 
+      //       (2) a Normal Q-Q plot, 
+      //       (3) a Scale-Location plot of sqrt{| residuals |} against fitted values, 
+      //       (4) a plot of Cook's distances versus row labels, 
+      //       (5) a plot of residuals against leverages, and 
+      //       (6) a plot of Cook's distances against leverage/(1-leverage). 
+      //    By default, the first three and 5 are provided.
+      Rx("par(mfrow=c(3,2))");
+      Rx("new <- data.frame(x=I(regressors))");
+      Rx("write.table( new, file=paste0( nonsource.wd, 'new.csv' ), sep=',', quote=FALSE, row.names=FALSE )");
+      Rx("plot(x[,2], y, main='y vs x')");
+      //Rx("abline(model)");
+      Rx("plot(model, which=c(1:2), caption=c('Residuals vs Fitted', 'Normal Q-Q'))");
+      Rx("plot(resid(model), main='Residuals')");
+      Rx("p.model <- predict(model, newdata=new)");
+      Rx("lenNew <- length(p.model)");
+      //Rx("plot(c(y[2:lenNew,1], p.model[lenNew]), p.model)");
+      Rx("plot(p.model, main='Predicted Model')");
+      Rx("points(lenNew, p.model[lenNew], col='blue', pch=18)");
       Rx("plot(curve, type='l', ylab=lbly, xlab=descr1, main='Arb-O-Mat', sub=descr2, col='cornflowerblue')");
       Rx("abline(0, linea, col='cornflowerblue', lty='dashed')");
       Rx("abline(stddev, linea, col='green', lty='dashed')");
@@ -1288,6 +1332,22 @@ string StringElement(string s,int pos)
       return(given);   
       }
    }
+
+bool ConditionalGlobalVariableSet(string gvar, double pval, double alpha, double sdhat, double sd, double q)
+{
+   bool retBln=true;
+   //--- There are THREE (3) conditions to fulfil
+   //       (1) |sdhat| > sd * q    where sd <- sd(resid(model)) and model <- lm(y ~ x)
+   //       (2) pval <= alpha       where pval <- adf.test(sprd, alternative='stationary', k=0)$p.value
+   //       (3) pval != 0
+   if( (sdhat > sd * q) && (pval <= alpha) && (pval != 0) )
+      GlobalVariableSet( gvar, NormalizeDouble(q-1, 2) );
+   else if( (sdhat < -sd * q) && (pval <= alpha) && (pval != 0) )
+      GlobalVariableSet( gvar, NormalizeDouble(1-q, 2) );
+   else
+      retBln=false;
+   return( retBln );
+}
    
 /**
 * place a market sell with stop loss, target, magic and comment
