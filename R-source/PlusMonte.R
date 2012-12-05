@@ -2,6 +2,9 @@
 #|                                                                                PlusReg.R |
 #|                                                             Copyright © 2012, Dennis Lee |
 #| Assert History                                                                           |
+#|  0.9.2   Expanded class function summary() to include maximum, median and minimum equity |
+#|            and drawdown, with helper function monteCalcDrawdown(). Check arguments are   |
+#|            valid.                                                                        |
 #|  0.9.1   Completed previous TODOs to some extent. There are ONE (1) external function    |
 #|            MonteGrowReturns() and TWO (2) class functions plot() and summary()           |
 #|            implemented. Also, there are FOUR (4) internal functions (with multicore      |
@@ -35,6 +38,12 @@ MonteGrowReturns <- function(rawZoo, setNum, sizeNum=1, initNum=10000, replaceBl
   #       replaceBln is a boolean for sampling replacement (default: TRUE)
   
   rawNum <- length(rawZoo)
+  #---  Check that arguments are valid
+  if( as.numeric(setNum) <= 0 ) 
+    stop("setNum MUST be greater than ZERO (0)")
+  if( as.numeric(sizeNum) < 1 | as.numeric(sizeNum) > rawNum ) 
+    stop("sizeNum MUST be between ONE(1) AND length(rawZoo)")
+  
   #---  For setNum times, generate a shuffled index
   #       Create a matrix from the set of indexes, where EACH column is a different shuffled index
   if( monteIsMultiBln() )
@@ -54,7 +63,10 @@ MonteGrowReturns <- function(rawZoo, setNum, sizeNum=1, initNum=10000, replaceBl
       #       We want to increment the repeats, such that when we reference the object 
       #       we obtain the block of returns, e.g.  1 1 1 1 1 becomes 1 2 3 4 5
       #       However, check that increments are NOT out of bounds (replace with last index)
-      temp_idx <- mapply( function(a, b) { a+(b-1) }, idx[,i], 1:sizeNum )
+      if( monteIsMultiBln() )
+        temp_idx <- mcmapply( function(a, b) { a+(b-1) }, idx[,i], 1:sizeNum )
+      else
+        temp_idx <- mapply( function(a, b) { a+(b-1) }, idx[,i], 1:sizeNum )      
       temp_idx[temp_idx>rawNum] <- rawNum
       temp_ret_mat <- suppressWarnings( matrix(data = rawZoo[temp_idx]) )
     }
@@ -72,18 +84,23 @@ MonteGrowReturns <- function(rawZoo, setNum, sizeNum=1, initNum=10000, replaceBl
   }
   #---  Create xts object of ALL sets of returns (exclude the first column of returns which is rawZoo)
   retXts <- xts(mat[,2:(setNum+1)], order.by=index(rawZoo))
-
+  
   #---  Create xts object of ALL sets of equity based on retXts
   mat <- matrix(retXts+1, ncol=setNum)
   mat <- rbind( rep(initNum, setNum), mat )
   mat_equity <- apply(mat, 2, cumprod )
   eqyXts <- xts(mat_equity[2:nrow(mat_equity),], order.by=index(retXts) )
+
+  dd.list <- monteCalcDrawdown( eqyXts )
   
   #---  Return an object of class Monte, which includes retXts
   #
   ret.Monte <- list("call" = match.call(),
                     "returns" = retXts,
-                    "equity" = eqyXts)
+                    "equity" = eqyXts,
+                    "maxDD" = dd.list$maxDD,
+                    "relDD" = dd.list$relDD
+                    )
   class(ret.Monte) <- "Monte"
   ret.Monte
 }
@@ -91,37 +108,52 @@ MonteGrowReturns <- function(rawZoo, setNum, sizeNum=1, initNum=10000, replaceBl
 summary.Monte <- function(object, initNum=10000, ...)
 {
   call = object$call
-  setNum = call$setNum
+    setNum = call$setNum
+  if( !is.null(call$initNum) )
+    initNum = call$initNum
   rets = object$returns
   eqty = object$equity
-
-  rawNum <- NROW(rets)
+  ddNum = object$maxDD
+  rdNum = object$relDD
   
-  ddMtx <- matrix(NA, nrow=1, ncol=setNum)
-  for( i in 2:rawNum )
-  {
-    maxTdNum <- apply(eqty[1:i,], 2, max)
-    ddTdNum <- eqty[i,] - maxTdNum
-    ddMtx <- rbind(ddMtx, as.numeric(ddTdNum))
-  }
-  ddMtx <- ddMtx[2:nrow(ddMtx),]
-  ddLocalNum <- apply(ddMtx, 2, min)
+  rawNum <- NROW(eqty)
+  eqtyNum <- as.numeric(eqty[rawNum,])
+  eqtyDbl <- eqtyNum/initNum - 1
   
+  fD <- function(x){ 
+    format(sprintf('%.2f',x), big.mark=',', width=9, justify='right')
+  }  
+  fP <- function(x){ 
+    format(sprintf('%.1f%%',x), width=6, justify='right')
+  }  
   cat("Call:\n")
   print(call)
-  cat("Absolute maximum drawdown :\n")
-  print(round(min(ddLocalNum),2), ...)
-  cat("Local maximum drawdowns :\n")
-  print(round(ddLocalNum,2), ...)
+  cat("Absolute maximum drawdown :")
+  cat(fD(min(ddNum))," (", fP(100*min(rdNum)) ,
+      ") [set = ", which(ddNum==min(ddNum))[1] ,"]\n", sep="")
+  cat("Absolute median drawdown  :")
+  cat(fD(median(ddNum))," (", fP(100*median(rdNum)) ,")\n", sep="")
+  cat("Absolute minimum drawdown :")
+  cat(fD(max(ddNum))," (", fP(100*max(rdNum)) ,
+      ") [set = ", which(ddNum==max(ddNum))[1] ,"]\n", sep="")
+  cat("Maximum equity balance    :")
+  cat(fD(max(eqtyNum))," (", fP(100*max(eqtyDbl)) ,
+      ") [set = ", which(eqtyNum==max(eqtyNum))[1] ,"]\n", sep="")
+  cat("Median equity balance     :")
+  cat(fD(median(eqtyNum))," (", fP(100*median(eqtyDbl)) ,")\n", sep="")
+  cat("Minimum equity balance    :")
+  cat(fD(min(eqtyNum))," (", fP(100*min(eqtyDbl)) ,
+      ") [set = ", which(eqtyNum==min(eqtyNum))[1] ,"]\n", sep="")
+  
   invisible(object)
 }
 
 plot.Monte <- function(object, ...)
 {
-    call = object$call
-    rets = object$returns
-    chart.CumReturns(rets[,1:NCOL(rets)], wealth.index = TRUE, colorset=(1:call$setNum),
-                     ylab = "Equity", main ="Return on Equity of Monte Carlo Simulations")
+  call = object$call
+  rets = object$returns
+  chart.CumReturns(rets[,1:NCOL(rets)], wealth.index = TRUE, colorset=(1:call$setNum),
+                   ylab = "Equity", main ="Return on Equity of Monte Carlo Simulations")
 }
 
 #|------------------------------------------------------------------------------------------|
@@ -130,6 +162,32 @@ plot.Monte <- function(object, ...)
 #|------------------------------------------------------------------------------------------|
 #|                          I N T E R N A L   A   F U N C T I O N S                         |
 #|------------------------------------------------------------------------------------------|
+monteCalcDrawdown <- function( eqyXts )
+{
+  setNum <- NCOL(eqyXts)
+  rawNum <- NROW(eqyXts)
+  
+  lmMtx <- matrix(NA, nrow=1, ncol=setNum)
+  #ddMtx <- matrix(NA, nrow=1, ncol=setNum)
+  #rdMtx <- matrix(NA, nrow=1, ncol=setNum)
+  for( i in 1:rawNum )
+  {
+    maxTdNum <- apply(eqyXts[1:i,], 2, max)
+    lmMtx <- rbind(lmMtx, as.numeric(maxTdNum))
+    #ddTdNum <- eqyXts[i,] - maxTdNum
+    #rdTdNum <- eqyXts[i,] / maxTdNum - 1
+    #ddMtx <- rbind(ddMtx, as.numeric(ddTdNum))
+    #rdMtx <- rbind(rdMtx, as.numeric(rdTdNum))
+  }
+  lmMtx <- lmMtx[2:nrow(lmMtx),]
+  ddMtx <- eqyXts - lmMtx
+  rdMtx <- eqyXts / lmMtx - 1
+  ddNum <- apply(ddMtx, 2, min)
+  rdNum <- apply(rdMtx, 2, min)
+  
+  list(maxDD=ddNum, relDD=rdNum)
+}
+
 monteSimulateReturnsZoo <- function(tradesNum, pAvgNum, lAvgNum, wPctNum, initNum=10000)
 {
   #---  Assert FIVE (5) arguments:                                                   
@@ -138,6 +196,16 @@ monteSimulateReturnsZoo <- function(tradesNum, pAvgNum, lAvgNum, wPctNum, initNu
   #       lAvgNum is a double for average loss in dollars
   #       wPctNum is a double for the winning percentage
   #       initNum is a double for initial starting capital in dollars (default: 10000)
+
+  #---  Check that arguments are valid
+  if( as.numeric(tradesNum) < 3 ) 
+    stop("tradesNum MUST be greater than OR equal to THREE (3)")
+  if( as.numeric(pAvgNum) <= 0 ) 
+    stop("pAvgNum MUST be greater than ZERO (0)")
+  if( as.numeric(lAvgNum) >= 0 ) 
+    stop("lAvgNum MUST be less than ZERO (0)")
+  if( as.numeric(wPctNum) <= 0 | as.numeric(wPctNum) >= 1 ) 
+    stop("wPctNum MUST be between ZERO (0) AND ONE (1)")
   
   #---  For tradesNum times, runif() returns a random number between 0 and 1
   #       If number is less than or equal to wPctNum, then it will be counted as a win
@@ -202,10 +270,11 @@ monteIsMultiBln <- function()
 
 if( TRUE )
 {
-  a <- monteSimulateReturnsZoo(300, 67, -125, 0.65)
+  a <- monteSimulateReturnsZoo(3, 27.78, -67.81, 0.75)
   
   start <- Sys.time()
-  yy <- MonteGrowReturns(a, 100, 5)
+  yy <- MonteGrowReturns(a, 50, 1)
+  summary(yy)
   plot(yy)
   end <- Sys.time()
   print(end-start)
