@@ -2,6 +2,7 @@
 //|                                                                       ImportDrawHst.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.2.1   Works with PlusR.mqh 1.1.0+ due to parameter changes in RYahooImport().         |
 //| 1.2.0   Fixed IF curly braces in start, which caused the program to exit prematurely.   |
 //| 1.10    Added PlusR. Import CSV file is optional (default: Use R).                      |
 //| 1.00    Import CSV file into a chart and export to history file.                        |
@@ -25,8 +26,11 @@
 extern   string   s1             = "UseCustom: set Symbol and Period.";
 extern   string   s1_1           = "Period: 15-M15, 30-M30,.. 1440-D1";
 extern   bool     UseCustom      = true;
+extern   string   s1_2           = "Symbol: Must NOT contain special chars";
 extern   string   CustomSymbol   = "GLD";
 extern   int      CustomPeriod   = 1440;
+extern   string   s1_3           = "Ticker: Empty-same as Symbol";
+extern   string   YahooTicker    = "";
 extern   string   s2             = "UseFileCsv: set Name and Delimiter.";
 extern   bool     UseFileCsv     = false;
 extern   string   FileName       = "";
@@ -49,19 +53,20 @@ double ExtMapBuffer5[];    // Volume
 //|                           I N T E R N A L   V A R I A B L E S                            |
 //|------------------------------------------------------------------------------------------|
 string   IndName   ="ImportDrawHst";
-string   IndVer    ="1.2.0";
+string   IndVer    ="1.2.1";
 string   IndCopyr  ="Copyright © 2012, Dennis Lee";
 string   IndSymbol;
 int      IndPeriod;
+string   IndTicker;
 string   FileNameHst;
 int      FileHandleHst=-1;
 int      FileHandleCsv=-1;
 bool     IsDone=false;
 int      IndDebugCount;
 
-// ------------------------------------------------------------------------------------------|
-//                             I N I T I A L I S A T I O N                                   |
-// ------------------------------------------------------------------------------------------|
+//|------------------------------------------------------------------------------------------|
+//|                            I N I T I A L I S A T I O N                                   |
+//|------------------------------------------------------------------------------------------|
 int init()
 {
 //--- Assert check validity of user externs
@@ -79,6 +84,14 @@ int init()
    {
       IndDebugPrint( 1, "init", "Symbol cannot be empty. Set Symbol='GLD'");
       IndSymbol = "GLD";
+   }
+   if( StringLen(YahooTicker) == 0 )
+   {
+      IndTicker = IndSymbol;
+   }
+   else
+   {
+      IndTicker = YahooTicker;
    }
    if( IndPeriod <= 0 )
    {
@@ -272,7 +285,7 @@ int start()
    }
    else
    {
-      count = RYahooImport( IndSymbol, zOpen, zHigh, zLow, zClose, zVolume );
+      count = RYahooImport( IndSymbol, IndTicker, zOpen, zHigh, zLow, zClose, zVolume );
       unused_bars=count-1;
    
       for (i=unused_bars-1;i>=0;i--)
