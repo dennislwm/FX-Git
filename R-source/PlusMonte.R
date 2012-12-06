@@ -2,6 +2,9 @@
 #|                                                                                PlusReg.R |
 #|                                                             Copyright © 2012, Dennis Lee |
 #| Assert History                                                                           |
+#|  0.9.3   Debug performance of external function MonteGrowReturns(), and s3 >> s2 >> s1,  |
+#|            where s3 has the longest time taken for internal function monteCalcDrawdown() |
+#|            despite adding a helper function monteMakeCluster(), which is OS-dependent.   |
 #|  0.9.2   Expanded class function summary() to include maximum, median and minimum equity |
 #|            and drawdown, with helper function monteCalcDrawdown(). Check arguments are   |
 #|            valid.                                                                        |
@@ -21,6 +24,7 @@
 require(quantmod)
 require(parallel)
 require(PerformanceAnalytics)
+source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusReg.R")
 
 #|------------------------------------------------------------------------------------------|
 #|                            E X T E R N A L   F U N C T I O N S                           |
@@ -28,7 +32,8 @@ require(PerformanceAnalytics)
 #|------------------------------------------------------------------------------------------|
 #|                          E X T E R N A L   A   F U N C T I O N S                         |
 #|------------------------------------------------------------------------------------------|
-MonteGrowReturns <- function(rawZoo, setNum, sizeNum=1, initNum=10000, replaceBln=TRUE)
+MonteGrowReturns <- function(rawZoo, setNum, sizeNum=1, initNum=10000, replaceBln=TRUE, 
+                             summary=TRUE, debug=FALSE)
 {
   #---  Assert FOUR (4) arguments:                                                   
   #       rawZoo is a zoo object of returns
@@ -46,16 +51,19 @@ MonteGrowReturns <- function(rawZoo, setNum, sizeNum=1, initNum=10000, replaceBl
   
   #---  For setNum times, generate a shuffled index
   #       Create a matrix from the set of indexes, where EACH column is a different shuffled index
+  if( debug ) s1.time <- Sys.time()
   if( monteIsMultiBln() )
     idx <- mcmapply(monteGrow, m=setNum, n=rawNum, sizeNum)
   else
     idx <- mcmapply(monteGrow, m=setNum, n=rawNum, sizeNum)
   idx <- matrix(idx, ncol=setNum)
+  if( debug ) e1.time <- Sys.time()
   
   #---  For setNum times, create a new vector of returns using the shuffled index
   #       If replaceBln is TRUE, then the equity curve for different sets DO NOT converge
   #       If replaceBln is FALSE, then the equity curve for different sets converge
   mat <- matrix(data=rawZoo, nrow=rawNum)
+  if( debug ) s2.time <- Sys.time()
   for(i in 1:setNum){
     if( replaceBln )
     {
@@ -82,6 +90,7 @@ MonteGrowReturns <- function(rawZoo, setNum, sizeNum=1, initNum=10000, replaceBl
     }
     mat <- cbind(mat, temp_ret_mat)
   }
+  if( debug ) e2.time <- Sys.time()
   #---  Create xts object of ALL sets of returns (exclude the first column of returns which is rawZoo)
   retXts <- xts(mat[,2:(setNum+1)], order.by=index(rawZoo))
   
@@ -91,16 +100,29 @@ MonteGrowReturns <- function(rawZoo, setNum, sizeNum=1, initNum=10000, replaceBl
   mat_equity <- apply(mat, 2, cumprod )
   eqyXts <- xts(mat_equity[2:nrow(mat_equity),], order.by=index(retXts) )
 
-  dd.list <- monteCalcDrawdown( eqyXts )
+  if( debug ) s3.time <- Sys.time()
+  if( summary ) dd.list <- monteCalcDrawdown( eqyXts )
+  if( debug ) e3.time <- Sys.time()
+  
+  if( debug )
+  {
+    print("MonteGrowReturns(debug=TRUE)")
+    cat("s1:", e1.time-s1.time, "s2:", e2.time-s2.time, "s3:", e3.time-s3.time, "\n")
+  }
   
   #---  Return an object of class Monte, which includes retXts
   #
-  ret.Monte <- list("call" = match.call(),
-                    "returns" = retXts,
-                    "equity" = eqyXts,
-                    "maxDD" = dd.list$maxDD,
-                    "relDD" = dd.list$relDD
-                    )
+  if( summary )
+    ret.Monte <- list("call" = match.call(),
+                      "returns" = retXts,
+                      "equity" = eqyXts,
+                      "maxDD" = dd.list$maxDD,
+                      "relDD" = dd.list$relDD)
+  else
+    ret.Monte <- list("call" = match.call(),
+                      "returns" = retXts,
+                      "equity" = eqyXts)
+  
   class(ret.Monte) <- "Monte"
   ret.Monte
 }
@@ -111,39 +133,50 @@ summary.Monte <- function(object, initNum=10000, ...)
     setNum = call$setNum
   if( !is.null(call$initNum) )
     initNum = call$initNum
-  rets = object$returns
-  eqty = object$equity
-  ddNum = object$maxDD
-  rdNum = object$relDD
-  
-  rawNum <- NROW(eqty)
-  eqtyNum <- as.numeric(eqty[rawNum,])
-  eqtyDbl <- eqtyNum/initNum - 1
-  
-  fD <- function(x){ 
-    format(sprintf('%.2f',x), big.mark=',', width=9, justify='right')
-  }  
-  fP <- function(x){ 
-    format(sprintf('%.1f%%',x), width=6, justify='right')
-  }  
+  if( !is.null(call$summary) )
+    summary = call$summary
+  else
+    summary = TRUE
+
   cat("Call:\n")
   print(call)
-  cat("Absolute maximum drawdown :")
-  cat(fD(min(ddNum))," (", fP(100*min(rdNum)) ,
-      ") [set = ", which(ddNum==min(ddNum))[1] ,"]\n", sep="")
-  cat("Absolute median drawdown  :")
-  cat(fD(median(ddNum))," (", fP(100*median(rdNum)) ,")\n", sep="")
-  cat("Absolute minimum drawdown :")
-  cat(fD(max(ddNum))," (", fP(100*max(rdNum)) ,
-      ") [set = ", which(ddNum==max(ddNum))[1] ,"]\n", sep="")
-  cat("Maximum equity balance    :")
-  cat(fD(max(eqtyNum))," (", fP(100*max(eqtyDbl)) ,
-      ") [set = ", which(eqtyNum==max(eqtyNum))[1] ,"]\n", sep="")
-  cat("Median equity balance     :")
-  cat(fD(median(eqtyNum))," (", fP(100*median(eqtyDbl)) ,")\n", sep="")
-  cat("Minimum equity balance    :")
-  cat(fD(min(eqtyNum))," (", fP(100*min(eqtyDbl)) ,
-      ") [set = ", which(eqtyNum==min(eqtyNum))[1] ,"]\n", sep="")
+    
+  if( !summary )
+    cat("No summary\n")
+  else
+  {
+    rets = object$returns
+    eqty = object$equity
+    ddNum = object$maxDD
+    rdNum = object$relDD
+    
+    rawNum <- NROW(eqty)
+    eqtyNum <- as.numeric(eqty[rawNum,])
+    eqtyDbl <- eqtyNum/initNum - 1
+    
+    fD <- function(x){ 
+      format(sprintf('%.2f',x), big.mark=',', width=9, justify='right')
+    }  
+    fP <- function(x){ 
+      format(sprintf('%.1f%%',x), width=6, justify='right')
+    }  
+    cat("Absolute maximum drawdown :")
+    cat(fD(min(ddNum))," (", fP(100*min(rdNum)) ,
+        ") [set = ", which(ddNum==min(ddNum))[1] ,"]\n", sep="")
+    cat("Absolute median drawdown  :")
+    cat(fD(median(ddNum))," (", fP(100*median(rdNum)) ,")\n", sep="")
+    cat("Absolute minimum drawdown :")
+    cat(fD(max(ddNum))," (", fP(100*max(rdNum)) ,
+        ") [set = ", which(ddNum==max(ddNum))[1] ,"]\n", sep="")
+    cat("Maximum equity balance    :")
+    cat(fD(max(eqtyNum))," (", fP(100*max(eqtyDbl)) ,
+        ") [set = ", which(eqtyNum==max(eqtyNum))[1] ,"]\n", sep="")
+    cat("Median equity balance     :")
+    cat(fD(median(eqtyNum))," (", fP(100*median(eqtyDbl)) ,")\n", sep="")
+    cat("Minimum equity balance    :")
+    cat(fD(min(eqtyNum))," (", fP(100*min(eqtyDbl)) ,
+        ") [set = ", which(eqtyNum==min(eqtyNum))[1] ,"]\n", sep="")
+  }
   
   invisible(object)
 }
@@ -160,6 +193,26 @@ plot.Monte <- function(object, ...)
 #|                            I N T E R N A L   F U N C T I O N S                           |
 #|------------------------------------------------------------------------------------------|
 #|------------------------------------------------------------------------------------------|
+#|                          I N T E R N A L   B   F U N C T I O N S                         |
+#|------------------------------------------------------------------------------------------|
+monteMakeCluster <- function()
+{
+  ret.cl <- NULL
+  if( RegIsLinuxBln() )
+    ret.cl <- makeForkCluster(nnodes=detectCores())
+  if( RegIsWindowsBln() )
+  {
+    sockChr <- c()
+    for( i in 1:detectCores() )
+    {
+      sockChr <- c(sockChr, "localhost")
+    }
+    ret.cl <- makeCluster(sockChr, type="SOCK")
+  }
+  ret.cl
+}
+
+#|------------------------------------------------------------------------------------------|
 #|                          I N T E R N A L   A   F U N C T I O N S                         |
 #|------------------------------------------------------------------------------------------|
 monteCalcDrawdown <- function( eqyXts )
@@ -168,17 +221,16 @@ monteCalcDrawdown <- function( eqyXts )
   rawNum <- NROW(eqyXts)
   
   lmMtx <- matrix(NA, nrow=1, ncol=setNum)
-  #ddMtx <- matrix(NA, nrow=1, ncol=setNum)
-  #rdMtx <- matrix(NA, nrow=1, ncol=setNum)
+  if( monteIsMultiBln() ) cl <- monteMakeCluster()
   for( i in 1:rawNum )
   {
-    maxTdNum <- apply(eqyXts[1:i,], 2, max)
+    if( monteIsMultiBln() )
+      maxTdNum <- parApply(cl, eqyXts[1:i,], 2, max)
+    else
+      maxTdNum <- apply(cl, eqyXts[1:i,], 2, max)
     lmMtx <- rbind(lmMtx, as.numeric(maxTdNum))
-    #ddTdNum <- eqyXts[i,] - maxTdNum
-    #rdTdNum <- eqyXts[i,] / maxTdNum - 1
-    #ddMtx <- rbind(ddMtx, as.numeric(ddTdNum))
-    #rdMtx <- rbind(rdMtx, as.numeric(rdTdNum))
   }
+  stopCluster(cl)
   lmMtx <- lmMtx[2:nrow(lmMtx),]
   ddMtx <- eqyXts - lmMtx
   rdMtx <- eqyXts / lmMtx - 1
@@ -270,10 +322,11 @@ monteIsMultiBln <- function()
 
 if( TRUE )
 {
-  a <- monteSimulateReturnsZoo(3, 27.78, -67.81, 0.75)
+  a <- monteSimulateReturnsZoo(3000, 27.78, -67.81, 0.75)
   
   start <- Sys.time()
-  yy <- MonteGrowReturns(a, 50, 1)
+  yy <- MonteGrowReturns(a, 500, 1, summary=FALSE, 
+                         debug=TRUE)
   summary(yy)
   plot(yy)
   end <- Sys.time()
