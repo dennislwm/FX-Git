@@ -2,6 +2,7 @@
 //|                                                                                mt4R.mqh |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.1.2   Added helper functions Re() and ReBln() to check if a R object exists.          |
 //| 1.1.1   Added helper functions: (a) quotes Rqs(), Rqd(); (b) brackets Rbr(), Rbc(),     |
 //|         Rbs(); and (c) right-side Rre(), Rrc(), Rra(), Rrd().                           |
 //| 1.10    Added function RIsStopped. Renamed RInit to Rinit.                              |
@@ -352,12 +353,14 @@ void Rf(string name, string factor[]) {
 }
 
 void     Rx(string code)                  { RExecute(hR, code); }
+bool     ReBln(string var)                { return(Re(var)); }
 int      RxInt(string var)                { return(Rgi(var)); }
 bool     RxBln(string var)                { return(Rgb(var)); }
 double   RxDbl(string var)                { return(Rgd(var)); }
 void     RxVtr(string var, double &v[])   { Rgv(var, v); }
 void     RPrt(string expression)          { Rp(expression); }
 
+bool     Re(string var)                { return(RExists(hR, var)); }
 int      Rgi(string var)               { return(RGetInteger(hR, var)); }
 bool     Rgb(string var)               { return(RGetBool(hR, var)); }
 double   Rgd(string var)               { return(RGetDouble(hR, var)); }
