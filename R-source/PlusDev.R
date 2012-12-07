@@ -2,6 +2,7 @@
 #|                                                                                PlusDev.R |
 #|                                                             Copyright © 2012, Dennis Lee |
 #| Assert History                                                                           |
+#|  0.9.1   Fixed a parsing bug (typo) in function DevConsoleNewInt().                      |
 #|  0.9.0   This library contains external R functions to perform device manipulation.      |
 #|------------------------------------------------------------------------------------------|
 library(gplots)
@@ -71,9 +72,9 @@ DevConsoleNewInt <- function()
   #---  Initialize a new device and return its device number
   #       Check for success by counting before and after
   #       Start capture of output
-  bgnNum <- devLength()
+  bgnNum <- devLengthNum()
   dev.new('windows')
-  endNum <- devLength()
+  endNum <- devLengthNum()
   
   if( endNum==bgnNum )
     return(0)
