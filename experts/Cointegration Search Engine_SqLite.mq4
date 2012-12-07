@@ -2,6 +2,21 @@
 //|                                                  Cointegration Search Engine_SqLite.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.1.3   Added PlusRDev.mqh R console for debugging. There are several findings:         |
+//|            (1) regressand is a numeric vector containing the actual price of the first  |
+//|               currency (arb1) of TWO (2) symbols (arbpair); regressand[1] contains the  |
+//|               current price (this is also true for regressors and pred);                |
+//|            (2) regressors is a matrix containing the actual price of the second         |
+//|               currency (arb2); the matrix contains TWO (2) columns, but the first       |
+//|               column is NOT used, the actual prices are in the second column;           |
+//|            (3) pred is a numeric vector containing the hat error, i.e. the actual price |
+//|               of arb1 less the hat (predicted) price of arb1; the original author calls |
+//|               this spread; pred is computed in plot() function, and is a result of R    |
+//|               predict() of a linear regression model (arb1 ~ arb2), where arb1 is the   |
+//|               outcome and arb2 is the predictor. After the model is generated, a new    |
+//|               arb2 (old arb2 plus one new price) is passed as argument to R predict();  |
+//|            (4) A global MT4 variable pred is an array containing the hat error, and is  |
+//|               different from the R variable pred.                                       |
 //| 1.1.2   Added a function ConditionalGlobalVariableSet() to replace a portion of code.   |
 //|         This is to facilitate unit testing. Variable Rplot is now an extern, to show    |
 //|         the Arb-O-Mat plot. In addition, there are FIVE (5) diagnostic plots:           |
@@ -27,7 +42,9 @@
 #include <mt4R.mqh>                // <-- its on forexfactory. need version 1.3
 //#include <common_functions.mqh> 
 #include <stderror.mqh>  
-#include <stdlib.mqh> 
+#include <stdlib.mqh>
+//--- DL: PlusRDev unit test
+#include <PlusRDev.mqh>
 
 //|-----------------------------------------------------------------------------------------|
 //|                           E X T E R N A L   V A R I A B L E S                           |
@@ -86,10 +103,14 @@ extern int EaViewDebugNoStackEnd = 0;
 //|-----------------------------------------------------------------------------------------|
 string EaName = "Cointegration Search Engine_SqLite";
 string EaVer = "1.1.2";
-bool trend = false;
+//--- Set Trend to true, to use actual price instead of (actual price - price_hat)
+//       Note: this is NOT recommended, so I have commented out the relevant code
+//bool trend = false;
 extern bool Rplot = false;
 double pair1[];
 double pair2[];
+int RhDebug;
+int RhPlot;
 
 #define GLOBALNAME "arb-o-mat" // prefix for global variable names
 static color CLR_BUY_ARROW = Blue;
@@ -189,6 +210,13 @@ int init(){
    }
    Rx("library(zoo)");
    Rx("library(tseries)");
+//--- DL: PlusRDev unit test
+//       (1) create new dev for debug
+//       (2) create new dev for plot   
+   RDevInit();
+   RhDebug = RDevConsoleNewInt();
+   RDevConsoleTextPlot(RhDebug, Rqs("Initialized RhDebug..."), 0.9);   
+   RhPlot = RDevConsoleNewInt();
    
    time_last = 0; // force new bar
    alert_time = 0;
@@ -266,14 +294,6 @@ int start()
                      onTick();
                   }
                }
-               EaDebugPrint( 1, "start",
-                  EaDebugInt("sp",sp)+
-                  EaDebugInt("fp",fp)+
-                  EaDebugStr("s[sp]",s[sp])+
-                  EaDebugStr("s[fp]",s[fp])+
-                  EaDebugDbl("spread (pred[0])",pred[0])+
-                  EaDebugDbl("stddev",stddev)+
-                  EaDebugDbl("2*stddev",2*stddev) );
             }
          }
       }
@@ -302,40 +322,44 @@ void onOpen(){
    // if any pair has less than back bars in the history
    // then adjust back accordingly.
    back = back_bars;
-   
-   
-   
    for (i=0; i<pairs; i++){
       if (iBars(symb[i], 0) < back){
          back = iBars(symb[i], 0) - 2; // use the third last bar.
       }
    }
    
+//--- DL: PlusRDev unit test
+//       If the pair does NOT have sufficient history,
+//       the ArraySize will fail due to negative back
    ArrayResize(coef, pairs);
    ArrayResize(prices, pairs);
    ArrayResize(regressors, back * pairs);
    ArrayResize(pred, back);
-   Rx("rm(list=ls())");
+   Rx("rm(list=ls()[ls()!='debugChr'])");
    Ri("back", back);
    Ri("pairs", pairs);
    
-   // fill the matrix of regressors
-   // and then copy it over to R
+//--- DL: PlusRDev unit test
+//       Ensure rm() R function does NOT delete debugChr
+//       Create a debugChr as an R character vector
+//          As OnOpen() is called many times, we want debugChr to persist
+//       fill the matrix of regressors
+//       and then copy it over to R
+   bool isDup;
+   
+   if( !ReBln("debugChr") )   Rx( "debugChr <- c()" );   
    for (i=0; i<back; i++){
       for (j=0; j<pairs; j++){
          ishift = iBarShift(symb[j], 0, Time[i]);
          regressors[i * pairs + j] = iClose(symb[j], 0, ishift);
-         if(i==0){
-            EaDebugPrint( 1, "onOpen",
-               EaDebugInt("i",i)+
-               EaDebugDbl("iClose", iClose(symb[j], 0, ishift))+
-               EaDebugInt("j",j)+
-               EaDebugStr("symb[j]",symb[j])+
-               EaDebugInt("element x",i*pairs+j)+
-               EaDebugDbl("regressors[x]",regressors[i*pairs+j]) );
+         isDup = RxBln( "length(which(debugChr=="+Rqs(symb[j])+"))!=0" );         
+         if( !isDup ) 
+         {
+            Rx( "debugChr <- c"+Rbr("debugChr, "+Rqs(symb[j])) );
          }
       }
    }
+   //RDevConsoleTextPlot(RhDebug, "debugChr", 0.9, FALSE);
 //--- Filling a R matrix is tricky, as it requires an MT4 array with alternating values
 //       Example of a NxM R matrix, where N=back and M=pairs
 //       Fill an MT4 array=regressors with values such that 
@@ -348,28 +372,25 @@ void onOpen(){
 //          (2) rows:   an MT4 integer with number of rows, i.e. back
 //          (3) cols:   an MT4 integer with number of columns, i.e. pairs
    Rm("regressors", regressors, back, pairs);
-   /*Rs("colName1", symb[0] );
-   /Rs("colName2", symb[1] );
-   /Rx("names(regressors) <- c(colName1, colName2)");*/
       
    // do the regression
    // first we need a regressand
-   if (trend){
+   /*if (trend){
       // we simply use a straight line that will be our ideal trend
       // note that it points downward since the history is ordered backwards
       Rd("trendslope", 0.01);
       Rx("regressand <- trendslope - trendslope * seq(1, back) / back"); 
    
-   }else{
+   }else{*/
       Ri("cthis", this + 1);                       // counting starts with 1
       Rx("regressand <- regressors[, cthis]");     // use this column as regressand
       Rx("regressors[, cthis] <- rep(0, back)");   // set the column to zero in the matrix
-   }
+   /*}*/
    Rx("y <- regressand");                          // stupid R will remember the variable names so we  
    Rx("x <- regressors");                          // have to be careful how we name them in the formula
    Rx("model <- lm(y ~ x)");                       // fit the model
    Rp("summary(model)");
-   Rx("nonsource.wd <- 'C:/Users/user/My Documents/'");
+   Rx("nonsource.wd <- 'C:/Users/denbrige/Documents/'");
    Rx("write.table( regressand, file=paste0( nonsource.wd, 'regressand.csv' ), sep=',', quote=FALSE, row.names=FALSE )");
    Rx("write.table( regressors, file=paste0( nonsource.wd, 'regressors.csv' ), sep=',', quote=FALSE, row.names=FALSE )");
    
@@ -378,8 +399,6 @@ void onOpen(){
    Rgv("coef(model)[-1]", coef);   // remove the first one (the constant term)
    Rx("stddev <- sd(resid(model))");
    stddev = Rgd("stddev");
-   EaDebugPrint( 2, "onOpen",
-      EaDebugDbl("stddev",stddev) );
 
    // convert the coefficients to usable hege ratios by multiplying
    // xxx/usd pairs with their quote. The results can then be
@@ -391,13 +410,13 @@ void onOpen(){
    for (i=0; i<pairs; i++){
       // if we fit a spread then all pairs except this one are on the other 
       // side (negative) and this one (the regressand) is 1 by definition
-      if (!trend){
+      /*if (!trend){*/
          if (i == this){
             coef[i] = 1;
          }else{
             coef[i] = -coef[i];
          }
-      }
+      /*}*/
       
       // convert to units
       cc = ConvertCurrency(1,symb[i],"USD",iOpen(symb[i],0,0),s);
@@ -406,10 +425,10 @@ void onOpen(){
       // The following makes sure that if the first pair is an USD/XXX pair
       // it is normalized to 1 again and the lot sizes of the other ones 
       // instead made smaller by the same factor.
-      if (!trend){
+      /*if (!trend){*/
          cc = ConvertCurrency(1,symb[i],"USD",iOpen(symb[i],0,0),s);
          if( cc!= 0 ) coef[i] = coef[i] / cc;
-      }
+      /*}*/
    }
    
    // format a string that presents the hedge ratios
@@ -440,7 +459,7 @@ void onTick(){
    int i; 
    
    // update the last row
-   if (!trend){
+   /*if (!trend){*/
       prices[1] = iClose(symb[1], 0, 0);
       prices[0] = 0;
          
@@ -449,17 +468,14 @@ void onTick(){
       Rd("current_this", iClose(symb[0], 0, 0));
       Rx("regressors[1,] <- current_others");
       Rx("regressand[1] <- current_this");
-   }else{
+   /*}else{
       for (i=0; i<pairs; i++){
          prices[i] = iClose(symb[i], 0, 0);
       }
       Rv("current_all", prices);
       Rx("regressors[1,] <- current_all");
-   }
-   
+   }*/
    plot();
-   
-   
    
    if (ObjectGet("back", OBJPROP_TIME1) != 0){
       if (iBarShift(NULL, 0, ObjectGet("back", OBJPROP_TIME1)) != back){
@@ -490,7 +506,6 @@ void onTick(){
                closeOrders(symset);
                if (UseExitAlert) Alert(symset + " " + Period() + " exit "+(absexit));
                GlobalVariableDel(symset);
-               EaDebugPrint( 1, "onTick", "Close with neg. Level" );
             }
          }
          // Reentry or Exit Section with negativ Level
@@ -538,13 +553,24 @@ void onTick(){
          }
       }
    }
-   
+
+//--- Debug code to study the behaviour of regressand, regressors, and pred   
+   RDevConsoleSinkOn(RhDebug);
+   Rx( "head(regressand)" );
+   Rx( "head(pred)" );
+   Rx( "tail(pred)" );
+   Rx( "head(regressand-pred)" );
+   Rx( "head(regressors)" );
+   Rx( "tail(regressors)" );
+   Rx( "length(pred)" );
+   Rx( "length(regressand)" );
+   Rx( "class(regressors)" );
+   RDevConsoleSinkOff(RhDebug);
+   /*RDevConsoleTextPlot(RhDebug, Rqs(pred[1]+">|"+StdDevEntryLevel+"*"+stddev+"|"+Rbr(""+StdDevEntryLevel*stddev)), 
+      0.9, TRUE);*/
    for(int Lvl=StdDevEntryLevel+8;Lvl>=StdDevEntryLevel;Lvl--)
    {
       StddevOrders(Lvl);
-      EaDebugPrint( 1, "onTick",
-         EaDebugInt("Lvl",Lvl)+
-         " Entry check" );
    }   
 }
 
@@ -616,12 +642,6 @@ void TradeLevel(double Level)
       coefratio = maxcoef / mincoef;
       if(coefratio <= CoefThresh)
       {
-         EaDebugPrint( 1, "TradeLevel",
-            EaDebugInt("sp",sp)+
-            EaDebugInt("fp",fp)+
-            EaDebugStr("s[sp]",s[sp])+
-            EaDebugStr("s[fp]",s[fp])+
-            EaDebugDbl("coefratio",coefratio) );
          if(units0 > units1)
          {
             units0 = Lots;
@@ -677,17 +697,6 @@ void TradeLevel(double Level)
       if( (GlobalVariableCheck(s[fp]+s[sp]) == false && GlobalVariableCheck(s[sp]+s[fp]) == false && StopOpenNewOrders == false && UseADF == false && tradecoef0 == true && tradecoef1 ==true) 
          || (Level > GlobalVariableGet(s[fp]+s[sp]) && GlobalVariableGet(s[fp]+s[sp]) > 0 && tradecoef0 == true && tradecoef1 == true) )
       {
-            EaDebugPrint( 1, "TradeLevel",
-               EaDebugDbl("units0",units0)+
-               EaDebugDbl("units1",units1)+
-               EaDebugDbl("coef[0]",coef[0],2)+
-               EaDebugDbl("coef[1]",coef[1],2)+
-               EaDebugDbl("coefratio",coefratio,2)+
-               EaDebugInt("sp",sp)+
-               EaDebugInt("fp",fp)+
-               EaDebugStr("s[sp]",s[sp])+
-               EaDebugStr("s[fp]",s[fp]) );
-            
             if (Level > GlobalVariableGet(s[fp]+s[sp]) && GlobalVariableGet(s[fp]+s[sp]) > 0 && tradecoef0 == true && tradecoef1 == true)
             {
                 if (UseExitAlert) Alert(s[fp]+"|"+s[sp] + " " + Period() + " reentry "+Level+" * stddev");
@@ -719,16 +728,6 @@ void TradeLevel(double Level)
       if( (GlobalVariableCheck(s[fp]+s[sp]) == false && GlobalVariableCheck(s[sp]+s[fp]) == false && StopOpenNewOrders == false && UseADF == false && tradecoef0 == true && tradecoef1 ==true) ||
          (-Level < GlobalVariableGet(s[fp]+s[sp]) && GlobalVariableGet(s[fp]+s[sp]) < 0 && tradecoef0 == true && tradecoef1 == true) )
       {
-         EaDebugPrint( 1, "TradeLevel",
-            EaDebugDbl("units0",units0)+
-            EaDebugDbl("units1",units1)+
-            EaDebugDbl("coef[0]",coef[0],2)+
-            EaDebugDbl("coef[1]",coef[1],2)+
-            EaDebugDbl("coefratio",coefratio,2)+
-            EaDebugInt("sp",sp)+
-            EaDebugInt("fp",fp)+
-            EaDebugStr("s[sp]",s[sp])+
-            EaDebugStr("s[fp]",s[fp]) );
          if (-Level < GlobalVariableGet(s[fp]+s[sp]) && GlobalVariableGet(s[fp]+s[sp]) < 0 && tradecoef0 == true && tradecoef1 == true)
          {
              if (UseExitAlert) Alert(s[fp]+"|"+s[sp] + " " + Period() + " reentry -"+Level+" * stddev");
@@ -996,7 +995,7 @@ void plot(){
    // predict and plot from the model
    Rx("pred <- as.vector(predict(model, newdata=data.frame(x=I(regressors))))");
    
-   if (!trend){
+   /*if (!trend){*/
       if (last_back != back){
          plotRemove("others");
          plotRemove("spread");
@@ -1010,7 +1009,7 @@ void plot(){
       //plotOsc("spread", pred, 1, 0, clr_spreadline, clr_spreadline);
       
       label("spread_cur", 10, 70, 1, DoubleToStr(pred[0] / Point / 10, 1), Lime);
-   }   
+   /*}*/   
    
    // make the R plot (optional)
    if (Rplot){   
@@ -1019,15 +1018,15 @@ void plot(){
       Rs("ratios", ratios);
       
       Rx("options(device='windows')");
-      if(trend){
+      /*if(trend){
          Rx("curve <- rev(pred)");  // it is still ordered backwards, so we reverse it now
          Rs("lbly", "combined returns");
          Rx("linea <- trendslope/back");
-      }else{
+      }else{*/
          Rx("curve <- rev(regressand - pred)");
          Rs("lbly", "spread");
          Rx("linea <- 0");
-      }
+      /*}*/
       //--- Six plots (selectable by which) are currently available for LM model
       //       (1) a plot of residuals against fitted values, 
       //       (2) a Normal Q-Q plot, 
@@ -1046,7 +1045,8 @@ void plot(){
       Rx("p.model <- predict(model, newdata=new)");
       Rx("lenNew <- length(p.model)");
       //Rx("plot(c(y[2:lenNew,1], p.model[lenNew]), p.model)");
-      Rx("plot(p.model, main='Predicted Model')");
+      Rx("plot(rev(p.model), type='l', main='Predicted Model (blue) vs Actual Price', col='cornflowerblue')");
+      Rx("lines(rev(regressand), col='gray')");
       Rx("points(lenNew, p.model[lenNew], col='blue', pch=18)");
       Rx("plot(curve, type='l', ylab=lbly, xlab=descr1, main='Arb-O-Mat', sub=descr2, col='cornflowerblue')");
       Rx("abline(0, linea, col='cornflowerblue', lty='dashed')");
