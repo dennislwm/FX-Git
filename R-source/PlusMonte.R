@@ -1,7 +1,10 @@
 #|------------------------------------------------------------------------------------------|
-#|                                                                                PlusReg.R |
+#|                                                                              PlusMonte.R |
 #|                                                             Copyright © 2012, Dennis Lee |
 #| Assert History                                                                           |
+#|  0.9.4   Added an internal function monteCalcuReturnsZoo() that returns the computed     |
+#|            returns for a numeric vector of profit/loss amount. Added TWO (2) matrices of |
+#|            maxLocalDD and relLocalDD in the Monte class object.                          |
 #|  0.9.3   Debug performance of external function MonteGrowReturns(), and s3 >> s2 >> s1,  |
 #|            where s3 has the longest time taken for internal function monteCalcDrawdown() |
 #|            despite adding a helper function monteMakeCluster(), which is OS-dependent.   |
@@ -25,6 +28,7 @@ require(quantmod)
 require(parallel)
 require(PerformanceAnalytics)
 source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusReg.R")
+source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusFile.R")
 
 #|------------------------------------------------------------------------------------------|
 #|                            E X T E R N A L   F U N C T I O N S                           |
@@ -116,6 +120,8 @@ MonteGrowReturns <- function(rawZoo, setNum, sizeNum=1, initNum=10000, replaceBl
     ret.Monte <- list("call" = match.call(),
                       "returns" = retXts,
                       "equity" = eqyXts,
+                      "maxLocalDD" = dd.list$maxLocalDD,
+                      "relLocalDD" = dd.list$relLocalDD,
                       "maxDD" = dd.list$maxDD,
                       "relDD" = dd.list$relDD)
   else
@@ -195,6 +201,32 @@ plot.Monte <- function(object, ...)
 #|------------------------------------------------------------------------------------------|
 #|                          I N T E R N A L   B   F U N C T I O N S                         |
 #|------------------------------------------------------------------------------------------|
+monteCalcReturnsZoo <- function(rawNum, initNum=10000)
+{
+  #---  Check that arguments are valid
+  if( length(as.numeric(rawNum)) < 2 ) 
+    stop("rawNum MUST be a numeric vector with AT LEAST TWO (2) rows")
+  
+  #---  Add the initNum to rawNum cumulatively
+  #       Use function ROC() from tseries package to calculate returns
+  cumNum <- cumsum(c(initNum, rawNum))
+  retNum <- ROC(cumNum)
+  retNum <- retNum[2:length(retNum)]
+
+  #---  For length(retNum) times, Sys.Date() returns a date
+  #       Increment date by +(n-1) where n is the row number, 
+  #         e.g. row 1: +0, row 2: +1, row 3: +2
+  #       Return a zoo object
+  retDte <- rep( Sys.Date(), length(retNum) )
+  if( monteIsMultiBln() )
+    retDte <- mcmapply( function(x, n) { format(x + (n - 1), "%Y-%m-%d") }, retDte, 1:length(retDte) )
+  else
+    retDte <- mapply( function(x, n) { format(x + (n - 1), "%Y-%m-%d") }, retDte, 1:length(retDte) )
+  
+  retZoo <- zoo(matrix(retNum, ncol=1),
+                as.Date(retDte, "%Y-%m-%d"))  
+}
+
 monteMakeCluster <- function()
 {
   ret.cl <- NULL
@@ -230,14 +262,14 @@ monteCalcDrawdown <- function( eqyXts )
       maxTdNum <- apply(cl, eqyXts[1:i,], 2, max)
     lmMtx <- rbind(lmMtx, as.numeric(maxTdNum))
   }
-  stopCluster(cl)
+  if( monteIsMultiBln() ) stopCluster(cl)
   lmMtx <- lmMtx[2:nrow(lmMtx),]
   ddMtx <- eqyXts - lmMtx
   rdMtx <- eqyXts / lmMtx - 1
   ddNum <- apply(ddMtx, 2, min)
   rdNum <- apply(rdMtx, 2, min)
   
-  list(maxDD=ddNum, relDD=rdNum)
+  list(maxDD=ddNum, relDD=rdNum, maxLocalDD=ddMtx, relLocalDD=rdMtx)
 }
 
 monteSimulateReturnsZoo <- function(tradesNum, pAvgNum, lAvgNum, wPctNum, initNum=10000)
@@ -320,15 +352,38 @@ monteIsMultiBln <- function()
   return( detectCores() > 1 )
 }
 
-if( TRUE )
+if( FALSE )
 {
   a <- monteSimulateReturnsZoo(3000, 27.78, -67.81, 0.75)
   
   start <- Sys.time()
-  yy <- MonteGrowReturns(a, 500, 1, summary=FALSE, 
+  yy <- MonteGrowReturns(a, 50, 1, #summary=FALSE, 
                          debug=TRUE)
   summary(yy)
   plot(yy)
   end <- Sys.time()
   print(end-start)
+}
+if( TRUE )
+{
+  coseDfr <- fileReadDfr("COSE")
+  init <- 2000
+#---  base default is 1000  
+  base <- 300
+  pNum <- as.numeric(coseDfr$profit) * base/1000
+  pAvg <- mean(pNum[pNum>0])
+  nAvg <- mean(pNum[pNum<0])
+  wPct <- length(which(pNum>0)) / length(pNum)
+  
+  aHat <- monteSimulateReturnsZoo(length(pNum), pAvg, nAvg, wPct, init)
+  a <- monteSimulateReturnsZoo(length(pNum), pAvg, nAvg, wPct, init)
+  a[,1] <- as.numeric(coseDfr$returns)
+  b <- monteCalcReturnsZoo(as.numeric(coseDfr$profit), init)
+  
+  a.Monte <- MonteGrowReturns(a, 30, 1)
+  start <- Sys.time()
+  aHat.Monte <- MonteGrowReturns(aHat, 30, 1)
+  summary(aHat.Monte)
+  plot(aHat.Monte)
+  print( Sys.time()-start )
 }
