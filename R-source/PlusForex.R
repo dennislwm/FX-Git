@@ -33,13 +33,20 @@
 #|        }                                                                                 |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.0.2   Use function setSymbolLookup() to specify Oanda as the source, and create a     |
+#|            plot of EURUSD using candleChart(). Added TWO (2) new indicator functions     |
+#|            forexIndSharpeRsi() and forexIndSharpeMacd().                                 |
 #|  1.0.1   Added ONE (1) internal function forexAtcUserReadDfr().                          |
 #|  1.0.0   Contains R functions to manipulate data from the MQL5.com web site.             |
 #|          There are TWO (2) external functions: ForexAcfPlot() and ForexBoxplotFtr(), and |
 #|          there are THREE (3) internal fns: forexAtcReadDfr(), freqDfr() and freqVtr().   |
 #|------------------------------------------------------------------------------------------|
-library(R.utils)
-library(XML)
+require(DMwR)
+require(tseries)
+require(R.utils)
+require(XML)
+source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusReg.R")
+source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusFile.R")
 
 #|------------------------------------------------------------------------------------------|
 #|                            E X T E R N A L   F U N C T I O N S                           |
@@ -117,6 +124,61 @@ ForexBoxplotFtr <- function(inDfr, FUN=median, ...)
 #|------------------------------------------------------------------------------------------|
 #|                            I N T E R N A L   F U N C T I O N S                           |
 #|------------------------------------------------------------------------------------------|
+#|------------------------------------------------------------------------------------------|
+#|                          I N T E R N A L   C   F U N C T I O N S                         |
+#|------------------------------------------------------------------------------------------|
+forexIndSharpeRsi <- function(quotes, k=26, pAdf=0.05)
+{
+  #---  ADF null hypothesis is that the data is non-stationary
+  #       Therefore, p-value>0.05 is non-stationary
+  sdNum <- as.numeric( suppressWarnings(rollapply(quotes, k, sd, na.pad=TRUE)) )
+  sdNum <- sdNum[!is.na(sdNum)]
+  fNum <- NROW(quotes) - length(sdNum)
+  sdNum <- c(rep(NA,fNum), sdNum)
+  #---  For some reason, xts always return a time series that is
+  #       up to the last row - 1, therefore we use a zoo object 
+  rollSd <- zoo( matrix(sdNum, ncol=1), 
+                 order.by=time(quotes) )
+  if( pAdf > 0 )
+  {
+    pVal <- suppressWarnings(adf.test(!is.na(sdNum))$p.value)
+    if( pVal > pAdf )
+      stop("k MUST be greater in for the data to be stationary.")
+    
+  }
+  rollMacd <- MACD(rollSd)
+  rollMacd$hist <- rollMacd[,1] - rollMacd[,2]
+  rollRsi <- RSI(rollMacd$hist)
+  if( is.xts(quotes) )
+    rollRsi
+  else
+    as.numeric(rollRsi)
+}
+
+forexIndSharpeMacd <- function(quotes, k=26, pAdf=0.05)
+{
+  #---  ADF null hypothesis is that the data is non-stationary
+  #       Therefore, p-value>0.05 is non-stationary
+  sdNum <- as.numeric( suppressWarnings(rollapply(quotes, k, sd, na.pad=TRUE)) )
+  sdNum <- sdNum[!is.na(sdNum)]
+  fNum <- NROW(quotes) - length(sdNum)
+  sdNum <- c(rep(NA,fNum), sdNum)
+  rollSd <- zoo( matrix(sdNum, ncol=1), 
+                 order.by=time(quotes) )
+  if( pAdf > 0 )
+  {
+    pVal <- suppressWarnings(adf.test(!is.na(sdNum))$p.value)
+    if( pVal > pAdf )
+      stop("k MUST be greater in for the data to be stationary.")
+    
+  }
+  rollMacd <- MACD(rollSd)
+  if( is.xts(quotes) )
+    rollMacd
+  else
+    as.numeric(rollMacd)
+}
+
 #|------------------------------------------------------------------------------------------|
 #|                          I N T E R N A L   B   F U N C T I O N S                         |
 #|------------------------------------------------------------------------------------------|
@@ -296,3 +358,20 @@ forexAtcUserReadDfr <- function( userChr )
 #|------------------------------------------------------------------------------------------|
 #|                                E N D   O F   S C R I P T                                 |
 #|------------------------------------------------------------------------------------------|
+
+if( TRUE )
+{
+#---  Get daily close prices of forex from Oanda
+#       Each symbol is contained in an xts object
+  setSymbolLookup(EURUSD=list(name='EUR/USD', src='oanda'))
+  suppressWarnings(getSymbols(c('EURUSD')))
+  
+#---  Plot a candlestick
+#       No volume
+#       Add a separate indicator window with SharpeRSI
+  candleChart(EURUSD, subset='last 6 months', theme='white', TA=NULL)
+  indSharpeRsi.FUN <- newTA(FUN=forexIndSharpeRsi, legend='Sharpe Rsi')
+  indSharpeMacd.FUN <- newTA(FUN=forexIndSharpeMacd, legend='Sharpe Macd')
+  indSharpeMacd.FUN()
+  indSharpeRsi.FUN()
+}
