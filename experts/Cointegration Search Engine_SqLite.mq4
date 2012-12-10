@@ -2,6 +2,7 @@
 //|                                                  Cointegration Search Engine_SqLite.mq4 |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.1.4   Added debug info for first time run, and to view a specific arb pair.           |
 //| 1.1.3   Added PlusRDev.mqh R console for debugging. There are several findings:         |
 //|            (1) regressand is a numeric vector containing the actual price of the first  |
 //|               currency (arb1) of TWO (2) symbols (arbpair); regressand[1] contains the  |
@@ -60,6 +61,9 @@ extern string Symbol6 = "JPY";
 extern string Symbol7 = "CHF";
 extern string Symbol8 = "NZD";
 extern int back_bars = 576;
+//--- Lots are calculated using the following formula:
+//       arb1: lot = base_units * coeffR1 / 100
+//       arb2: lot = base_units * coeffR2 / 100
 extern int base_units = 1000;
 extern double Lots = 0.1;
 extern bool UseCoefficient = true;
@@ -91,22 +95,26 @@ extern string RPATH = "C:/Program Files/R/R-2.15.1/bin/i386/Rterm.exe --no-save"
 extern color clr_spreadline = Yellow;
 extern color clr_above = FireBrick;
 extern color clr_below = DarkGreen;
-extern string d1 = "0-No debug; 1-Debug minimal; 2-Debug stack";
 extern int EaViewDebug = 0;
-extern string d2 = "No stacking of debug messages; View every n";
 extern int EaViewDebugNoStack = 1000;
-extern string d3 = "View debug every n ... n+m";
 extern int EaViewDebugNoStackEnd = 0;
 
 //|-----------------------------------------------------------------------------------------|
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string EaName = "Cointegration Search Engine_SqLite";
-string EaVer = "1.1.2";
+string EaVer = "1.1.4";
 //--- Set Trend to true, to use actual price instead of (actual price - price_hat)
 //       Note: this is NOT recommended, so I have commented out the relevant code
 //bool trend = false;
+//--- Set Rplot=true to view the Rplot of ALL arb pairs
+//       To view the Rplot of a certain arb pair, set the RArb_01_DebugStr and RArb_02_DebugStr, 
+//       e.g. "EURUSDm" and "EURCADm"
+//    Set Rdebug=true to create a separate R device for output from R commands
 extern bool Rplot = false;
+extern string RArb_01_DebugStr = "";
+extern string RArb_02_DebugStr = "";
+extern bool Rdebug = false;
 double pair1[];
 double pair2[];
 int RhDebug;
@@ -175,9 +183,6 @@ int init(){
             {
                s[x] = Pair;//FileWrite(handle, Pair);
                x++;
-               EaDebugPrint( 1, "init",
-                  EaDebugInt("x",x)+
-                  EaDebugStr("Pair",Pair) );
             }
          }
       }
@@ -213,10 +218,18 @@ int init(){
 //--- DL: PlusRDev unit test
 //       (1) create new dev for debug
 //       (2) create new dev for plot   
-   RDevInit();
-   RhDebug = RDevConsoleNewInt();
-   RDevConsoleTextPlot(RhDebug, Rqs("Initialized RhDebug..."), 0.9);   
-   RhPlot = RDevConsoleNewInt();
+   if( Rdebug )
+   {
+      RDevInit();
+      RhDebug = RDevConsoleNewInt();
+      RDevConsoleTextPlot(RhDebug, Rqs("Initialized RhDebug..."), 0.9);
+      if( RIsStopped() || RhDebug==0 )
+         EaDebugPrint( 1, "init:RDevConsoleNewInt", 
+            EaDebugBln("RIsStopped", RIsStopped() )+
+            EaDebugInt("RhDebug", RhDebug)+
+            "Ensure the package(s) and file(s) are installed: (1) package gplots; (2) file PlusDev.R" );
+      RhPlot = RDevConsoleNewInt();
+   }
    
    time_last = 0; // force new bar
    alert_time = 0;
@@ -347,16 +360,16 @@ void onOpen(){
 //       and then copy it over to R
    bool isDup;
    
-   if( !ReBln("debugChr") )   Rx( "debugChr <- c()" );   
+   //if( !ReBln("debugChr") )   Rx( "debugChr <- c()" );   
    for (i=0; i<back; i++){
       for (j=0; j<pairs; j++){
          ishift = iBarShift(symb[j], 0, Time[i]);
          regressors[i * pairs + j] = iClose(symb[j], 0, ishift);
-         isDup = RxBln( "length(which(debugChr=="+Rqs(symb[j])+"))!=0" );         
+         /*isDup = RxBln( "length(which(debugChr=="+Rqs(symb[j])+"))!=0" );         
          if( !isDup ) 
          {
             Rx( "debugChr <- c"+Rbr("debugChr, "+Rqs(symb[j])) );
-         }
+         }*/
       }
    }
    //RDevConsoleTextPlot(RhDebug, "debugChr", 0.9, FALSE);
@@ -390,7 +403,7 @@ void onOpen(){
    Rx("x <- regressors");                          // have to be careful how we name them in the formula
    Rx("model <- lm(y ~ x)");                       // fit the model
    Rp("summary(model)");
-   Rx("nonsource.wd <- 'C:/Users/denbrige/Documents/'");
+   Rx("nonsource.wd <- 'C:/Users/user/My Documents/'");
    Rx("write.table( regressand, file=paste0( nonsource.wd, 'regressand.csv' ), sep=',', quote=FALSE, row.names=FALSE )");
    Rx("write.table( regressors, file=paste0( nonsource.wd, 'regressors.csv' ), sep=',', quote=FALSE, row.names=FALSE )");
    
@@ -418,6 +431,10 @@ void onOpen(){
          }
       /*}*/
       
+      if( coef[i]==0 )
+         EaDebugPrint( 1, "start:onOpen", 
+            EaDebugDbl("coef["+i+"]", coef[i])+
+            "coef[]==0 is typically a result of previous R command gone wrong!" );
       // convert to units
       cc = ConvertCurrency(1,symb[i],"USD",iOpen(symb[i],0,0),s);
       if( cc != 0 ) coef[i] = coef[i] * 1/cc;
@@ -451,7 +468,10 @@ void onOpen(){
    }
    //Comment(ratios);
 
-   plot();   
+   if( RArb_01_DebugStr=="" || RArb_02_DebugStr=="" )
+      plot();   
+   else
+      plot(symb[0], symb[1]);
 }
 
 void onTick(){
@@ -475,7 +495,10 @@ void onTick(){
       Rv("current_all", prices);
       Rx("regressors[1,] <- current_all");
    }*/
-   plot();
+   if( RArb_01_DebugStr=="" || RArb_02_DebugStr=="" )
+      plot();   
+   else
+      plot(symb[0], symb[1]);
    
    if (ObjectGet("back", OBJPROP_TIME1) != 0){
       if (iBarShift(NULL, 0, ObjectGet("back", OBJPROP_TIME1)) != back){
@@ -555,19 +578,22 @@ void onTick(){
    }
 
 //--- Debug code to study the behaviour of regressand, regressors, and pred   
-   RDevConsoleSinkOn(RhDebug);
-   Rx( "head(regressand)" );
-   Rx( "head(pred)" );
-   Rx( "tail(pred)" );
-   Rx( "head(regressand-pred)" );
-   Rx( "head(regressors)" );
-   Rx( "tail(regressors)" );
-   Rx( "length(pred)" );
-   Rx( "length(regressand)" );
-   Rx( "class(regressors)" );
-   RDevConsoleSinkOff(RhDebug);
-   /*RDevConsoleTextPlot(RhDebug, Rqs(pred[1]+">|"+StdDevEntryLevel+"*"+stddev+"|"+Rbr(""+StdDevEntryLevel*stddev)), 
+   if( Rdebug && RhDebug > 0 )
+   {
+      RDevConsoleSinkOn(RhDebug);
+      Rx( "head(regressand)" );
+      Rx( "head(pred)" );
+      Rx( "tail(pred)" );
+      Rx( "head(regressand-pred)" );
+      Rx( "head(regressors)" );
+      Rx( "tail(regressors)" );
+      Rx( "length(pred)" );
+      Rx( "length(regressand)" );
+      Rx( "class(regressors)" );
+      RDevConsoleSinkOff(RhDebug);
+      /*RDevConsoleTextPlot(RhDebug, Rqs(pred[1]+">|"+StdDevEntryLevel+"*"+stddev+"|"+Rbr(""+StdDevEntryLevel*stddev)), 
       0.9, TRUE);*/
+   }
    for(int Lvl=StdDevEntryLevel+8;Lvl>=StdDevEntryLevel;Lvl--)
    {
       StddevOrders(Lvl);
@@ -990,7 +1016,7 @@ bool closeOrders(string comment)
    return(False);
 }*/
 
-void plot(){
+void plot(string arb_01_debugStr="", string arb_02_debugStr=""){
    static int last_back;
    // predict and plot from the model
    Rx("pred <- as.vector(predict(model, newdata=data.frame(x=I(regressors))))");
@@ -1011,8 +1037,18 @@ void plot(){
       label("spread_cur", 10, 70, 1, DoubleToStr(pred[0] / Point / 10, 1), Lime);
    /*}*/   
    
+   bool plotBln;
+   if( arb_01_debugStr=="" || arb_02_debugStr=="" ) plotBln=Rplot;
+   else
+   {
+   //--- Plot only the symbols are RArb_01_DebugStr and RArb_02_DebugStr
+      plotBln=false;
+      if( arb_01_debugStr==RArb_01_DebugStr && arb_02_debugStr==RArb_02_DebugStr) plotBln=Rplot;
+      if( arb_01_debugStr==RArb_02_DebugStr && arb_02_debugStr==RArb_01_DebugStr) plotBln=Rplot; 
+   }
+      
    // make the R plot (optional)
-   if (Rplot){   
+   if (plotBln){   
       Rs("descr1", Period() + " minute close prices");
       Rs("descr2", "begin: " + TimeToStr(Time[back-1]) + " -- end: " + TimeToStr(Time[0]));
       Rs("ratios", ratios);
