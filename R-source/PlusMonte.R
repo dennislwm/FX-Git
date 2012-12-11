@@ -2,6 +2,11 @@
 #|                                                                              PlusMonte.R |
 #|                                                             Copyright © 2012, Dennis Lee |
 #| Assert History                                                                           |
+#|  0.9.5   Added initNum to class Monte and function summary(). Created testPlusMonte to   |
+#|             perform unit tests on functions monteShuffleIndexNum() and                   |
+#|             monteSimulateReturnsZoo(), as well as some minor fixes.                      |
+#|          Note: Object$call has a bug when the parameter contains a variable instead of   |
+#|             value, there is no value for that parameter, e.g. fn(initNum=wealth).        |  
 #|  0.9.4   Added an internal function monteCalcuReturnsZoo() that returns the computed     |
 #|            returns for a numeric vector of profit/loss amount. Added TWO (2) matrices of |
 #|            maxLocalDD and relLocalDD in the Monte class object.                          |
@@ -39,7 +44,7 @@ source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/P
 MonteGrowReturns <- function(rawZoo, setNum, sizeNum=1, initNum=10000, replaceBln=TRUE, 
                              summary=TRUE, debug=FALSE)
 {
-  #---  Assert FOUR (4) arguments:                                                   
+  #---  Assert FIVE (5) arguments:                                                   
   #       rawZoo is a zoo object of returns
   #       setNum is an integer of number of sets to grow
   #       sizeNum is an integer of block size, where blocks of returns are kept together (default: 1)
@@ -118,6 +123,7 @@ MonteGrowReturns <- function(rawZoo, setNum, sizeNum=1, initNum=10000, replaceBl
   #
   if( summary )
     ret.Monte <- list("call" = match.call(),
+                      "init" = initNum,
                       "returns" = retXts,
                       "equity" = eqyXts,
                       "maxLocalDD" = dd.list$maxLocalDD,
@@ -126,6 +132,7 @@ MonteGrowReturns <- function(rawZoo, setNum, sizeNum=1, initNum=10000, replaceBl
                       "relDD" = dd.list$relDD)
   else
     ret.Monte <- list("call" = match.call(),
+                      "init" = initNum,
                       "returns" = retXts,
                       "equity" = eqyXts)
   
@@ -133,12 +140,10 @@ MonteGrowReturns <- function(rawZoo, setNum, sizeNum=1, initNum=10000, replaceBl
   ret.Monte
 }
 
-summary.Monte <- function(object, initNum=10000, ...)
+summary.Monte <- function(object, ...)
 {
   call = object$call
     setNum = call$setNum
-  if( !is.null(call$initNum) )
-    initNum = call$initNum
   if( !is.null(call$summary) )
     summary = call$summary
   else
@@ -151,6 +156,7 @@ summary.Monte <- function(object, initNum=10000, ...)
     cat("No summary\n")
   else
   {
+    initNum = object$init
     rets = object$returns
     eqty = object$equity
     ddNum = object$maxDD
@@ -166,6 +172,8 @@ summary.Monte <- function(object, initNum=10000, ...)
     fP <- function(x){ 
       format(sprintf('%.1f%%',x), width=6, justify='right')
     }  
+    cat("Initial equity balance    :")
+    cat(fD(initNum),"\n")
     cat("Absolute maximum drawdown :")
     cat(fD(min(ddNum))," (", fP(100*min(rdNum)) ,
         ") [set = ", which(ddNum==min(ddNum))[1] ,"]\n", sep="")
@@ -290,6 +298,12 @@ monteSimulateReturnsZoo <- function(tradesNum, pAvgNum, lAvgNum, wPctNum, initNu
     stop("lAvgNum MUST be less than ZERO (0)")
   if( as.numeric(wPctNum) <= 0 | as.numeric(wPctNum) >= 1 ) 
     stop("wPctNum MUST be between ZERO (0) AND ONE (1)")
+  if( as.numeric(initNum) <= 0 ) 
+    stop("initNum MUST be greater than ZERO (0)")
+  stopNum <- round(abs(tradesNum*lAvgNum*(1-wPctNum)))
+  if( as.numeric(initNum) <= 1*stopNum ) 
+    stop(paste0("initNum MUST BE greater than ONCE (1x) cumulative losses of -",
+                   stopNum, "(",1*stopNum, ")"))
   
   #---  For tradesNum times, runif() returns a random number between 0 and 1
   #       If number is less than or equal to wPctNum, then it will be counted as a win
@@ -316,13 +330,23 @@ monteSimulateReturnsZoo <- function(tradesNum, pAvgNum, lAvgNum, wPctNum, initNu
   
   retZoo <- zoo(matrix(retNum, ncol=1),
                 as.Date(retDte, "%Y-%m-%d"))  
+  retZoo
 }
 
 monteShuffleIndexNum <- function(n, r)
 {
-  #n is the number of samples to run
-  #r is for how many consecutive returns make up a 'block' and is passed to ran_gen
-  
+#---  Assert TWO (2) arguments:                                                   
+#       n:        an integer for the length of vector
+#       r:        an integer for the size of block
+#       retNum:   a numeric vector of shuffled index with length n and r blocks
+  #---  Check that arguments are valid
+  if( as.numeric(n) < 2 ) 
+    stop("n MUST be an integer greater than ONE (1)")
+  if( as.numeric(r) < 1 )  
+    stop("r MUST be an integer between ONE (1) AND n")
+  if( as.numeric(r) > as.numeric(n) ) 
+    stop("r MUST be an integer between ONE (1) AND n")
+
   i <- trunc(n/r)
   j <- n %% r
   if( (i*r+j) != n ) stop("logical error")
@@ -352,38 +376,6 @@ monteIsMultiBln <- function()
   return( detectCores() > 1 )
 }
 
-if( FALSE )
-{
-  a <- monteSimulateReturnsZoo(3000, 27.78, -67.81, 0.75)
-  
-  start <- Sys.time()
-  yy <- MonteGrowReturns(a, 50, 1, #summary=FALSE, 
-                         debug=TRUE)
-  summary(yy)
-  plot(yy)
-  end <- Sys.time()
-  print(end-start)
-}
-if( TRUE )
-{
-  coseDfr <- fileReadDfr("COSE")
-  init <- 2000
-#---  base default is 1000  
-  base <- 300
-  pNum <- as.numeric(coseDfr$profit) * base/1000
-  pAvg <- mean(pNum[pNum>0])
-  nAvg <- mean(pNum[pNum<0])
-  wPct <- length(which(pNum>0)) / length(pNum)
-  
-  aHat <- monteSimulateReturnsZoo(length(pNum), pAvg, nAvg, wPct, init)
-  a <- monteSimulateReturnsZoo(length(pNum), pAvg, nAvg, wPct, init)
-  a[,1] <- as.numeric(coseDfr$returns)
-  b <- monteCalcReturnsZoo(as.numeric(coseDfr$profit), init)
-  
-  a.Monte <- MonteGrowReturns(a, 30, 1)
-  start <- Sys.time()
-  aHat.Monte <- MonteGrowReturns(aHat, 30, 1)
-  summary(aHat.Monte)
-  plot(aHat.Monte)
-  print( Sys.time()-start )
-}
+#|------------------------------------------------------------------------------------------|
+#|                                E N D   O F   S C R I P T                                 |
+#|------------------------------------------------------------------------------------------|
