@@ -19,6 +19,7 @@
 #include <stderror.mqh>  
 #include <stdlib.mqh> 
 
+extern int MaxAccountTrades = 4;
 extern int back_bars = 576;
 extern int base_units = 1000;
 extern double Lots = 0.1;
@@ -1222,6 +1223,15 @@ int orderSendReliable(
 ){
    int ticket;
    int err;
+//--- DL: Works with extern MaxAccountTrades
+//       When total account trades >= MaxAccountTrades
+//       No new trades can be opened
+   int total = OrdersTotal();
+   int aCount;
+   for(int cnt=0; cnt<total; cnt++){
+      if( OrderSelect(cnt, SELECT_BY_POS, MODE_TRADES) ) aCount ++;
+   }
+   if( aCount >= MaxAccountTrades ) return(-1);
    Print("orderSendReliable(" 
       + symbol + "," 
       + cmd + "," 
