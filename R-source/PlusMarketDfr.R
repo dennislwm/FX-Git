@@ -2,6 +2,7 @@
 #|                                                                          PlusMarketDfr.R |
 #|                                                             Copyright © 2012, Dennis Lee |
 #| Assert History                                                                           |
+#|  1.0.1   Added constants for trading and ONE function MarketDfrNormalizeDouble.FUN().    |
 #|  1.0.0   This script allows R functions to access the MarketInfo data from MT4.          |
 #|            THREE (3) external functions MarketDfrCreate(), MarketDfrInfo.FUN() and       |
 #|            MarketDfrRefreshRates.FUN().                                                  |
@@ -14,7 +15,7 @@ source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/P
 #|------------------------------------------------------------------------------------------|
 #---  Assert internal variables for Dfr
 MarketDfrName           = "PlusMarketDfr"
-MarketDfrVer            = "1.0.0"
+MarketDfrVer            = "1.0.1"
 #---  Dfr CSV file names (one table per CSV file)
 MiTableStr              = "MarketInfo"
 #---- Dfr column names for MarketInfo
@@ -78,6 +79,13 @@ MODE_MARGINHEDGED       = 31  # int
 MODE_MARGINREQUIRED     = 32  # double, e.g. 952.59
 MODE_FREEZELEVEL        = 33  # int
 MODE_SYMBOL             = 34  # string, this doesn't exists in MT4
+#        See doc http://docs.mql4.com/constants/trading
+OP_BUY                  = 0
+OP_SELL                 = 1
+OP_BUYLIMIT             = 2
+OP_SELLLIMIT            = 3
+OP_BUYSTOP              = 4
+OP_SELLSTOP             = 5
 
 #|------------------------------------------------------------------------------------------|
 #|                            E X T E R N A L   F U N C T I O N S                           |
@@ -194,6 +202,14 @@ MarketDfrRefreshRates.FUN <- function( acctNoInt )
 #|------------------------------------------------------------------------------------------|
 #|                            I N T E R N A L   F U N C T I O N S                           |
 #|------------------------------------------------------------------------------------------|
+MarketDfrNormalizeDouble.FUN <- function( digits )
+{
+#---  MarketDfrNormalizeDouble.FUN() returns a function that has a default digits
+  function( value, d=digits )
+  {
+    round(value, d)
+  }   
+}
 
 #|------------------------------------------------------------------------------------------|
 #|                          I N T E R N A L   A   F U N C T I O N S                         |
