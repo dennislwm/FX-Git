@@ -3,7 +3,8 @@
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert Test Procedure                                                                   |
 //| Assert History                                                                          |
-//| 1.00    This script performs unit test on the include file PlusTD.mqh.                  |
+//| 1.0.1    Additional test on the parameters DoNotBuyGreedy and DoNotSellGreedy.          |
+//| 1.0.0    This script performs unit test on the include file PlusTD.mqh.                 |
 //|-----------------------------------------------------------------------------------------|
 #property copyright "Copyright © 2012, Dennis Lee"
 #property link      ""
@@ -66,6 +67,14 @@ int start()
 //       (5)(2) Assume DoNotSellUp1=Brk, DoNotSellUp2=Brk, and Up1=Brk, Up2=Ok, check Sell is NOT allowed
 //       (5)(3) Assume DoNotSellUp1=Brk, DoNotSellUp2=Brk, and Up1=Ok, Up2=Brk, check Sell is NOT allowed
 //       (5)(4) Assume DoNotSellUp1=Brk, DoNotSellUp2=Brk, and Up1=Ok, Up2=Ok, check Sell is allowed
+//       (6)(1) Assume DoNotBuyGreedy=true, DoNotBuyDn1=Brk, DoNotBuyDn2=Brk, and Dn1=Brk, Dn2=Brk, check Buy is NOT allowed
+//       (6)(2) Assume DoNotBuyGreedy=true, DoNotBuyDn1=Brk, DoNotBuyDn2=Brk, and Dn1=Brk, Dn2=Ok, check Buy is allowed
+//       (6)(3) Assume DoNotBuyGreedy=true, DoNotBuyDn1=Brk, DoNotBuyDn2=Brk, and Dn1=Ok, Dn2=Brk, check Buy is allowed
+//       (6)(4) Assume DoNotBuyGreedy=true, DoNotBuyDn1=Brk, DoNotBuyDn2=Brk, and Dn1=Ok, Dn2=Ok, check Buy is allowed
+//       (7)(1) Assume DoNotSellGreedy=true, DoNotSellUp1=Brk, DoNotSellUp2=Brk, and Up1=Brk, Up2=Brk, check Sell is NOT allowed
+//       (7)(2) Assume DoNotSellGreedy=true, DoNotSellUp1=Brk, DoNotSellUp2=Brk, and Up1=Brk, Up2=Ok, check Sell is allowed
+//       (7)(3) Assume DoNotSellGreedy=true, DoNotSellUp1=Brk, DoNotSellUp2=Brk, and Up1=Ok, Up2=Brk, check Sell is allowed
+//       (7)(4) Assume DoNotSellGreedy=true, DoNotSellUp1=Brk, DoNotSellUp2=Brk, and Up1=Ok, Up2=Ok, check Sell is allowed
 
    int      tmpPeriod;
    string   tmpGUpStr;
@@ -78,6 +87,8 @@ int start()
    int      tmpDoNotSell2UpLine;
    int      tmpDoNotSellDnLine;
    int      tmpDoNotSell2DnLine;
+   bool     tmpDoNotBuyGreedy;
+   bool     tmpDoNotSellGreedy;
    bool     tmpOkUpLine;
    bool     tmpOk2UpLine;
    bool     tmpOkDnLine;
@@ -146,6 +157,10 @@ int start()
    TDDoNotSellDnLine    =tmpDoNotSellDnLine;
    TDDoNotSell2DnLine   =tmpDoNotSell2DnLine;
    }
+//       (4)(1) Assume DoNotBuyDn1=Brk, DoNotBuyDn2=Brk, and Dn1=Brk, Dn2=Brk, check Buy is NOT allowed
+//       (4)(2) Assume DoNotBuyDn1=Brk, DoNotBuyDn2=Brk, and Dn1=Brk, Dn2=Ok, check Buy is NOT allowed
+//       (4)(3) Assume DoNotBuyDn1=Brk, DoNotBuyDn2=Brk, and Dn1=Ok, Dn2=Brk, check Buy is NOT allowed
+//       (4)(4) Assume DoNotBuyDn1=Brk, DoNotBuyDn2=Brk, and Dn1=Ok, Dn2=Ok, check Buy is allowed
    {
    tmpDoNotBuyUpLine    =TDDoNotBuyUpLine;
    tmpDoNotBuy2UpLine   =TDDoNotBuy2UpLine;
@@ -185,6 +200,10 @@ int start()
    TDDoNotBuyDnLine     =tmpDoNotBuyDnLine;
    TDDoNotBuy2DnLine    =tmpDoNotBuy2DnLine;
    }
+//       (5)(1) Assume DoNotSellUp1=Brk, DoNotSellUp2=Brk, and Up1=Brk, Up2=Brk, check Sell is NOT allowed
+//       (5)(2) Assume DoNotSellUp1=Brk, DoNotSellUp2=Brk, and Up1=Brk, Up2=Ok, check Sell is NOT allowed
+//       (5)(3) Assume DoNotSellUp1=Brk, DoNotSellUp2=Brk, and Up1=Ok, Up2=Brk, check Sell is NOT allowed
+//       (5)(4) Assume DoNotSellUp1=Brk, DoNotSellUp2=Brk, and Up1=Ok, Up2=Ok, check Sell is allowed
    {
    tmpDoNotSellUpLine    =TDDoNotSellUpLine;
    tmpDoNotSell2UpLine   =TDDoNotSell2UpLine;
@@ -220,6 +239,99 @@ int start()
    TDDoNotSell2UpLine    =tmpDoNotSell2UpLine;
    TDDoNotSellDnLine     =tmpDoNotSellDnLine;
    TDDoNotSell2DnLine    =tmpDoNotSell2DnLine;
+   }
+//       (6)(1) Assume DoNotBuyGreedy=true, DoNotBuyDn1=Brk, DoNotBuyDn2=Brk, and Dn1=Brk, Dn2=Brk, check Buy is NOT allowed
+//       (6)(2) Assume DoNotBuyGreedy=true, DoNotBuyDn1=Brk, DoNotBuyDn2=Brk, and Dn1=Brk, Dn2=Ok, check Buy is allowed
+//       (6)(3) Assume DoNotBuyGreedy=true, DoNotBuyDn1=Brk, DoNotBuyDn2=Brk, and Dn1=Ok, Dn2=Brk, check Buy is allowed
+//       (6)(4) Assume DoNotBuyGreedy=true, DoNotBuyDn1=Brk, DoNotBuyDn2=Brk, and Dn1=Ok, Dn2=Ok, check Buy is allowed
+   {
+//--- Save user environment
+   tmpDoNotBuyUpLine    =TDDoNotBuyUpLine;
+   tmpDoNotBuy2UpLine   =TDDoNotBuy2UpLine;
+   tmpDoNotBuyDnLine    =TDDoNotBuyDnLine;
+   tmpDoNotBuy2DnLine   =TDDoNotBuy2DnLine;
+   tmpDoNotBuyGreedy    =TDDoNotBuyGreedy;
+
+//--- Set test environment
+   TDDoNotBuyUpLine=0;
+   TDDoNotBuy2UpLine=0;
+   TDDoNotBuyDnLine=2;
+   TDDoNotBuy2DnLine=2;
+   TDDoNotBuyGreedy=true;
+   tmpOkDnLine=TDGetDnBln(1);
+   tmpOk2DnLine=TDGetDnBln(2);
+   GlobalVariableSet( TDGlobalDnStr(1), false );
+   GlobalVariableSet( TDGlobalDnStr(2), false );
+   TestThat( "(6)(1) Assume DoNotBuyGreedy=true, DoNotBuyDn1=Brk, DoNotBuyDn2=Brk, and Dn1=Brk, Dn2=Brk, check Buy is NOT allowed",
+             ExpectFalseBln( TDWave1Buy() ) );
+   GlobalVariableSet( TDGlobalDnStr(1), false );
+   GlobalVariableSet( TDGlobalDnStr(2), true );
+   TestThat( "(6)(2) Assume DoNotBuyGreedy=true, DoNotBuyDn1=Brk, DoNotBuyDn2=Brk, and Dn1=Brk, Dn2=Ok, check Buy is allowed",
+             ExpectTrueBln( TDWave1Buy() ) );
+   GlobalVariableSet( TDGlobalDnStr(1), true );
+   GlobalVariableSet( TDGlobalDnStr(2), false );
+   TestThat( "(6)(3) Assume DoNotBuyGreedy=true, DoNotBuyDn1=Brk, DoNotBuyDn2=Brk, and Dn1=Ok, Dn2=Brk, check Buy is allowed",
+             ExpectTrueBln( TDWave1Buy() ) );
+   GlobalVariableSet( TDGlobalDnStr(1), true );
+   GlobalVariableSet( TDGlobalDnStr(2), true );
+   TestThat( "(6)(4) Assume DoNotBuyGreedy=true, DoNotBuyDn1=Brk, DoNotBuyDn2=Brk, and Dn1=Ok, Dn2=Ok, check Buy is allowed",
+             ExpectTrueBln( TDWave1Buy() ) );
+             
+//--- Restore user environment
+   GlobalVariableSet( TDGlobalDnStr(1), tmpOkDnLine );
+   GlobalVariableSet( TDGlobalDnStr(2), tmpOk2DnLine );
+   TDDoNotBuyUpLine     =tmpDoNotBuyUpLine;
+   TDDoNotBuy2UpLine    =tmpDoNotBuy2UpLine;
+   TDDoNotBuyDnLine     =tmpDoNotBuyDnLine;
+   TDDoNotBuy2DnLine    =tmpDoNotBuy2DnLine;
+   TDDoNotBuyGreedy     =tmpDoNotBuyGreedy;
+   }
+//       (7)(1) Assume DoNotSellGreedy=true, DoNotSellUp1=Brk, DoNotSellUp2=Brk, and Up1=Brk, Up2=Brk, check Sell is NOT allowed
+//       (7)(2) Assume DoNotSellGreedy=true, DoNotSellUp1=Brk, DoNotSellUp2=Brk, and Up1=Brk, Up2=Ok, check Sell is allowed
+//       (7)(3) Assume DoNotSellGreedy=true, DoNotSellUp1=Brk, DoNotSellUp2=Brk, and Up1=Ok, Up2=Brk, check Sell is allowed
+//       (7)(4) Assume DoNotSellGreedy=true, DoNotSellUp1=Brk, DoNotSellUp2=Brk, and Up1=Ok, Up2=Ok, check Sell is allowed
+   {
+//--- Save user environment
+   tmpDoNotSellUpLine    =TDDoNotSellUpLine;
+   tmpDoNotSell2UpLine   =TDDoNotSell2UpLine;
+   tmpDoNotSellDnLine    =TDDoNotSellDnLine;
+   tmpDoNotSell2DnLine   =TDDoNotSell2DnLine;
+   tmpDoNotSellGreedy    =TDDoNotSellGreedy;
+   
+//--- Set test environment
+   TDDoNotSellUpLine=2;
+   TDDoNotSell2UpLine=2;
+   TDDoNotSellDnLine=0;
+   TDDoNotSell2DnLine=0;
+   TDDoNotSellGreedy=true;
+   tmpOkUpLine=TDGetUpBln(1);
+   tmpOk2UpLine=TDGetUpBln(2);
+   
+   GlobalVariableSet( TDGlobalUpStr(1), false );
+   GlobalVariableSet( TDGlobalUpStr(2), false );
+   TestThat( "(7)(1) Assume DoNotSellGreedy=true, DoNotSellUp1=Brk, DoNotSellUp2=Brk, and Up1=Brk, Up2=Brk, check Sell is NOT allowed",
+             ExpectFalseBln( TDWave1Sell() ) );
+   GlobalVariableSet( TDGlobalUpStr(1), false );
+   GlobalVariableSet( TDGlobalUpStr(2), true );
+   TestThat( "(7)(2) Assume DoNotSellGreedy=true, DoNotSellUp1=Brk, DoNotSellUp2=Brk, and Up1=Brk, Up2=Ok, check Sell is allowed",
+             ExpectTrueBln( TDWave1Sell() ) );
+   GlobalVariableSet( TDGlobalUpStr(1), true );
+   GlobalVariableSet( TDGlobalUpStr(2), false );
+   TestThat( "(7)(3) Assume DoNotSellGreedy=true, DoNotSellUp1=Brk, DoNotSellUp2=Brk, and Up1=Ok, Up2=Brk, check Sell is allowed",
+             ExpectTrueBln( TDWave1Sell() ) );
+   GlobalVariableSet( TDGlobalUpStr(1), true );
+   GlobalVariableSet( TDGlobalUpStr(2), true );
+   TestThat( "(7)(4) Assume DoNotSellGreedy=true, DoNotSellUp1=Brk, DoNotSellUp2=Brk, and Up1=Ok, Up2=Ok, check Sell is allowed",
+             ExpectTrueBln( TDWave1Sell() ) );
+             
+//--- Restore user environment
+   GlobalVariableSet( TDGlobalUpStr(1), tmpOkUpLine );
+   GlobalVariableSet( TDGlobalUpStr(2), tmpOk2UpLine );
+   TDDoNotSellUpLine     =tmpDoNotSellUpLine;
+   TDDoNotSell2UpLine    =tmpDoNotSell2UpLine;
+   TDDoNotSellDnLine     =tmpDoNotSellDnLine;
+   TDDoNotSell2DnLine    =tmpDoNotSell2DnLine;
+   TDDoNotSellGreedy     =tmpDoNotSellGreedy;
    }
 }
 
