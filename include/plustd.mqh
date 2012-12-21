@@ -2,6 +2,9 @@
 //|                                                                              PlusTD.mqh |
 //|                                                            Copyright © 2012, Dennis Lee |
 //| Assert History                                                                          |
+//| 1.0.3    Added externs DoNotBuyGreedy and DoNotSellGreedy for a slightly LESS           |
+//|            conservative stance on signals from functions TDIsOkWave1Buy() and           |
+//|            TDIsOkWave1Sell() respectively.                                              |
 //| 1.0.2    Replace global variables gTDIsOkUpLineStr, gTDIsOk2UpLineStr, gTDIsOkDnLineStr |
 //|            and gTDIsOk2DnLineStr with new functions TDGlobalUpStr() and TDGlobalDnStr().|
 //|            Replace global variables isOkUpLine, isOk2UpLine, isOkDnLine and isOk2DnLine |
@@ -27,17 +30,19 @@ extern int        TDDoNotBuyUpLine           = 0;
 extern int        TDDoNotBuy2UpLine          = 0;
 extern int        TDDoNotBuyDnLine           = 0;
 extern int        TDDoNotBuy2DnLine          = 0;
+extern bool       TDDoNotBuyGreedy           = false;
 extern string     w1_3                       = "DoNotSell: 0-F; 1-Ok; 2-Brk";
 extern int        TDDoNotSellUpLine          = 0;
 extern int        TDDoNotSell2UpLine         = 0;
 extern int        TDDoNotSellDnLine          = 0;
 extern int        TDDoNotSell2DnLine         = 0;
+extern bool       TDDoNotSellGreedy          = false;
 
 //|-----------------------------------------------------------------------------------------|
 //|                           I N T E R N A L   V A R I A B L E S                           |
 //|-----------------------------------------------------------------------------------------|
 string TDName     ="PlusTD";
-string TDVer      ="1.0.2";
+string TDVer      ="1.0.3";
 extern string     d1                         = "Debug Properties";
 extern bool       TDViewDebugNotify          = false;
 extern int        TDViewDebug                = 0;
@@ -98,12 +103,47 @@ bool TDWave1Sell()
 
 bool TDIsOkWave1Buy(bool isOkUp, bool isOk2Up, bool isOkDn, bool isOk2Dn)
 {
+   bool retUp, ret2Up, retDn, ret2Dn;
+   
 //--- Assert default is Ok to trade
    if( !TDUseWave1 )  return(true);
    
    if( !TDAllowTradeOnError )
    {
       if( ! TDGlobalCheck() ) return( false );
+   }
+//--- By default, TDDoNotBuyGreedy is false, which means that the most
+//      conservative buy is allowed, i.e. if BOTH lines are true.
+//    However, if TDDoNotBuyGreedy is true, then there is a slightly
+//      less conservative buy, i.e. if ONE line is true, then buy.
+   if( TDDoNotBuyGreedy == true )
+   {
+      retUp=true;
+      if( TDDoNotBuyUpLine == 1 && !(isOkUp == false) ) retUp=false;
+      if( TDDoNotBuyUpLine == 2 && !(isOkUp == true) ) retUp=false;
+      ret2Up=true;
+      if( TDDoNotBuy2UpLine == 1 && !(isOk2Up == false) ) ret2Up=false;
+      if( TDDoNotBuy2UpLine == 2 && !(isOk2Up == true) ) ret2Up=false;
+      retDn=true;
+      if( TDDoNotBuyDnLine == 1 && !(isOkDn == false) ) retDn=false;
+      if( TDDoNotBuyDnLine == 2 && !(isOkDn == true) ) retDn=false;
+      ret2Dn=true;
+      if( TDDoNotBuy2DnLine == 1 && !(isOk2Dn == false) ) ret2Dn=false;
+      if( TDDoNotBuy2DnLine == 2 && !(isOk2Dn == true) ) ret2Dn=false;
+         /*TDDebugPrint( 0, "TDIsOkWave1Buy",
+            TDDebugBln("retUp",retUp)+
+            TDDebugBln("ret2Up",ret2Up)+
+            TDDebugBln("retDn",retDn)+
+            TDDebugBln("ret2Dn",ret2Dn) );*/
+   //--- Check for TWO (2) cases:
+   //     (1) TRUE and FALSE
+   //     (2) FALSE and TRUE
+   //    Any other combination is the same as TDDoNotBuyGreedy is false
+   //     therefore just continue with the rest of code
+      if( (retUp == true && ret2Up == false) ) return( true );
+      if( (retUp == false && ret2Up == true) ) return( true );
+      if( (retDn == true && ret2Dn == false) ) return( true );
+      if( (retDn == false && ret2Dn == true) ) return( true );
    }
    if( TDDoNotBuyUpLine == 1 )
    {
@@ -141,12 +181,42 @@ bool TDIsOkWave1Buy(bool isOkUp, bool isOk2Up, bool isOkDn, bool isOk2Dn)
 }
 bool TDIsOkWave1Sell(bool isOkUp, bool isOk2Up, bool isOkDn, bool isOk2Dn)
 {
+   bool retUp, ret2Up, retDn, ret2Dn;
+   
 //--- Assert default is Ok to trade
    if( !TDUseWave1 )  return(true);
 
    if( !TDAllowTradeOnError )
    {
       if( ! TDGlobalCheck() ) return( false );
+   }
+//--- By default, TDDoNotSellGreedy is false, which means that the most
+//      conservative sell is allowed, i.e. if BOTH lines are true.
+//    However, if TDDoNotSellGreedy is true, then there is a slightly
+//      less conservative sell, i.e. if ONE line is true, then sell.
+   if( TDDoNotSellGreedy == true )
+   {
+      retUp=true;
+      if( TDDoNotSellUpLine == 1 && !(isOkUp == false) ) retUp=false;
+      if( TDDoNotSellUpLine == 2 && !(isOkUp == true) ) retUp=false;
+      ret2Up=true;
+      if( TDDoNotSell2UpLine == 1 && !(isOk2Up == false) ) ret2Up=false;
+      if( TDDoNotSell2UpLine == 2 && !(isOk2Up == true) ) ret2Up=false;
+      retDn=true;
+      if( TDDoNotSellDnLine == 1 && !(isOkDn == false) ) retDn=false;
+      if( TDDoNotSellDnLine == 2 && !(isOkDn == true) ) retDn=false;
+      ret2Dn=true;
+      if( TDDoNotSell2DnLine == 1 && !(isOk2Dn == false) ) ret2Dn=false;
+      if( TDDoNotSell2DnLine == 2 && !(isOk2Dn == true) ) ret2Dn=false;
+   //--- Check for TWO (2) cases:
+   //     (1) TRUE and FALSE
+   //     (2) FALSE and TRUE
+   //    Any other combination is the same as TDDoNotSellGreedy is false
+   //     therefore just continue with the rest of code
+      if( (retUp == true && ret2Up == false) ) return( true );
+      if( (retUp == false && ret2Up == true) ) return( true );
+      if( (retDn == true && ret2Dn == false) ) return( true );
+      if( (retDn == false && ret2Dn == true) ) return( true );
    }
    if( TDDoNotSellUpLine == 1 )
    {
