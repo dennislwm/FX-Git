@@ -1,0 +1,58 @@
+Jurka_02_cancer_RTextTools
+==================================================================================================================================
+## Motivational Buckets
+### 1) (size: 22) RTextTools has largely been used for topic classification in the social sciences. However, recent applications at various universities have demonstrated (ED: to a smaller extent) that the package can be applied to a host of problems in the natural sciences as well [1].
+### 1.1) (size: 13) Jurka wrote a script that trains NINE (9) classifiers on characteristics such as clump thickness, uniformity of cell size, uniformity of cell shape, marginal adhesion, single epithelial cell size, bare nuclei, bland chromatin, normal nucleoli, and mitoses. The outcome variable is the LAST column of the data frame, which is used to identify a breast cancer as benign or malignant.
+
+
+```{r}
+suppressPackageStartupMessages(require(RTextTools))
+data <- read.csv("http://archive.ics.uci.edu/ml/machine-learning-databases/breast-cancer-wisconsin/breast-cancer-wisconsin.data", header=FALSE)
+```
+### 1.1.1) (size: 2) We explore the raw data, which is the Wisconsin Diagnostic Breast Cancer Dataset from UC Irvine. The file is downloaded EACH time we run the R script. However, we may increase execution speed by saving the processed data later as an RDA file and to load that file instead.
+### 1.1.2) We note that there are ELEVEN (11) columns in the raw data, but ONLY columns TWO (2) to ELEVEN (11) are used in our analysis.
+
+```{r}
+names(data)
+head(data)
+```
+```{r}
+data <- data[-1]
+thick <- as.vector(apply(as.matrix(data[1], mode="character"),1,paste,"clump",sep="",collapse=""))
+size <- as.vector(apply(as.matrix(data[2], mode="character"),1,paste,"size",sep="",collapse=""))
+shape <- as.vector(apply(as.matrix(data[3], mode="character"),1,paste,"shape",sep="",collapse=""))
+adhesion <- as.vector(apply(as.matrix(data[4], mode="character"),1,paste,"adhesion",sep="",collapse=""))
+single <- as.vector(apply(as.matrix(data[5], mode="character"),1,paste,"single",sep="",collapse=""))
+nuclei <- as.vector(apply(as.matrix(data[6], mode="character"),1,paste,"nuclei",sep="",collapse=""))
+chromatin <- as.vector(apply(as.matrix(data[7], mode="character"),1,paste,"chromatin",sep="",collapse=""))
+nucleoli <- as.vector(apply(as.matrix(data[8], mode="character"),1,paste,"nucleoli",sep="",collapse=""))
+mitoses <- as.vector(apply(as.matrix(data[9], mode="character"),1,paste,"mitoses",sep="",collapse=""))
+training_data <- cbind(data[10],thick,size,shape,adhesion,single,nuclei,chromatin,nucleoli,mitoses)
+```
+### 1.1.3) (size: 13) The processed data can be saved as an RDA file here, after transforming the numerical columns into characters.
+### 1.1.4) It is apparent that the predictors used are first converted into character by appending a text to EACH numerical value. The reason I can think of is that it is either (a) a limitation of the RTextTools package; or (b) it is more robust and efficient to do so using the package.
+
+```{r}
+source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusReg.R", echo=FALSE)
+cancer.str <- paste0(RegGetRNonSourceDir(),"Jurka_02_cancer.rda")
+if( !file.exists(cancer.str) )
+{
+  save(training_data, file=cancer.str)
+}
+head(training_data)
+```
+
+```{r}
+training_data <- training_data[sample(1:699,size=600,replace=FALSE),]
+training_codes <- training_data[1]
+training_data <- training_data[-1]
+matrix <- create_matrix(training_data, language="english", removeNumbers=FALSE, stemWords=FALSE, removePunctuation=FALSE, weighting=weightTfIdf)
+container <- create_container(matrix,t(training_codes),trainSize=1:200, testSize=201:600,virgin=FALSE)
+models <- train_models(container, algorithms=c("MAXENT","SVM","GLMNET","SLDA","TREE","BAGGING","BOOSTING","RF"))
+results <- classify_models(container, models)
+analytics <- create_analytics(container, results)
+analytics@ensemble_summary
+```
+
+## References
+### Jurka, RTextTools: a machine learning library for text classification. URL: http://www.rtexttools.com/. Accessed on 18-Feb-2013
