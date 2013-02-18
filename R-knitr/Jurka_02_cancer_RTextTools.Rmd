@@ -3,7 +3,7 @@ Jurka_02_cancer_RTextTools
 ## Motivational Buckets
 ### 1) (size: 22) RTextTools has largely been used for topic classification in the social sciences. However, recent applications at various universities have demonstrated (ED: to a smaller extent) that the package can be applied to a host of problems in the natural sciences as well [1].
 ### 1.1) (size: 13) Jurka wrote a script that trains NINE (9) classifiers on characteristics such as clump thickness, uniformity of cell size, uniformity of cell shape, marginal adhesion, single epithelial cell size, bare nuclei, bland chromatin, normal nucleoli, and mitoses. The outcome variable is the LAST column of the data frame, which is used to identify a breast cancer as benign or malignant.
-
+### 1.2) (size: 22) When run on the data, the classifiers were able to achieve up to 96% recall accuracy on a randomly sampled training set of 200 patients and test set of 400 patients.
 
 ```{r}
 suppressPackageStartupMessages(require(RTextTools))
@@ -41,11 +41,24 @@ if( !file.exists(cancer.str) )
 }
 head(training_data)
 ```
-
 ```{r}
 training_data <- training_data[sample(1:699,size=600,replace=FALSE),]
 training_codes <- training_data[1]
 training_data <- training_data[-1]
+```
+### 1.2.1) (size: 16) First, to ensure a reproducible research, the function set.seed() should be used. However, the author does NOT use this function before sampling 600 rows from the data. An issue here is why didn't the author just use ALL 699 rows in the data? The only reason I can think of is that he is applying the bootstrapping method, however this method requires sampling WITH replacement.
+### 1.2.2) The sample of 600 rows is also broken into TWO (2) data frames: (a) training_codes contains the outcome variable; and (b) training_data contains NINE (9) predictors.
+### 1.2.3) The outcome values can be changed here by just modifying the values in training_codes, which is a binary outcome consisting of an integer value TWO (2) OR FOUR (4). Would the recall accuracy DECREASE if we modify the outcome values?
+### 1.2.4) For a model that has a binary outcome, it is suggested that a logistic regression be applied rather than a linear regression. However, the topic of logistic regression is beyond the scope of this analysis.
+
+```{r}
+class(training_codes)
+head(training_codes)
+class(training_data)
+head(training_data)
+table(training_codes)
+```
+```{r}
 matrix <- create_matrix(training_data, language="english", removeNumbers=FALSE, stemWords=FALSE, removePunctuation=FALSE, weighting=weightTfIdf)
 container <- create_container(matrix,t(training_codes),trainSize=1:200, testSize=201:600,virgin=FALSE)
 models <- train_models(container, algorithms=c("MAXENT","SVM","GLMNET","SLDA","TREE","BAGGING","BOOSTING","RF"))
