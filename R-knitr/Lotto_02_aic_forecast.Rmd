@@ -1,0 +1,79 @@
+Lotto_01_aic_forecast
+==================================================================================================================================
+## Motivational Buckets
+### 1) (size: ) This study is NOT just about the model accuracy and prediction, BUT also the selection process for new estimates. We MUST identify ANY deficiency in the current models, compare them with new prospective models, and understand WHY one model is "better" than another. Also, preference is given to the application, analysis and synthesis that are difficult to perform using the Shiny package.
+### 1.1) (size: ) I do NOT quite understand why a diff.arima model is "better" at predicting than a log.diff.arima model. By "better", I mean TWO (2) things: (a) confidence intervals are tighter; (b) actual results lie within confidence intervals.
+### 2) (size: ) Also, we MUST size up, weigh and value EACH number in an estimate. We should determine if the size, weight OR value of a number has changed with respective to predicted estimates and actual results. 
+### 2.1) (size: ) Historically, some plots would make the data more interesting: (i) the actual number vs confidence interval should be plotted for past number of draws.
+
+```{r}
+source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusLotto.R", echo=FALSE)
+lotto.str <- "toto"
+user.str <- ask("Update ALL Lotto results (y OR <blank> for n)?")
+if( user.str=="y" ) LottoUpdateNum()
+factorial(45)/factorial(38)/lottoArimaNum(lotto.str, 2, FALSE)
+factorial(45)/factorial(38)/lottoArimaNum(lotto.str, 2, TRUE)
+LottoArimaConf(lotto.str, 2)
+LottoResult(lotto.str)
+```
+### 1.1.1) (size: ) We must ensure that the files contain the latest results. First, we check the predicted confidence intervals vs the actual results.
+### 1.1.2) The 80% confidence interval means that if a sample were taken, then the probability of a true value lying within that confidence interval is 80%. In other words, there is a 20% chance that the confidence interval is off the mark. Coincidentally, for toto Draw No. 2824, EVERY number (including SUM) were within their respective 80% confidence intervals.
+
+```{r fig.width=10, fig.height=8}
+rawDfr <- fileReadDfr(lotto.str)
+par(mar=c(4,4,0,2), mfrow=c(3,3))
+for( rollNum in 1:7 )
+{
+  plot(1:10,type="n",xlim=c(1,45),ylim=c(1,10), xlab="Confidence Intervals",ylab="StartNum")
+  for( startNum in 1:10 )
+  {
+    confDfr <- LottoArimaConf(lotto.str, startNum)$conf_80
+    lowerNum <- confDfr[rollNum, 1]
+    upperNum <- confDfr[rollNum, 2]
+    segments(lowerNum, startNum, upperNum, startNum, col='grey')
+    if( startNum > 1 )
+    {
+      resultNum <- as.numeric(rawDfr[ startNum-1, rollNum+2])
+      if( resultNum >= lowerNum & resultNum <= upperNum )
+      {
+        points(resultNum, startNum, col='grey')
+      }
+      else
+      {
+        points(resultNum, startNum, col='red', pch=19)
+      }
+    }
+  }
+}
+
+factorial(45)/factorial(38)/lottoArimaNum(lotto.str, 1, FALSE)
+factorial(45)/factorial(38)/lottoArimaNum(lotto.str, 1, TRUE)
+LottoArimaConf(lotto.str)
+```
+```{r fig.width=10, fig.height=8}
+par(mar=c(4,4,0,2), mfrow=c(3,3))
+for( rollNum in 1:7 )
+{
+  plot(1:10,type="n",xlim=c(1,45),ylim=c(1,10), xlab="Confidence Intervals",ylab="StartNum")
+  for( startNum in 1:10 )
+  {
+    confDfr <- LottoArimaConf(lotto.str, startNum)$conf_95
+    lowerNum <- confDfr[rollNum, 1]
+    upperNum <- confDfr[rollNum, 2]
+    segments(lowerNum, startNum, upperNum, startNum, col='grey')
+    if( startNum > 1 )
+    {
+      resultNum <- as.numeric(rawDfr[ startNum-1, rollNum+2])
+      if( resultNum >= lowerNum & resultNum <= upperNum )
+      {
+        points(resultNum, startNum, col='grey')
+      }
+      else
+      {
+        points(resultNum, startNum, col='red', pch=19)
+      }
+    }
+  }
+}
+```
+
