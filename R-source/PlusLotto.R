@@ -86,6 +86,8 @@
 #|        }                                                                                 |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.0.9   Added 80% confidence interval to functions LottoArimaSummary() and              |
+#|          LottoArimaConf().                                                               |
 #|  1.0.8   Minor fix to function lottoArimaNum() so that computed power CANNOT be LESS     |
 #|          THAN ONE (1).                                                                   |
 #|  1.0.7   Major changes to the inputs to the auto.arima() function. First, we use the     |
@@ -368,9 +370,19 @@ LottoArimaConf <- function(lottoStr, startNum=1, c80Bln=FALSE)
   
   #---  Compute min, max and sum confidence intervals
   if(lottoStr == "4d" | lottoStr == "r")
-    lottoArimaConfZooDfr(rawZoo, 0, c80Bln=c80Bln)
+    ret.list <- lottoArimaConfZooDfr(rawZoo, 0, c80Bln=c80Bln)
   else
-    lottoArimaConfZooDfr(rawZoo, 1, c80Bln=c80Bln)
+    ret.list <- lottoArimaConfZooDfr(rawZoo, 1, c80Bln=c80Bln)
+  
+  #---  Return an object of class Lotto, which includes confDfr
+  #
+  ret.Lotto <- list("call" = match.call(),
+                    "conf_95" = ret.list$conf_95_Dfr,
+                    "conf_80" = ret.list$conf_80_Dfr
+                    )
+  
+  class(ret.Lotto) <- "Lotto"
+  ret.Lotto
 }
 
 #|------------------------------------------------------------------------------------------|
@@ -721,8 +733,10 @@ lottoArimaConfZooDfr <- function( rawZoo, lNum, uNum=NULL, c80Bln=FALSE )
   
   #--- fit MA on individual numbers and forecast for ONE (1) look ahead
   #       compute the confidence for EACH number
-  upperNum <- numeric(0)
-  lowerNum <- numeric(0)
+  upper_95_Num <- numeric(0)
+  lower_95_Num <- numeric(0)
+  upper_80_Num <- numeric(0)
+  lower_80_Num <- numeric(0)
   for (i in 1:(colNum+1))
   {
     #---  Compute difNum, which is a vector of differences between the rows
@@ -742,39 +756,44 @@ lottoArimaConfZooDfr <- function( rawZoo, lNum, uNum=NULL, c80Bln=FALSE )
     #       row[0] = difNum[0] + row[1]
     #       For 95% confidence interval, use max(forecast$upper) and min(forecast$lower)
     #       For 80% confidence interval, use min(forecast$upper) and max(forecast$lower)
-    if( !c80Bln )
-    {
-      forecastUpperNum <- max(dif.forecast$upper)
-      forecastLowerNum <- min(dif.forecast$lower)
-    }
-    else
-    {
-      forecastUpperNum <- min(dif.forecast$upper)
-      forecastLowerNum <- max(dif.forecast$lower)
-    }
+    fore_95_UpperNum <- max(dif.forecast$upper)
+    fore_95_LowerNum <- min(dif.forecast$lower)
+    fore_80_UpperNum <- min(dif.forecast$upper)
+    fore_80_LowerNum <- max(dif.forecast$lower)
     #       If lNum=0, shift back by -1 because log(0) is Infinity
     if( lNum==0 )
     {
-      upperNum <- c(upperNum, exp( log(rawZoo[NROW(rawZoo), i]+1) + forecastUpperNum )-1 )
-      lowerNum <- c(lowerNum, exp( log(rawZoo[NROW(rawZoo), i]+1) + forecastLowerNum )-1 )
+      upper_95_Num <- c(upper_95_Num, exp( log(rawZoo[NROW(rawZoo), i]+1) + fore_95_UpperNum )-1 )
+      lower_95_Num <- c(lower_95_Num, exp( log(rawZoo[NROW(rawZoo), i]+1) + fore_95_LowerNum )-1 )
+      upper_80_Num <- c(upper_80_Num, exp( log(rawZoo[NROW(rawZoo), i]+1) + fore_80_UpperNum )-1 )
+      lower_80_Num <- c(lower_80_Num, exp( log(rawZoo[NROW(rawZoo), i]+1) + fore_80_LowerNum )-1 )
     }
     else
     {
-      upperNum <- c(upperNum, exp( log(rawZoo[NROW(rawZoo), i]) + forecastUpperNum ) )
-      lowerNum <- c(lowerNum, exp( log(rawZoo[NROW(rawZoo), i]) + forecastLowerNum ) )
+      upper_95_Num <- c(upper_95_Num, exp( log(rawZoo[NROW(rawZoo), i]) + fore_95_UpperNum ) )
+      lower_95_Num <- c(lower_95_Num, exp( log(rawZoo[NROW(rawZoo), i]) + fore_95_LowerNum ) )
+      upper_80_Num <- c(upper_80_Num, exp( log(rawZoo[NROW(rawZoo), i]) + fore_80_UpperNum ) )
+      lower_80_Num <- c(lower_80_Num, exp( log(rawZoo[NROW(rawZoo), i]) + fore_80_LowerNum ) )
     }
   }
   
-  foreDfr <- data.frame(lower=lowerNum, upper=upperNum)
-  foreDfr$lower <- round(foreDfr$lower)
-  foreDfr$upper <- trunc(foreDfr$upper)
+  fore_95_Dfr <- data.frame(lower=lower_95_Num, upper=upper_95_Num)
+  fore_80_Dfr <- data.frame(lower=lower_80_Num, upper=upper_80_Num)
+  fore_95_Dfr$lower <- round(fore_95_Dfr$lower)
+  fore_95_Dfr$upper <- trunc(fore_95_Dfr$upper)
+  fore_80_Dfr$lower <- round(fore_80_Dfr$lower)
+  fore_80_Dfr$upper <- trunc(fore_80_Dfr$upper)
   for (i in 1:colNum)
   {
-    foreDfr[i, 1] <- max(foreDfr[i, 1], minNum[i])
-    foreDfr[i, 2] <- min(foreDfr[i, 2], maxNum[i])
+    fore_95_Dfr[i, 1] <- max(fore_95_Dfr[i, 1], minNum[i])
+    fore_95_Dfr[i, 2] <- min(fore_95_Dfr[i, 2], maxNum[i])
+    fore_80_Dfr[i, 1] <- max(fore_80_Dfr[i, 1], minNum[i])
+    fore_80_Dfr[i, 2] <- min(fore_80_Dfr[i, 2], maxNum[i])
   }
-  foreDfr[colNum+1, 1] <- max(foreDfr[colNum+1, 1], mnsNum)
-  foreDfr
+  fore_95_Dfr[colNum+1, 1] <- max(fore_95_Dfr[colNum+1, 1], mnsNum)
+  fore_80_Dfr[colNum+1, 1] <- max(fore_80_Dfr[colNum+1, 1], mnsNum)
+  
+  list(conf_95_Dfr=fore_95_Dfr, conf_80_Dfr=fore_80_Dfr)
 }
 
 lotto4DSplitMtx <- function( rawDfr )
@@ -922,13 +941,19 @@ lottoArimaNum <- function(lottoStr, startNum=1, c80Bln=FALSE)
   confDfr$range <- confDfr$upper - confDfr$lower + 1
   
   #---  Calculate the power by multipying the individual ranges
+  #       Powerball has five ranges then one range
+  #       Sort the first five ranges by smalles to largest
   sRow <- nrow(confDfr)
   pNum <- 1
   if( lottoStr == "powerball" )
   {
-    for( i in 1:(sRow-2) )
+    sortDfr <- confDfr[1:(sRow-2),]
+    sortDfr <- sortDfr[with(sortDfr, order(range)),]
+    for( i in 1:nrow(sortDfr) )
     {
-      pNum <- pNum * (confDfr[i, 3] - (i - 1))
+      rNum <- sortDfr[i, 3] - (i - 1)
+      if( rNum < 0 ) rNum <- 1
+      pNum <- pNum * rNum
     }
     pNum <- pNum * confDfr[(sRow-1), 3]
   }
@@ -938,9 +963,13 @@ lottoArimaNum <- function(lottoStr, startNum=1, c80Bln=FALSE)
   }
   else
   {
-    for( i in 1:(sRow-1) )
+    sortDfr <- confDfr[1:(sRow-1),]
+    sortDfr <- sortDfr[with(sortDfr, order(range)),]
+    for( i in 1:nrow(sortDfr) )
     {
-      pNum <- pNum * (confDfr[i, 3] - (i - 1))
+      rNum <- sortDfr[i, 3] - (i - 1)
+      if( rNum < 0 ) rNum <- 1
+      pNum <- pNum * rNum
     }
   }
   pNum
