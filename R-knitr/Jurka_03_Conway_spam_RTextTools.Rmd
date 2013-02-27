@@ -181,8 +181,8 @@ maxent.false.pos<- nrow(maxent_ham.doc[maxent_ham.doc$CONSENSUS_CODE==4,]) / nro
 #### Ham        | T-Neg: 96.8%  | F-Pos: 3.2%
 ### 1.2.9) Our results using MAXENT algorithm:
 #### Email Type | TRUE          | FALSE
-#### Spam       | T-Pos:        | F-Neg: 
-#### Ham        | T-Neg:        | F-Pos: 
+#### Spam       | T-Pos: 85.3%  | F-Neg: 14.7%
+#### Ham        | T-Neg: 99.6%  | F-Pos: 0.4%
 
 ```{r}
 ```
