@@ -7,90 +7,31 @@
 #| Assert Function                                                                          |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.1.1   This version containing RTextTools supercedes 1.0.1, and rollbacked Conway's    |
+#|            Bayesian Spam Classifier. It utilizes MAXENT algorithm for classification.    |
 #|  1.0.1   Added functions to support Conway & White (2012), Machine Learning for Hackers: |
 #|            ONE (1) external function PdfNomuraConwayUpdate() and THREE (3) internal      |
 #|            functions pdfClassifyNum(), pdfConwayDfr() and pdfNomuraTrainChr().           |
 #|  1.0.0   This library contains external R functions to perform PDF reports manipulation. |
 #|------------------------------------------------------------------------------------------|
+if( Sys.info()["sysname"] == "Linux" )
+{
+  source("~/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusReg.R", echo=FALSE)
+  source("~/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusFile.R", echo=FALSE)
+}
+if( Sys.info()["sysname"] == "Windows" )
+{
+  source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusReg.R", echo=FALSE)
+  source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusFile.R", echo=FALSE)
+}
 library(R.utils)
-library(tm)
-source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusReg.R")
-source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusFile.R")
+library(RTextTools)
 
 #|------------------------------------------------------------------------------------------|
 #|                            E X T E R N A L   F U N C T I O N S                           |
 #|------------------------------------------------------------------------------------------|
-#|------------------------------------------------------------------------------------------|
-#|                          E X T E R N A L   B   F U N C T I O N S                         |
-#|------------------------------------------------------------------------------------------|
-PdfNomuraConwayUpdate <- function()
-{
-#---  Initialize variables
-#       Download training data
-#       (1) spam
-#       (2) nonspam
-  trnFileChr <- "pdfNomuraConway"
-  ctryFileChr <- "pdfNomuraCountry"
-  induFileChr <- "pdfNomuraIndustry"
-  spamFileChr <- paste0( trnFileChr, "Spam" )
-  nspamFileChr <- paste0( trnFileChr, "NonSpam" )
-  
-  spamChr <- pdfNomuraTrainChr( trnFileChr, setBln=TRUE )
-  nspamChr <- pdfNomuraTrainChr( trnFileChr, setBln=FALSE )
-  
-  ctryDfr <- fileReadDfr(ctryFileChr)
-  induDfr <- fileReadDfr(induFileChr)
-  
-  if( !is.null(ctryDfr) & !is.null(induDfr) )
-  {
-    spamDictChr <- tolower(c( na.omit(ctryDfr$nWord), na.omit(induDfr$nWord) ))
-    nspamDictChr <- tolower(c( na.omit(ctryDfr$pWord), na.omit(induDfr$pWord) ))
-  }
-
-#---  Transform character vector into a data.frame
-#       Save data frame as CSV files
-  addStopWordsChr <- c("aad",
-                       "abdulaziz", "andypoonkimengcomhk", "anthony",
-                       "alex", "alexyeungkimengcomhk", "andy",
-                       "able",
-                       "accepts",
-                       "access", "accessed",
-                       "accordingly", "according",
-                       "accounting", "account",
-                       "accredited",
-                       "accuracy", "accurate", "accurately",
-                       "achieved",
-                       "act", "actions",
-                       "actual",
-                       "addition", "additional",
-                       "adjusted",
-                       "advisers", "advisory",
-                       "altered",
-                       "alternative",
-                       "amended",
-                       "analyst", "analysts", "analysis",
-                       "andor",
-                       "anfaal", "adex", "adi",
-                       "affiliates",
-                       "affected",
-                       "appear", "appearing",
-                       "applicable", "applicability", "applicant",
-                       "appropriateness",
-                       "apply",
-                       "arabia",
-                       "arise", "arising",
-                       "associates", "association")
-  spamDfr <- pdfConwayDfr( spamChr, 2, spamDictChr, addStopWordsChr )
-  nspamDfr <- pdfConwayDfr( nspamChr, 2, nspamDictChr, addStopWordsChr )
-  
-  if( !is.null(spamDfr) ) fileWriteCsv( spamDfr, spamFileChr )
-  if( !is.null(nspamDfr) ) fileWriteCsv( nspamDfr, nspamFileChr )
-}
-
-#|------------------------------------------------------------------------------------------|
-#|                          E X T E R N A L   A   F U N C T I O N S                         |
-#|------------------------------------------------------------------------------------------|
-PdfNomuraSeqNum <- function(toNum, toChr=NULL, gapNum=5, waitNum=1, silent=FALSE)
+PdfNomuraSeqNum <- function(toNum, toChr=NULL, gapNum=5, waitNum=1, silent=FALSE,
+                            fileStr=NULL)
 {
   #---  Assert FOUR (4) arguments:                                                   
   #       toNum:        integer value for number of PDFs to download
@@ -98,6 +39,7 @@ PdfNomuraSeqNum <- function(toNum, toChr=NULL, gapNum=5, waitNum=1, silent=FALSE
   #                     stop (default: 5)
   #       waitNum:      integer value for seconds to wait between EACH query (default: 1) 
   #       silent:       boolean value for displaying console messages (default: FALSE)
+  #       fileStr:      a string to specify filename for a RDA database (default: NULL)
   
   #---  Check that arguments are valid
   if( as.numeric(toNum) < 1 ) 
@@ -112,27 +54,31 @@ PdfNomuraSeqNum <- function(toNum, toChr=NULL, gapNum=5, waitNum=1, silent=FALSE
       if( !RegIsEmailBln(toChr[i]) )
         stop("To recipients MUST contain valid email formats")
     }
+  saveBln <- !is.null(fileStr)
+  if( saveBln )
+  {
+    doBln <- FALSE
+    if( !file.exists(fileStr) )
+      doBln <- TRUE
+    else
+      load(fileStr)
+    if( !exists("pdfDfr") )
+      doBln <- TRUE
+    if( doBln )
+    {
+      pdfDfr <- dataFrame( colClasses=c( text="character", outcome="numeric" ), nrow=0 )
+      save( pdfDfr, file=fileStr )  
+    }
+  }
   
   #siteChr <- "http://www.nomuranow.com/research/globalresearchportal/getpub.aspx?pid="
   siteChr <- "http://www.kelive.com/KimEng/servlet/PDFDownloadViaEmail?source=0&rid="
   suffixChr <- "&uid=32549&ky=12557"
   retFileChr <- "pdfNomura" 
-  ctryFileChr <- paste0(retFileChr, "Country")
-  induFileChr <- paste0(retFileChr, "Industry")
-  
   retDfr <- fileReadDfr( retFileChr )
   if( is.null(retDfr) )
     retDfr <- dataFrame( colClasses=c( pid="character" ), 
                          nrow=0 )
-  
-  ctryDfr <- fileReadDfr(ctryFileChr)
-  induDfr <- fileReadDfr(induFileChr)
-  
-  if( !is.null(ctryDfr) & !is.null(induDfr) )
-  {
-    spamDictChr <- tolower(c( na.omit(ctryDfr$nWord), na.omit(induDfr$nWord) ))
-    nspamDictChr <- tolower(c( na.omit(ctryDfr$pWord), na.omit(induDfr$pWord) ))
-  }
   
   #startIdNum <- 550344
   startIdNum <- 23287
@@ -187,6 +133,18 @@ PdfNomuraSeqNum <- function(toNum, toChr=NULL, gapNum=5, waitNum=1, silent=FALSE
         rDfr <- data.frame( pidChr )
         names(rDfr) <- names( retDfr )
         retDfr <- rDfr
+        #---  txtChr is a vector of characters
+        if( saveBln )
+        {
+          mRow <- min(20, length(txtChr))
+          txtStr <- paste(txtChr[1:mRow], collapse='')
+          dupNum <- nrow( pdfDfr[pdfDfr$text==txtStr,] )
+          if( dupNum==0 )
+          {
+            pdfDfr <- rbind( pdfDfr, data.frame(text=txtStr, outcome=NA) )
+          }
+          save(pdfDfr, file=fileStr)
+        }
         
         #---  Search for specific words
         #       (1) Filter by country
@@ -195,22 +153,16 @@ PdfNomuraSeqNum <- function(toNum, toChr=NULL, gapNum=5, waitNum=1, silent=FALSE
         nonspam.dir <- paste0(RegGetRDir(),"PDF-nonspam/")
         spam01.dir  <- paste0(RegGetRDir(),"PDF-spam-01/")
         spam02.dir  <- paste0(RegGetRDir(),"PDF-spam-02/")
-        
-        #        if( pdfSearchCountryNum(txtChr) < 0 )
-        spamNum <- pdfClassifyNum(txtChr, "pdfNomuraConwaySpam", 
-                               dictChr=spamDictChr)
-        nspamNum <- pdfClassifyNum(txtChr, "pdfNomuraConwayNonSpam", 
-                                dictChr=nspamDictChr)
-        if( spamNum > nspamNum )
+        if( pdfSearchCountryNum(txtChr) < 0 )
         {
           destFileChr <- paste0(spam01.dir, "NMA", pidChr, ".pdf")      
           file.rename( tmpFileChr, destFileChr )
         }
-#        else if( pdfSearchIndustryNum(txtChr) < 0 )
-#        {
-#          destFileChr <- paste0(spam02.dir, "NMA", pidChr, ".pdf")      
-#          file.rename( tmpFileChr, destFileChr )
-#        }
+        else if( pdfSearchIndustryNum(txtChr) < 0 )
+        {
+          destFileChr <- paste0(spam02.dir, "NMA", pidChr, ".pdf")      
+          file.rename( tmpFileChr, destFileChr )
+        }
         else
         {
           #---  Move file to PDF-nonspam folder
@@ -220,12 +172,11 @@ PdfNomuraSeqNum <- function(toNum, toChr=NULL, gapNum=5, waitNum=1, silent=FALSE
           destFileChr <- paste0(nonspam.dir, "NMA", pidChr, ".pdf")      
           if( file.rename( tmpFileChr, destFileChr ) )
           {
+            msgFileChr <- sub(".pdf", ".txt", destFileChr)
+            mRow <- min(20, length(txtChr))
+            writeLines(txtChr[1:mRow], msgFileChr)
+            
             if( !is.null(toChr) )
-            {
-              msgFileChr <- sub(".pdf", ".txt", destFileChr)
-              mRow <- min(20, length(txtChr))
-              writeLines(txtChr[1:mRow], msgFileChr)
-              
               if( pdfGmailNum(destFileChr, toChr=toChr, 
                               msgFileChr=msgFileChr) 
                   == 0 )
@@ -234,7 +185,6 @@ PdfNomuraSeqNum <- function(toNum, toChr=NULL, gapNum=5, waitNum=1, silent=FALSE
                 file.remove( msgFileChr )
                 sentNum <- sentNum + 1
               }
-            }
           }
         }
         
@@ -258,192 +208,6 @@ PdfNomuraSeqNum <- function(toNum, toChr=NULL, gapNum=5, waitNum=1, silent=FALSE
 
 #|------------------------------------------------------------------------------------------|
 #|                            I N T E R N A L   F U N C T I O N S                           |
-#|------------------------------------------------------------------------------------------|
-#|------------------------------------------------------------------------------------------|
-#|                          I N T E R N A L   B   F U N C T I O N S                         |
-#|------------------------------------------------------------------------------------------|
-pdfClassifyNum <- function( retChr, trdFileChr, priorNum=0.5, cNum=1e-6, dictChr=NULL )
-{
-  #---  Assert FOUR (4) arguments:
-  #       retChr:       a character vector to be classified
-  #       trnFileChr:   a file name for trained data
-  #       priorNum:     a numeric value for prior probability of the character vector
-  #                     to be classified wrt trnFileChr (default: 0.5) 
-  #       cNum:         a numeric value for default probability of a non-trained
-  #                     word (default: 1e-6)
-  
-  #---  Check that arguments are valid
-  trdDfr <- fileReadDfr( trdFileChr )
-  if( is.null(trdDfr) )
-    stop("trdFileChr MUST be a valid file name containing trained data")
-  if( as.numeric(priorNum) < 0 | as.numeric(priorNum) > 1 ) 
-    stop("priorNum MUST be between ZERO (0) and ONE (1)")
-  if( as.numeric(cNum) < 0 | as.numeric(cNum) > 1 ) 
-    stop("cNum MUST be between ZERO (0) and ONE (1)")
-
-  retDfr <- pdfConwayDfr( retChr, 2, dictChr )
-  
-  #---  Find intersections of words
-  matchChr <- intersect( retDfr$term, trdDfr$term )
-  if( length(matchChr) < 1 )
-    retNum <- priorNum * cNum ^ ( length(retDfr$freq) )
-  else
-  {
-    matchNum <- trdDfr$occr[match(matchChr, trdDfr$term)]
-    retNum <- priorNum * prod(as.numeric(matchNum)) * 
-      cNum ^ ( length(retDfr$freq) - length(matchChr) )
-  }
-  retNum
-}
-
-pdfConwayDfr <- function( retChr, lFreqNum=2, dictChr=NULL, ... )
-{
-  #---  Assert ONE (1) arguments:                                                   
-  #       retChr:       a character vector of training data
-  #       lFreqNum:     a number for minDocFreq parameter (default: 2)
-  #       ...           additional stopwords
-  
-  #---  Check that arguments are valid
-  if( !is.null(retChr) )
-    for( i in 1:length(retChr) )
-    {
-      if( !is.character(retChr[i]) )
-        stop("retChr MUST contain valid text characters")
-    }
-  else
-    stop("retChr MUST contain valid text characters")
-  if( !missing(...) )
-  {
-    addChr <- c(...)
-    for( i in 1:length(addChr) )
-    {
-      if( !is.character(addChr[i]) )
-        stop("... MUST contain valid text characters")
-    }
-  }
-  
-  #---  Conway's get.tdm() function to transform a character vector
-  #       into a TermDocumentMatrix
-  #       (1) Make each letter lowercase
-  #       (2) Remove punctuation
-  #       (3) Remove numbers
-  #       (4) Remove generic and custom stopwords
-  ret.corpus <- Corpus(VectorSource(retChr))
-  ret.corpus <- tm_map(ret.corpus, tolower)
-  ret.corpus <- tm_map(ret.corpus, removePunctuation)
-  ret.corpus <- tm_map(ret.corpus, removeNumbers)
-  if( !missing(...) )
-    my_stopwords <- c( stopwords('english'), ... )
-  else
-    my_stopwords <- c( stopwords('english') )
-  ret.corpus <- tm_map(ret.corpus, removeWords, my_stopwords)
-  
-  if( is.null(dictChr) )
-    control.list <- list( minDocFreq=lFreqNum )
-  else
-    control.list <- list( minDocFreq=lFreqNum, dictionary=dictChr )
-  retTdm <- TermDocumentMatrix(ret.corpus, control.list)
-  
-#---  Conway's method to transform a TermDocumentMatrix into a data.frame
-#       Count of words
-#       Compute occurrences
-#       Compute density
-#       Order by highest occurrences
-  retMtx <- as.matrix(retTdm)
-  retNum <- rowSums(retMtx)
-  retDfr <- data.frame( cbind(names(retNum),
-                              as.numeric(retNum)),
-                        stringsAsFactors=FALSE )
-  names(retDfr) <- c("term", "freq")
-  retDfr$freq <- as.numeric(retDfr$freq)
-  
-  occNum <- sapply(1:nrow(retMtx), function(i) {
-    length(which(retMtx[i,] > 0))/ncol(retMtx)
-  })
-  denNum <- retDfr$freq / sum(retDfr$freq)
-  
-  retDfr <- transform(retDfr, dens=denNum, occr=occNum)
-  retDfr <- retDfr[retDfr$freq>=lFreqNum, ]
-  retDfr[with(retDfr, order(-occr)), ]
-}
-
-pdfNomuraTrainChr <- function(trnFileChr, setBln, waitNum=1, silent=FALSE)
-{
-  #---  Assert FOUR (4) arguments:
-  #       trnFileChr:   string for training data file
-  #       setBln:       boolean value to indicate training set to be used (spam: TRUE)
-  #       waitNum:      integer value for seconds to wait between EACH query (default: 1) 
-  #       silent:       boolean value for displaying console messages (default: FALSE)
-  
-  #---  Check that arguments are valid
-  trnDfr <- fileReadDfr( trnFileChr )
-  if( is.null(trnDfr) )
-    stop("trnFileChr MUST be a valid file name containing data with AT LEAST TWO (2) columns (id,spam)")
-  if( !is.logical(setBln) )
-    stop("setBln MUST be TRUE OR FALSE (spam: T; nonspam: F)")
-  if( as.numeric(waitNum) < 1 | as.numeric(waitNum) > 20 ) 
-    stop("waitNum MUST be between ONE (1) and TWENTY (20)")
-  
-  #---  Initialize variables
-  trnDfr <- trnDfr[trnDfr$spam==setBln,]
-  trnChr <- NULL
-  
-  siteChr <- "http://www.kelive.com/KimEng/servlet/PDFDownloadViaEmail?source=0&rid="
-  suffixChr <- "&uid=32549&ky=12557"
-  
-  #---  Initialize page rank
-  #       Page rank is the count of gaps between pids
-  #       Save last pid that has a valid PDF
-  #       Set warnings to generate an error
-  pr <- 0
-  retNum <- 0
-  optWarnNum <- options()$warn
-  for( i in 1:nrow(trnDfr) )
-  {
-    pidNum <- trnDfr[i, 1]
-    
-    urlChr <- paste0(siteChr, pidNum, suffixChr)
-    tmpFileChr <- tempfile(fileext = ".pdf")
-    options(warn=2)
-    errNum <- tryCatch( download.file(urlChr, tmpFileChr, mode = "wb", quiet=silent),
-                        error=function(e) { 9999 }, finally={} )
-    options(warn=0)
-    #---  Error can occur in THREE (3) ways
-    #       (1) download.file() returns an error
-    #       (2) download.file() returns ok, but PDF file does not exists
-    #       (3) download.file() returns ok, and PDF file exists, 
-    #           but it is damaged
-    if( errNum == 9999 | errNum > 0 )
-      pr <- pr + 1
-    else if( !file.exists(tmpFileChr) )
-      pr <- pr + 1
-    else
-    {
-      #---  Downloaded file
-      #       Parse text of PDF to see if it is of interest
-      #       Save last pid that is a valid PDF
-      #       Move PDF from temp folder to R-nonsource
-      
-      txtChr <- pdfParseChr( tmpFileChr )
-      if(is.null(txtChr))
-        pr <- pr + 1
-      else
-      {
-        trnChr <- c( trnChr, paste(txtChr, collapse="") )
-        retNum <- retNum + 1
-      }
-      file.remove( tmpFileChr )
-    }
-    
-    Sys.sleep(waitNum)
-  }
-  options(warn=optWarnNum)
-  
-  trnChr
-}
-
-#|------------------------------------------------------------------------------------------|
-#|                          I N T E R N A L   A   F U N C T I O N S                         |
 #|------------------------------------------------------------------------------------------|
 pdfGmailNum <- function( tmpFileChr,  toChr, ccChr=NULL, 
                          subjChr="Maybank KE Report", msgFileChr=NULL, 
