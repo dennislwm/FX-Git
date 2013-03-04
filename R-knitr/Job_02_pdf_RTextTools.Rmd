@@ -18,8 +18,8 @@ file.str <- paste0(RegGetRNonSourceDir(), "Job_02_pdf.rda")
 ### 1.1.3) The data frame "pdfDfr" consists of only TWO (2) columns: (a) text; (b) outcome, and it contains ALL the training, testing and virgin data. Virgin data is ANY appended data, i.e. a new row consisting of the text, which is the first TWENTY (20) lines of a PDF, and the outcome is the default value NA, which makes it is easy to split the virgin data from the train/test data.
 
 ```{r}
-textBoot <- function(data, trainNum, testNum=NULL, seedNum=1234, replace=FALSE, virgin=FALSE,
-                     removeNumber=TRUE, removePunctuation=TRUE, stemWords=FALSE)
+ttBoot.container <- function(data, trainNum, testNum=NULL, seedNum=1234, replace=FALSE, virgin=FALSE,
+                     removeNumber=TRUE, removePunctuation=FALSE, stemWords=FALSE)
 {
   if( as.numeric(trainNum) < 20 ) 
     stop("trainNum MUST be greater than OR equal to TWENTY (20)")
@@ -54,33 +54,42 @@ textBoot <- function(data, trainNum, testNum=NULL, seedNum=1234, replace=FALSE, 
   container
 }
 
-textFeed <- function(container, algo="MAXENT")
+ttFeed.model <- function(container, algo="MAXENT")
 {
-  typeStr <- print_algorithms()
+  typeStr <- c("BAGGING","BOOSTING","GLMNET","MAXENT","NNET","RF","SLDA","SVM","TREE")
   if( length(which(typeStr==algo)) == 0 )
     stop("algo MUST be either: ", paste(typeStr, collapse=' '))
   
   model     <- train_model(container, algo)
-  result    <- classify_model(container, result)
-  analytic  <- create_analytics(container, result)
-  doc       <- analytic@document_summary
-  spam.doc  <- doc[doc$MANUAL_CODE==4, ]
-  ham.doc   <- doc[doc$MANUAL_CODE==2, ]
-  true.pos  <- nrow(spam.doc[spam.doc$CONSENSUS_CODE==4,]) / nrow(spam.doc)
-  false.neg <- nrow(spam.doc[spam.doc$CONSENSUS_CODE==2,]) / nrow(spam.doc)
-  true.neg  <- nrow(ham.doc[ham.doc$CONSENSUS_CODE==2,]) / nrow(ham.doc)
-  false.pos <- nrow(ham.doc[ham.doc$CONSENSUS_CODE==4,]) / nrow(ham.doc)
+  result    <- classify_model(container, model)
+  if( container@virgin == FALSE)
+  {
+    analytic  <- create_analytics(container, result)
+    doc       <- analytic@document_summary
+    spam.doc  <- doc[doc$MANUAL_CODE==4, ]
+    ham.doc   <- doc[doc$MANUAL_CODE==2, ]
+    true.pos  <- nrow(spam.doc[spam.doc$CONSENSUS_CODE==4,]) / nrow(spam.doc)
+    false.neg <- nrow(spam.doc[spam.doc$CONSENSUS_CODE==2,]) / nrow(spam.doc)
+    true.neg  <- nrow(ham.doc[ham.doc$CONSENSUS_CODE==2,]) / nrow(ham.doc)
+    false.pos <- nrow(ham.doc[ham.doc$CONSENSUS_CODE==4,]) / nrow(ham.doc)
+  }
 
   ret.list <- list( "call"      = match.call(),
-                    "result"    = result,
-                    "analytic"  = analytic,
-                    "doc"       = doc,
-                    "spam.doc"  = spam.doc,
-                    "ham.doc"   = ham.doc,
-                    "true.pos"  = true.pos,
-                    "false.neg" = false.neg,
-                    "true.neg"  = true.neg,
-                    "false.pos" = false.pos )
+                    "virgin"    = container@virgin,
+                    "model"     = model,
+                    "result"    = result )
+  if( container@virgin == FALSE )
+  {
+    ret.list <- c(ret.list,                     
+                  "analytic"  = analytic,
+                  "doc"       = doc,
+                  "spam.doc"  = spam.doc,
+                  "ham.doc"   = ham.doc,
+                  "true.pos"  = true.pos,
+                  "false.neg" = false.neg,
+                  "true.neg"  = true.neg,
+                  "false.pos" = false.pos )
+  }
   ret.list
 }
 
