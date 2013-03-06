@@ -2,98 +2,106 @@ Job_02_pdf_RTextTools
 ==================================================================================================================================
 ## Motivational Buckets
 ### 1) (size: ) This project is the SECOND application of the RTextTools package. The motivation to build this research report (PDF) classifier prediction model is a result of the "Jurka_03_Conway_spam_RTextTools" feasibility study, which was beyond my expectation. The first task is to build a database of PDFs to be classified. Ultimately, we would like to use RTextTools to predict whether a PDF is ham (relevant) OR spam (irrelevant). Previously, we had explored the feasibility of building a model used to classify large text, i.e. raw text without ANY features. However, we may decide to implement features at a later stage.
-### 1.1) (size: ) As there are NO PDF databases, there are several steps prior to loading the data: (i) If the RDA file exists, load it; (ii) Scrape the data from a web page into memory; (iii) If the data frame exists, append the data-in-memory to the data frame, otherwise create a new data frame; (iv) Save ALL the data frames (including existing and NEW ones) into the RDA file. 
-### 1.2) (size: ) Once we have the data loaded, we can build a prediction model using ONLY the rows that have a GOLD standard, i.e. manual code classification (gold data). There are several steps prior to using our prediction model: (i) Split the gold data into the train/test sets; (ii) If the RDA file exists, load it; (iii) Create an analytics model, which may be evaluated based on the FALSE-positive (Type I error - false alarm) and FALSE-negative (Type II error - missed) rates, and compare the results to our previous analytics model; (iii) If the new model is "above expectation", supercede the older model with it; (iv) Save ALL the models (excluding model that is "below or meet expectation") into the RDA file.
+### 1.1) (size: 7) As there are NO PDF databases, there are several steps prior to loading the data: (i) If the RDA file exists, load it; (ii) Scrape the data from a web page into memory; (iii) If the data frame exists, append the data-in-memory to the data frame, otherwise create a new data frame; (iv) Save ALL the data frames (including existing and NEW ones) into the RDA file. 
+### 1.2) (size: 50) Once we have the data loaded, we can build a prediction model using ONLY the rows that have a GOLD standard, i.e. manual code classification (gold data). There are several steps prior to using our prediction model: (i) Split the gold data into the train/test sets; (ii) If the RDA file exists, load it; (iii) Create an analytics model, which may be evaluated based on the FALSE-positive (Type I error - false alarm) and FALSE-negative (Type II error - missed) rates, and compare the results to our previous analytics model; (iii) If the new model is "above expectation", supercede the older model with it; (iv) Save ALL the models (excluding model that is "below or meet expectation") into the RDA file.
 ### 1.3) (size: ) Once we have the model loaded, we can allow the model to predict outcomes, i.e. classify a job advertisement as EITHER ham OR spam. 
 
 ```{r}
-suppressPackageStartupMessages(require(RTextTools))
-source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusReg.R", echo=FALSE)
-source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusFile.R", echo=FALSE)
-source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusPdf.R", echo=FALSE)
+if( Sys.info()["sysname"] == "Linux" )
+{
+  source("~/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusReg.R", echo=FALSE)
+  source("~/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusFile.R", echo=FALSE)
+  source("~/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusPdf.R", echo=FALSE)
+  source("~/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusRtt.R", echo=FALSE)
+}
+if( Sys.info()["sysname"] == "Windows" )
+{
+  source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusReg.R", echo=FALSE)
+  source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusFile.R", echo=FALSE)
+  source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusPdf.R", echo=FALSE)
+  source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusRtt.R", echo=FALSE)
+}
 file.str <- paste0(RegGetRNonSourceDir(), "Job_02_pdf.rda")
+pred.str <- paste0(RegGetRNonSourceDir(), "Job_02_mdl.rda")
+back.str <- paste0(RegGetRNonSourceDir(), "Job_02_bck.rda")
 ```
-### 1.1.1) (size: ) We had to scrape the PDFs from the web page with the function PdfNomuraSeqNum() using default parameters except for the following parameters: (i) toNum=5 - number of PDFs to download; (ii) toChr="dennislwm@yahoo.com.au" - email address of recipient; (iii) waitNum=20 - number of seconds to wait between EACH query; (iv) silent=TRUE - do NOT display console messages; (v) fileStr="Job_02_pdf.rda" - full pathname of the RDA file.
+### 1.1.1) (size: 7) We had to scrape the PDFs from the web page with the function PdfNomuraSeqNum() using default parameters except for the following parameters: (i) toNum=5 - number of PDFs to download; (ii) toChr="dennislwm@yahoo.com.au" - email address of recipient; (iii) waitNum=20 - number of seconds to wait between EACH query; (iv) silent=TRUE - do NOT display console messages; (v) fileStr="Job_02_pdf.rda" - full pathname of the RDA file.
 ### 1.1.2) At ANY stage, the RDA file should contain a data frame "pdfDfr", which consists of virgin data as well as train/test data. The function PdfNomuraSeqNum() loads fileStr at start and appends ALL new rows to the existing "pdfDfr". However, if this is the first time that fileStr is used, then the function will create a new fileStr and a new "pdfDfr".
 ### 1.1.3) The data frame "pdfDfr" consists of only TWO (2) columns: (a) text; (b) outcome, and it contains ALL the training, testing and virgin data. Virgin data is ANY appended data, i.e. a new row consisting of the text, which is the first TWENTY (20) lines of a PDF, and the outcome is the default value NA, which makes it is easy to split the virgin data from the train/test data.
 
 ```{r}
-ttBoot.container <- function(data, trainNum, testNum=NULL, seedNum=1234, replace=FALSE, virgin=FALSE,
-                     removeNumber=TRUE, removePunctuation=FALSE, stemWords=FALSE)
+PdfTrainPlanBln <- function(fileStr, predStr, backStr)
 {
-  if( as.numeric(trainNum) < 20 ) 
-    stop("trainNum MUST be greater than OR equal to TWENTY (20)")
-  if( is.null(testNum) )
-    testNum <- nrow(data) - trainNum
-  if( as.numeric(testNum) < 20 )
-    stop("testNum MUST be greater than OR equal to TWENTY (20)")
+  load(fileStr)
+  if( !exists("pdfDfr") ) return( FALSE );
+  datDfr  <- pdfDfr[ !is.na(pdfDfr$outcome), ]
+  if( nrow(datDfr) < 20 ) return( FALSE );
   
-  set.seed(seedNum)
-  if( replace )
+  planBln <- file.exists(predStr)
+  if( planBln )
   {
-    train.data  <- data[ sample(1:nrow(data), size=trainNum, replace=TRUE), ]
-    test.data   <- data[ sample(1:nrow(data), size=testNum, replace=TRUE), ]
-    mixed.data  <- rbind(train.data, test.data)
-    names(mixed.data) <- names(data)
-  } else
-  {
-    mixed.data  <- data[ sample(1:nrow(data), size=(trainNum+testNum), replace=FALSE), ]
+    load(predStr)
+    planBln <- exists("pdf.mdl")
   }
-  text.data     <- mixed.data$text
-  outcome.data  <- mixed.data$outcome
-  matrix    <- create_matrix(text.data, 
-                             weighting=weightTfIdf,
-                             removeNumber=removeNumber, 
-                             removePunctuation=removePunctuation,
-                             stemWords=stemWords)
-  container <- create_container(matrix, 
-                                t(outcome.data), 
-                                trainSize=1:trainNum, 
-                                testSize=(trainNum+1):nrow(data), 
-                                virgin=virgin)
-  container
+  if( planBln )
+    return( PdfTrainCheckBln(datDfr, predStr, backStr) )
+  else
+    return( PdfTrainDoBln(datDfr, predStr) )
 }
-
-ttFeed.model <- function(container, algo="MAXENT")
+PdfTrainDoBln <- function(datDfr, predStr)
 {
-  typeStr <- c("BAGGING","BOOSTING","GLMNET","MAXENT","NNET","RF","SLDA","SVM","TREE")
-  if( length(which(typeStr==algo)) == 0 )
-    stop("algo MUST be either: ", paste(typeStr, collapse=' '))
-  
-  model     <- train_model(container, algo)
-  result    <- classify_model(container, model)
-  if( container@virgin == FALSE)
-  {
-    analytic  <- create_analytics(container, result)
-    doc       <- analytic@document_summary
-    spam.doc  <- doc[doc$MANUAL_CODE==4, ]
-    ham.doc   <- doc[doc$MANUAL_CODE==2, ]
-    true.pos  <- nrow(spam.doc[spam.doc$CONSENSUS_CODE==4,]) / nrow(spam.doc)
-    false.neg <- nrow(spam.doc[spam.doc$CONSENSUS_CODE==2,]) / nrow(spam.doc)
-    true.neg  <- nrow(ham.doc[ham.doc$CONSENSUS_CODE==2,]) / nrow(ham.doc)
-    false.pos <- nrow(ham.doc[ham.doc$CONSENSUS_CODE==4,]) / nrow(ham.doc)
-  }
-
-  ret.list <- list( "call"      = match.call(),
-                    "virgin"    = container@virgin,
-                    "model"     = model,
-                    "result"    = result )
-  if( container@virgin == FALSE )
-  {
-    ret.list <- c(ret.list,                     
-                  "analytic"  = analytic,
-                  "doc"       = doc,
-                  "spam.doc"  = spam.doc,
-                  "ham.doc"   = ham.doc,
-                  "true.pos"  = true.pos,
-                  "false.neg" = false.neg,
-                  "true.neg"  = true.neg,
-                  "false.pos" = false.pos )
-  }
-  ret.list
+  datNum  <- nrow(datDfr)
+  dat.ctn <- RttBoot.ctn(datDfr, trainNum=trunc(datNum/2))
+  dat.mdl <- RttFeed.mdl(dat.ctn)
+  pdf.num <- datNum
+  pdf.ctn <- dat.ctn
+  pdf.mdl <- dat.mdl
+  save(pdf.num, pdf.ctn, pdf.mdl, file=predStr)
+  return(TRUE)
 }
-
+PdfTrainCheckBln <- function(datDfr, predStr, backStr)
+{
+  load(predStr)
+  checkBln  <- nrow(datDfr) > pdf.num
+  if( checkBln )
+  {
+    datNum  <- nrow(datDfr)
+    dat.ctn <- RttBoot.ctn(datDfr, trainNum=trunc(datNum/2))
+    dat.mdl <- RttFeed.mdl(dat.ctn)
+    act.1   <- dat.mdl$false.neg < pdf.mdl$false.neg
+    act.2   <- dat.mdl$false.pos < pdf.mdl$false.pos
+    actBln  <- act.1 & act.2
+    if( actBln )
+    {
+      file.copy(predStr, backStr, overwrite=TRUE)
+      pdf.num <- datNum
+      pdf.ctn <- dat.ctn
+      pdf.mdl <- dat.mdl
+      save(pdf.num, pdf.ctn, pdf.mdl, file=predStr)
+      return( TRUE )
+    }
+  }
+  return( FALSE )
+}
+actBln <- PdfTrainPlanBln(file.str, pred.str, back.str)
+if( actBln )
+{
+  load(pred.str)
+  print(paste("F-Neg:", pdf.mdl$false.neg))
+  print(paste("F-Pos:", pdf.mdl$false.pos))
+}
 ```
+### 1.2.1) (size: 50) The function PdfTrainPlanBln() accepts THREE (3) parameters: (i) fileStr - a string for a full path to the RDA file containing the raw data "pdfDfr"; (ii) predStr - a string for a full path to the RDA file containing a container "pdf.ctn", model "pdf.mdl", and an integer "pdf.num"; (iii) backStr - a string for a full path to the RDA file containing a backup of the previous "predStr".
+### 1.2.2) At ANY stage, the "pred.str" RDA file should contain: (i) "pdf.num" - an integer for the sample size used in the model; (ii) "pdf.ctn" - a container returned by the function ttBoot.ctn(); and (iii) "pdf.mdl" - a list returned by the function ttFeed.mdl() containing the model. The function PdfTrainPlanBln() loads "file.str" at start, and pre-processes "pdfDfr" to remove rows with outcome "NA". This function planned to call EITHER function PdfTrainCheckBln() OR function PdfTrainDoBln(), depending on whether "pdf.mdl" exists. If it does NOT exist, the latter function, which creates and saves a new model into "pred.str", is called. Otherwise, we call the former function, which checks to see if the sample size is GREATER THAN "sampleNum". If TRUE, it will create a new model and checks that it is "better" than the existing "pdf.mdl". If it is satisfied, then it copies "pred.str" to "back.str", and overwrites "pred.str" with the new model. The return boolean value is TRUE if the plan was acted upon, or FALSE otherwise.
+### 1.2.3) The list "pdf.mdl" consists of several variables, including several analytic variables that can be used for comparison: (a) false.neg - a lower rate indicates that FEWER spams have been misclassified as ham; and (b) false.pos - a lower rate indicates that FEWER hams have been misclassified as spam. We want these TWO (2) values to be as close to ZERO (0) as possible. For example, if false.pos is ZERO (0), this means that NO TRUE ham have been misclassified as spam.
+
+```{r}
+PdfTrainActNum <- function(fileStr, predStr)
+{
+}
+```
+### 1.3.1) (size: ) 
+
 ## References
 ### Jurka, RTextTools: a machine learning library for text classification. URL: www.rtexttools.com. Accessed on 18-Feb-2013.
 ### Jurka et al (2012), RTextTools: A Supervised Learning Package for Text Classification.
