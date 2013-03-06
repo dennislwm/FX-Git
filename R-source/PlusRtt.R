@@ -5,6 +5,14 @@
 #|    The script contains generalized wrapper functions for the library RTextTools.         |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.0.1   The external functions RttBoot.ctn() and RttFeed.mdl() have been replaced by    |
+#|            RttTrainPlan.ctn() and RttTrainAct.mdl() respectively. The former function    |
+#|            returns a list consisting of a container, which is EITHER a virgin OR NON     |
+#|            virgin, depending on the data. If the data contains outcomes with NAs, then   |
+#|            the container is a virgin. The latter function accepts EITHER a virgin OR NON |
+#|            virgin container, and returns a list containing EITHER the result OR analytic |
+#|            respectively. The internal functions RttTrainDoDfr() and RttTrainCheckDfr()   |
+#|            are called by RttTrainPlan.ctn() exclusively.                                 |
 #|  1.0.0   This library contains external R functions to perform large text classification.|
 #|------------------------------------------------------------------------------------------|
 library(RTextTools)
@@ -12,29 +20,26 @@ library(RTextTools)
 #|------------------------------------------------------------------------------------------|
 #|                            E X T E R N A L   F U N C T I O N S                           |
 #|------------------------------------------------------------------------------------------|
-RttBoot.ctn <- function(data, trainNum, testNum=NULL, seedNum=1234, 
-                        minSize=10, replace=FALSE, virgin=FALSE, 
-                        removeNumber=TRUE, removePunctuation=FALSE, stemWords=FALSE)
+RttTrainPlan.ctn <- function(data, trainNum, testRng=NULL, seedNum=1234, minSize=10, replace=FALSE, 
+                             removeNumber=TRUE, removePunctuation=FALSE, stemWords=FALSE)
 {
-  if( as.numeric(minSize) < 0 )
+  if( as.numeric(minSize) < 1 )
     stop("minSize MUST be greater than OR equal to ONE (1)")
   if( as.numeric(trainNum) < minSize ) 
     stop("trainNum MUST be greater than OR equal to minSize")
-  if( is.null(testNum) )
-    testNum <- nrow(data) - trainNum
-  if( as.numeric(testNum) < minSize )
-    stop("testNum MUST be greater than OR equal to minSize")
+  if( as.numeric(trainNum) > nrow(data[complete.cases(data),]) ) 
+    stop("trainNum MUST be less than OR equal to the number of complete cases in data")
   
-  set.seed(seedNum)
-  if( replace )
+  planBln <- sum(is.na(data$outcome)) > 0
+  if( planBln )
   {
-    train.data  <- data[ sample(1:nrow(data), size=trainNum, replace=TRUE), ]
-    test.data   <- data[ sample(1:nrow(data), size=testNum, replace=TRUE), ]
-    mixed.data  <- rbind(train.data, test.data)
-    names(mixed.data) <- names(data)
-  } else
+    mixed.data  <- RttTrainCheckDfr(data, trainNum, testRng=testRng, seedNum=seedNum, minSize=minSize)
+    virginBln   <- TRUE
+  }
+  else
   {
-    mixed.data  <- data[ sample(1:nrow(data), size=(trainNum+testNum), replace=FALSE), ]
+    mixed.data  <- RttTrainDoDfr(data, trainNum, testNum=NULL, seedNum=seedNum, minSize=minSize, replace=replace) 
+    virginBln   <- FALSE
   }
   text.data     <- mixed.data$text
   outcome.data  <- mixed.data$outcome
@@ -46,12 +51,15 @@ RttBoot.ctn <- function(data, trainNum, testNum=NULL, seedNum=1234,
   container <- create_container(matrix, 
                                 t(outcome.data), 
                                 trainSize=1:trainNum, 
-                                testSize=(trainNum+1):nrow(data), 
-                                virgin=virgin)
-  container
+                                testSize=(trainNum+1):nrow(mixed.data), 
+                                virgin=virginBln)
+  ret.list <- list( "call"      = match.call(),
+                    "trainNum"  = trainNum,
+                    "seedNum"   = seedNum,
+                    "container" = container )
+  ret.list
 }
-
-RttFeed.mdl <- function(container, algo="MAXENT")
+RttTrainAct.mdl <- function(container, algo="MAXENT")
 {
   typeStr <- c("BAGGING","BOOSTING","GLMNET","MAXENT","NNET","RF","SLDA","SVM","TREE")
   if( length(which(typeStr==algo)) == 0 )
@@ -74,7 +82,8 @@ RttFeed.mdl <- function(container, algo="MAXENT")
   ret.list <- list( "call"      = match.call(),
                     "virgin"    = container@virgin,
                     "model"     = model,
-                    "result"    = result )
+                    "result"    = result,
+                    "outcome"   = as.numeric(as.character(result[,1])) )
   if( container@virgin == FALSE )
   {
     ret.list <- c(ret.list,                     
@@ -88,6 +97,58 @@ RttFeed.mdl <- function(container, algo="MAXENT")
                   "false.pos" = false.pos )
   }
   ret.list
+}
+
+#|------------------------------------------------------------------------------------------|
+#|                            I N T E R N A L   F U N C T I O N S                           |
+#|------------------------------------------------------------------------------------------|
+RttTrainDoDfr <- function(data, trainNum, testNum=NULL, seedNum=1234, minSize=10, replace=FALSE)
+{
+  if( as.numeric(minSize) < 1 )
+    stop("minSize MUST be greater than OR equal to ONE (1)")
+  if( as.numeric(trainNum) < minSize ) 
+    stop("trainNum MUST be greater than OR equal to minSize")
+  if( as.numeric(trainNum) >= nrow(data) ) 
+    stop("trainNum MUST be less than nrow(data)")
+  if( is.null(testNum) )
+    testNum <- nrow(data) - trainNum
+  if( as.numeric(testNum) < 1 )
+    stop("testNum MUST be greater than OR equal to ONE (1)")
+  
+  set.seed(seedNum)
+  if( replace )
+  {
+    train.data  <- data[ sample(1:nrow(data), size=trainNum, replace=TRUE), ]
+    test.data   <- data[ sample(1:nrow(data), size=testNum, replace=TRUE), ]
+    mixed.data  <- rbind(train.data, test.data)
+    names(mixed.data) <- names(data)
+  } else
+  {
+    mixed.data  <- data[ sample(1:nrow(data), size=(trainNum+testNum), replace=FALSE), ]
+  }
+  mixed.data
+}
+RttTrainCheckDfr <- function(data, trainNum, testRng=NULL, seedNum=1234, minSize=10)
+{
+  if( as.numeric(minSize) < 1 )
+    stop("minSize MUST be greater than OR equal to ONE (1)")
+  if( as.numeric(trainNum) < minSize ) 
+    stop("trainNum MUST be greater than OR equal to minSize")
+  if( as.numeric(trainNum) > nrow(data[complete.cases(data),]) ) 
+    stop("trainNum MUST be less than OR equal to the number of complete cases in data")
+  if( is.null(testRng) )
+  {
+    minIdx  <- min(which(is.na(data$outcome)))
+    maxIdx  <- max(which(is.na(data$outcome)))
+    testRng <- minIdx:maxIdx
+  }
+  
+  set.seed(seedNum)
+  train.data  <- data[ 1:trainNum, ]
+  test.data   <- data[ testRng, ]
+  mixed.data  <- rbind(train.data, test.data)
+  names(mixed.data) <- names(data)
+  mixed.data  
 }
 
 #|------------------------------------------------------------------------------------------|
