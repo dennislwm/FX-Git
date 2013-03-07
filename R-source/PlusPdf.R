@@ -7,6 +7,12 @@
 #| Assert Function                                                                          |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.1.2   Added a parameter "predStr" to function PdfNomuraSeqNum(). If this value is NOT |
+#|            NULL, this file containing a data frame "optDfr" is loaded. The data frame    |
+#|            consists of optimal values of parameters passed to the RttTrainPlan.ctn()     |
+#|            function from library "PlusRtt" 1.0.1. The "predStr" file is READ only here,  |
+#|            but the R Markdown file "Job_02_pdf_RTextTools" 0.9.3 optimizes the model and |
+#|            writes the optimal values to it.                                              |
 #|  1.1.1   This version containing RTextTools supercedes 1.0.1, and rollbacked Conway's    |
 #|            Bayesian Spam Classifier. It utilizes MAXENT algorithm for classification.    |
 #|  1.0.1   Added functions to support Conway & White (2012), Machine Learning for Hackers: |
@@ -18,20 +24,21 @@ if( Sys.info()["sysname"] == "Linux" )
 {
   source("~/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusReg.R", echo=FALSE)
   source("~/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusFile.R", echo=FALSE)
+  source("~/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusRtt.R", echo=FALSE)
 }
 if( Sys.info()["sysname"] == "Windows" )
 {
   source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusReg.R", echo=FALSE)
   source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusFile.R", echo=FALSE)
+  source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusRtt.R", echo=FALSE)
 }
 library(R.utils)
-library(RTextTools)
 
 #|------------------------------------------------------------------------------------------|
 #|                            E X T E R N A L   F U N C T I O N S                           |
 #|------------------------------------------------------------------------------------------|
 PdfNomuraSeqNum <- function(toNum, toChr=NULL, gapNum=5, waitNum=1, silent=FALSE,
-                            fileStr=NULL)
+                            fileStr=NULL, predStr=NULL)
 {
   #---  Assert FOUR (4) arguments:                                                   
   #       toNum:        integer value for number of PDFs to download
@@ -146,6 +153,28 @@ PdfNomuraSeqNum <- function(toNum, toChr=NULL, gapNum=5, waitNum=1, silent=FALSE
           save(pdfDfr, file=fileStr)
         }
         
+        #---  Load pred.str
+        act.num   <- 25
+        act.seed  <- 3272
+        if( !is.null(predStr) )
+        {
+          if( file.exists(predStr) )
+          {
+            load(predStr)
+            if( exists("optDfr") )
+            {
+              if( nrow(optDfr) > 0 )
+              {
+                act.num   <- as.numeric(optDfr$trainNum[1])
+                act.seed  <- as.numeric(optDfr$seedNum[1])
+              }
+            }
+          }
+        }
+        act.ctn   <- RttTrainPlan.ctn(pdfDfr, act.num, seedNum=act.seed)
+        act.mdl   <- RttTrainAct.mdl(act.ctn$container)
+        act.bln   <- act.mdl$outcome[length(act.mdl$outcome)] == 4
+        
         #---  Search for specific words
         #       (1) Filter by country
         #       (2) Filter by industry
@@ -153,16 +182,17 @@ PdfNomuraSeqNum <- function(toNum, toChr=NULL, gapNum=5, waitNum=1, silent=FALSE
         nonspam.dir <- paste0(RegGetRDir(),"PDF-nonspam/")
         spam01.dir  <- paste0(RegGetRDir(),"PDF-spam-01/")
         spam02.dir  <- paste0(RegGetRDir(),"PDF-spam-02/")
-        if( pdfSearchCountryNum(txtChr) < 0 )
+#        if( pdfSearchCountryNum(txtChr) < 0 )
+        if( act.bln )
         {
           destFileChr <- paste0(spam01.dir, "NMA", pidChr, ".pdf")      
           file.rename( tmpFileChr, destFileChr )
         }
-        else if( pdfSearchIndustryNum(txtChr) < 0 )
-        {
-          destFileChr <- paste0(spam02.dir, "NMA", pidChr, ".pdf")      
-          file.rename( tmpFileChr, destFileChr )
-        }
+#        else if( pdfSearchIndustryNum(txtChr) < 0 )
+#        {
+#          destFileChr <- paste0(spam02.dir, "NMA", pidChr, ".pdf")      
+#          file.rename( tmpFileChr, destFileChr )
+#        }
         else
         {
           #---  Move file to PDF-nonspam folder
