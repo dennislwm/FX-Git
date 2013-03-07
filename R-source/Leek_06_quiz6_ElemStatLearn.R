@@ -54,6 +54,8 @@ olive = olive[,-1]
 #       2) Fit a classification tree where Area is the outcome variable.
 library(tree)
 olive.tree <- tree(Area ~ ., data=olive)
+newData <- as.data.frame(t(colMeans(olive)))
+predict(olive.tree, newdata=newData)
 #       3) Predict outcome Area for a new value
-newData = data.frame(Palmitic = 1200, Palmitoleic = 120, Stearic=200,Oleic=7000,Linoleic = 900, Linolenic = 32, Arachidic=60,Eicosenoic=6)
+newData <- data.frame(Palmitic = 1200, Palmitoleic = 120, Stearic=200,Oleic=7000,Linoleic = 900, Linolenic = 32, Arachidic=60,Eicosenoic=6)
 predict(olive.tree, newdata=newData)
