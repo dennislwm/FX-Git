@@ -12,13 +12,15 @@ BscdCreateModel <- function(r, b, n, Time, sigma)
   #---  Calculate the risk neutral probabilities (q) and (q-1)
   #       (1) Calculate EACH discrete term used by q
   #       (2) R = exp(r*T/n)
-  #       (3) Rb = exp((r-b)*T/n)
-  #       (4) u = exp(sigma*sqrt(T/n))
-  #       (5) d = 1/u
-  #       (6) q = ( R - d )   / ( u - d),   if b = 0
+  #       (3) RInv = exp(-r*T/n)
+  #       (4) Rb = exp((r-b)*T/n)
+  #       (5) u = exp(sigma*sqrt(T/n))
+  #       (6) d = 1/u
+  #       (7) q = ( R - d )   / ( u - d),   if b = 0
   #           q = ( Rb - d )  / ( u - d ),  if b > 0
-  #       (7) qInv = 1 - q
+  #       (8) qInv = 1 - q
   R     <- exp(r*Time/n)
+  RInv  <- exp(-r*Time/n)
   Rb    <- exp((r-b)*Time/n)
   u     <- exp(sigma*sqrt(Time/n))
   d     <- 1/u
@@ -77,9 +79,11 @@ BscdCreateModel <- function(r, b, n, Time, sigma)
   ret.Bscd <- list("r"      = r,
                    "b"      = b,
                    "n"      = n,
+                   "n1"     = n1,
                    "Time"   = Time,
                    "sigma"  = sigma,
                    "R"      = R,
+                   "RInv"   = RInv,
                    "Rb"     = Rb,
                    "u"      = u,
                    "d"      = d,
@@ -98,22 +102,121 @@ BscdCreateModel <- function(r, b, n, Time, sigma)
 ### 1.3.1) (size: ) The function BscdCreateModel() parameters are as follows: (i) r - the continuously compounded interest rate; (ii) b - the annualized dividend yield (OR cost-of-carry rate) of the underlying security; (iii) n - the number of periods; (iv) Time - time to maturity measured in years, e.g. 0.5 means 6 months; (v) sigma - the annualized volatility of the underlying security, e.g. 0.3 means 30% volatility p.a. The function returns an object of class "Bscd", i.e. Black-Scholes Discrete class, that consists of several variables, e.g. q, u, d, etc, and TWO (2) matrices: (a) stock price rates lattice; and (b) futures price rates lattice. These matrices are based on an initial value of ONE (1). To obtain the actual prices, just multiply the matrix by the initial value S, e.g. 100*sRateMtx.
 
 ```{r}
-test.Bscd <- BscdCreateModel(0.02, 0.01, 10, 0.5, 0.2)
-test.Bscd
-stock <- 100*test.Bscd$sRateMtx
+test.bscd <- BscdCreateModel(0.02, 0.01, 10, 0.5, 0.2)
+test.bscd
+stock <- 100*test.bscd$sRateMtx
 stock
+```
+
+```{r}
+append.lst <- function( lst, obj, objStr )
+{
+  for( i in 1:length(lst) )
+  {
+    if( is.null(lst[[i]]) )
+    {
+      lst[[i]] <- obj
+      return( lst )
+    }
+  }
+  lst
+}
+BscdPayTwoLeafMtx <- function( q, finalNum, scalar=1 )
+{
+  qInv        <- 1-q
+  n           <- length(finalNum)
+  retMtx      <- matrix(rep(0, n*n), nrow=n, ncol=n)
+  retMtx[, n] <- finalNum
+  for( j in (n-1):1 )
+  {
+    for( i in j:1 )
+    {
+      ld <- retMtx[i+1, j+1]
+      lu <- retMtx[i,   j+1]
+      retMtx[i,j] <- scalar * (q*lu + qInv*ld)
+    }
+  }
+  retMtx
+}
+BscdOptionPrice <- function( model, S, X, n=NULL, TypeFlag=c("ce", "pe", "ca", "pa") )
+{
+  #---  Check that arguments are valid
+  if( is.null(n) )  
+    n <- model$n
+  if( n > model$n )
+    stop("n CANNOT be greater than model$n")
+  typeStr <- c("ce", "pe", "ca", "pa")
+  if( length(TypeFlag) == 0 )
+    stop("TypeFlag MUST be ONE (1) OR MORE of: ce, pe, ca, pa")
+  for( i in 1:length(TypeFlag) )
+  {
+    if( length(which(typeStr==TypeFlag[i])) == 0 )
+      stop("TypeFlag MUST be ONE (1) OR MORE of: ce, pe, ca, pa")
+  }
+  ceBln <- length(which(typeStr[1]==TypeFlag)) > 0
+  peBln <- length(which(typeStr[2]==TypeFlag)) > 0
+  caBln <- length(which(typeStr[3]==TypeFlag)) > 0
+  paBln <- length(which(typeStr[4]==TypeFlag)) > 0
+  
+  #---  Construct a stock lattice using model and initial price S
+  stockMtx <- model$sRateMtx * S
+  
+  #---  Construct EACH option lattice
+  #       (1) matrix n1 x n1, where n1=n+1 because of initial term at n=0
+  #       (2) Calculate the LAST column of typeMtx, where type: ce, pe, ca, pa
+  #           using the function max() with arguments ZERO (0) and the difference
+  #           in strike price (X) and the corresponding nth column stockMtx price.
+  #           For a put option, we need to invert the result of max, i.e. -result.
+  #       (3) Calculate backwards, starting from the previous column n-1 to 0
+  #           using the expected TWO (2) leaf values weighted on risk neutral 
+  #           probabilities (q) and (1-q) scaled by 1/R
+  #       (4)   1         2         3         n
+  #           1 q*[1,2]+  q*[1,3]+  q*[1,4]+  max((flag*stockMtx[1,n]-X),0)
+  #             qI*[2,2]  qI*[2.3]  qI*[2,4]  
+  #           2           q*[2,3]+  q*[2,4]+  max((flag*stockMtx[2,n]-X),0)
+  #                       qI*[3,3]  qI*[3,4]
+  #           3                     q*[3,4]+  max((flag*stockMtx[3,n]-X),0)
+  #                                 qI*[4,4]
+  #           4                               max((flag*stockMtx[4,n]-X),0)
+  n1 <- n+1
+  difNum    <- S*model$sRateMtx[, model$n1]-X
+  if( ceBln )
+  {
+    flag      <- 1
+    payNum    <- sapply(flag*difNum, max, 0)
+    ceMtx     <- BscdPayTwoLeafMtx( model$q, payNum, scalar=model$RInv )
+  }
+  if( peBln )
+  {
+    flag      <- -1
+    payNum    <- sapply(flag*difNum, max, 0)
+    peMtx     <- BscdPayTwoLeafMtx( model$q, payNum, scalar=model$RInv )
+  }
+  retBln <- c( ceBln, peBln, caBln, paBln )
+  ret.lst <- vector("list", sum(retBln))
+  if( retBln[1] & exists("ceMtx") ) ret.lst <- append.lst( ret.lst, ceMtx )
+  if( retBln[2] & exists("peMtx") ) ret.lst <- append.lst( ret.lst, peMtx )
+  if( retBln[3] & exists("caMtx") ) ret.lst <- append.lst( ret.lst, caMtx )
+  if( retBln[4] & exists("paMtx") ) ret.lst <- append.lst( ret.lst, paMtx )
+  names(ret.lst) <- typeStr[which(retBln)]
+  ret.lst
+}
 ```
 
 
 ```{r}
-BscdOptionMtx <- function( model.Bscd )
-{
-  
-}
-BscdOptionNum <- function( model.Bscd )
-{
-  
-}
-
+options <- BscdOptionPrice(test.bscd, 100, 100)
+options
 ```
 
+```{r fig.width=12, fig.height=9}
+suppressPackageStartupMessages(require(fOptions))
+suppressPackageStartupMessages(require(testthat))
+option.ce <- BinomialTreeOption("ce", 100, 100, Time=test.bscd$Time, r=test.bscd$r, b=test.bscd$b, sigma=test.bscd$sigma, n=test.bscd$n)
+option.pe <- BinomialTreeOption("pe", 100, 100, Time=test.bscd$Time, r=test.bscd$r, b=test.bscd$b, sigma=test.bscd$sigma, n=test.bscd$n)
+expect_that( options$ce, is_equivalent_to(option.ce) )
+expect_that( options$pe, is_equivalent_to(option.pe) )
+par(mfrow=c(1,2))
+BinomialTreePlot(options$ce)
+BinomialTreePlot(options$pe)
+```
