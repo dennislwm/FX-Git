@@ -11,6 +11,7 @@
 #| Assert Function                                                                          |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.0.2   Fixed error in function BulletSimulateLst() due to incorrect row count.         |
 #|  1.0.1   Added an external function BulletSimulateLst() that simulates a portfolio for   |
 #|          a given allocation of fixed weights. This function returns a list containing:   |
 #|          (i) dcgMtx: a matrix for normalized prices; (ii) alloc: a numeric vector for    |
@@ -72,7 +73,7 @@ BulletSimulateLst <- function( dcgZoo, allocNum, rfNum = 0)
   
   symNum <- ncol(dcgZoo)
   retDfr <- dataFrame( colClasses=c(Portfolio="numeric", Daily="numeric"), 
-                       nrow=symNum )
+                       nrow=nrow(dcgZoo) )
   
   #     (2) Normalize the prices according to the FIRST day. The FIRST row for EACH stock     
   #       should have a value of ONE (1.0) at this point.
