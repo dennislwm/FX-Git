@@ -11,12 +11,21 @@
 #| Assert Function                                                                          |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.0.1   Added an external function BulletSimulateLst() that simulates a portfolio for   |
+#|          a given allocation of fixed weights. This function returns a list containing:   |
+#|          (i) dcgMtx: a matrix for normalized prices; (ii) alloc: a numeric vector for    |
+#|          allocation of fixed weights; (iii) sd: daily standard deviation of portfolio;   |
+#|          (iv) meanRet: daily average return of portfolio; (v) sharpe: annualized Sharpe  |
+#|          ratio; and (vi) cumRet: cumulative return of portfolio. Todo: Why does the      |
+#|          function BulletGetHistZoo() returns monthly data instead of daily? The Sharpe   |
+#|          ratio is calculated incorrectly if the data is NOT daily.                       |
 #|  1.0.0   This library contains external R functions to perform portfolio analysis.       |
 #|------------------------------------------------------------------------------------------|
-library(corpcor)
-library(tseries)
-library(zoo)
-source("C:/Users/denbrige/100 FXOption/103 FXOptionVerBack/080 FX Git/R-source/portfolio_noshorts.R")
+suppressPackageStartupMessages(require(corpcor))
+suppressPackageStartupMessages(require(tseries))
+suppressPackageStartupMessages(require(zoo))
+suppressPackageStartupMessages(require(R.utils))
+source("C:/Users/denbrige/100 FXOption/103 FXOptionVerBack/080 FX Git/R-source/portfolio_noshorts.R", echo=FALSE)
 
 #|------------------------------------------------------------------------------------------|
 #|                            E X T E R N A L   F U N C T I O N S                           |
@@ -49,6 +58,55 @@ BulletCerParameterLst <- function( dcgZoo )
               "corHat"    = cor.mat
               )
   ans
+}
+
+BulletSimulateLst <- function( dcgZoo, allocNum, rfNum = 0)
+{
+  #---  Check that arguments are valid
+  if( is.na(sum(allocNum)) )
+    stop("allocNum MUST sum to ONE (1)")
+  else if( sum(allocNum) - 1 > 0.005 )
+    stop("allocNum MUST sum to ONE (1)")
+  if( length(allocNum) != ncol(dcgZoo) )
+    stop("length(allocNum) MUST equal the number of securities in fileStr")
+  
+  symNum <- ncol(dcgZoo)
+  retDfr <- dataFrame( colClasses=c(Portfolio="numeric", Daily="numeric"), 
+                       nrow=symNum )
+  
+  #     (2) Normalize the prices according to the FIRST day. The FIRST row for EACH stock     
+  #       should have a value of ONE (1.0) at this point.
+  #     (3) Multiply EACH column by the allocation to the corresponding security.
+  norm.FUN <- function(x, d) { return(x/d) }
+  dcgMtx <- t(apply(dcgZoo, 1, norm.FUN, dcgZoo[1,]))
+  for( p in 1:symNum )
+    dcgMtx[, p] <- allocNum[p] * dcgMtx[, p]
+  
+  #     (4) Sum EACH row for EACH day. That is your cumulative daily portfolio value.         
+  retDfr$Portfolio  <- apply(dcgMtx, 1, sum)
+  retDfr$Daily      <- 0.0
+  for( r in 2:nrow(retDfr) )
+  {
+    retDfr[r, 2] <- (retDfr[r, 1] / retDfr[r-1, 1]) - 1
+  }
+  
+  #     (5) Compute statistics from the total portfolio value. The function should return a 
+  #       list of FOUR (4) objects: (i) standard deviation of daily returns of the total 
+  #       portfolio; (ii) average daily return of the total portfolio; (iii) Sharpe ratio - 
+  #       ALWAYS assume that you have TWO HUNDRED AND FIFTY TWO (252) trading days in a year 
+  #       and risk free rate is ZERO (0) - of the total portfolio; and (iv) cumulative return 
+  #       of the total portfolio.
+  sdNum     <- sd(retDfr$Daily)
+  meanNum   <- mean(retDfr$Daily)
+  sharpeNum <- sqrt(252)*(meanNum-rfNum)/sdNum 
+  retLst    <- list("dcgMtx"  = dcgMtx,
+                    "alloc"   = allocNum,
+                    "sd"      = sdNum,
+                    "meanRet" = meanNum,
+                    "sharpe"  = sharpeNum,
+                    "cumRet"  = retDfr$Portfolio[nrow(retDfr)]
+  )
+  retLst
 }
 
 BulletPortMuNum <- function( wt.num, muHat.num )
