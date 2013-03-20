@@ -1,10 +1,10 @@
 Haugh_01_black-scholes_fOptions
 ==================================================================================================================================
 ## Motivational Buckets
-### 1.1) (size: ) In Coursera's Financial Engineering and Risk Management (FERM) course, Prof. Haugh uses an Excel spreadsheet to specify and build a binomial tree model in terms of Black-Scholes parameters. The model can then be used to price European and American options for EITHER an underlying stock OR futures. Note that the binomial tree model price converges to Black-Scholes price as n (the number of periods) approaches INFINITY (oo).
-### 1.2) (size: ) The Black-Scholes parameters can be divided into TWO (2) categories. The first category consists of parameters that are NOT actually used in the option pricing, but rather used in the calculation of the risk neutral probability (q) and its related discrete terms. This category includes the following parameters: (i) r - the continuously compounded interest rate; (ii) d - dividend yield of the underlying security; (iii) n - number of periods; (iv) T - time to maturity measured in years, e.g. 0.5 means 6 months; (v) sigma - the annualized volatility of the underlying security, e.g. 0.3 means 30% volatility p.a. The second category consists of parameters that are used in the option pricing, but NOT the risk neutral probability. This category includes parameters: (vi) S - initial underlying security price; (vii) X - the exercise price; (viii) type - "European" OR "American"; and (ix) flag - "put" OR "call".
-### 1.3) (size: ) The steps to option pricing include: (i) construct a stock lattice for the underlying; (ii) (optional) construct a futures lattice for the underlying; (iii) construct the option lattice (there is a difference between "European" and "American"); (iv) construct an early exercise lattice (only for "American").
-### 1.4) (size: ) The R package "fOptions" contain several functions that are useful: (i) CRRBinomialTreeOption - return an object fOptions that consists of the evaluated option price; (ii) BinomialTreeOption() - return a matrix that contains the intermediate option prices from period 0 to n; (iii) BinomialTreePlot() - plot the matrix.
+### 1.1) (size: 28) In Coursera's Financial Engineering and Risk Management (FERM) course, Prof. Haugh uses an Excel spreadsheet to specify and build a binomial tree model in terms of Black-Scholes parameters. The model can then be used to price European and American options for EITHER an underlying stock OR futures. Note that the binomial tree model price converges to Black-Scholes price as n (the number of periods) approaches INFINITY (oo).
+### 1.2) (size: 28) The Black-Scholes parameters can be divided into TWO (2) categories. The first category consists of parameters that are NOT actually used in the option pricing, but rather used in the calculation of the risk neutral probability (q) and its related discrete terms. This category includes the following parameters: (i) r - the continuously compounded interest rate; (ii) d - dividend yield of the underlying security; (iii) n - number of periods; (iv) T - time to maturity measured in years, e.g. 0.5 means 6 months; (v) sigma - the annualized volatility of the underlying security, e.g. 0.3 means 30% volatility p.a. The second category consists of parameters that are used in the option pricing, but NOT the risk neutral probability. This category includes parameters: (vi) S - initial underlying security price; (vii) X - the exercise price; (viii) type - "European" OR "American"; and (ix) flag - "put" OR "call".
+### 1.3) (size: 99) The steps to option pricing include: (i) construct a stock lattice for the underlying; (ii) (optional) construct a futures lattice for the underlying; (iii) construct the option lattice (there is a difference between "European" and "American"); (iv) construct an early exercise lattice (only for "American").
+### 1.4) (size: 112) The R package "fOptions" contain several functions that are useful: (i) CRRBinomialTreeOption - return an object fOptions that consists of the evaluated option price; (ii) BinomialTreeOption() - return a matrix that contains the intermediate option prices from period 0 to n; (iii) BinomialTreePlot() - plot the matrix.
 
 ```{r}
 BscdCreateModel <- function(r, b, n, Time, sigma)
@@ -97,15 +97,15 @@ BscdCreateModel <- function(r, b, n, Time, sigma)
   ret.Bscd
 }
 ```
-### 1.2.1) (size: ) The first category of the Black-Scholes parameters are used to calculate the risk neutral probabilities (q), and its related discrete terms. The formula expressed in discrete terms is q = (R - c - d) / (u - d), where the discrete terms are defined as follows: (i) R - the discrete interest rate; (ii) c - the annualized dividend yield (also known as cost-of-carry rate), e.g. 0.1 means 10% p.a.; (iii) d - the downmove rate; (iv) u - the upmove rate.
+### 1.2.1) (size: 28) The first category of the Black-Scholes parameters are used to calculate the risk neutral probabilities (q), and its related discrete terms. The formula for risk neutral probability expressed in discrete terms is q = (R - c - d) / (u - d), where the discrete terms are defined as follows: (i) R - the discrete interest rate; (ii) c - the annualized dividend yield (also known as cost-of-carry rate), e.g. 0.1 means 10% p.a.; (iii) d - the downmove rate; (iv) u - the upmove rate.
 ### 1.2.2) The discrete terms can be substituted with the continuous terms, i.e. Black-Scholes parameters, as follows: (i) R = exp(r*T/n), if c=0; (ii) R - c = exp((r-c)*T/n), if c>0; (iii) u = exp(sigma*sqrt(T/n)); and (iv) d = 1/u. Therefore, we can rewrite the formula (q) in continuous terms as q = ( exp((r-c)*T/n) - d ) / ( exp(sigma*sqrt(T/n)) - d ), where d = 1/u. 
-### 1.3.1) (size: ) The function BscdCreateModel() parameters are as follows: (i) r - the continuously compounded interest rate; (ii) b - the annualized dividend yield (OR cost-of-carry rate) of the underlying security; (iii) n - the number of periods; (iv) Time - time to maturity measured in years, e.g. 0.5 means 6 months; (v) sigma - the annualized volatility of the underlying security, e.g. 0.3 means 30% volatility p.a. The function returns an object of class "Bscd", i.e. Black-Scholes Discrete class, that consists of several variables, e.g. q, u, d, etc, and TWO (2) matrices: (a) stock price rates lattice; and (b) futures price rates lattice. These matrices are based on an initial value of ONE (1). To obtain the actual prices, just multiply the matrix by the initial value S, e.g. 100*sRateMtx.
+### 1.2.3) The function BscdCreateModel() accepts FIVE (5) parameters as follows: (i) r - the continuously compounded interest rate; (ii) b - the annualized dividend yield (OR cost-of-carry rate) of the underlying security; (iii) n - the number of periods; (iv) Time - time to maturity measured in years, e.g. 0.5 means 6 months; (v) sigma - the annualized volatility of the underlying security, e.g. 0.3 means 30% volatility p.a. The function returns an object of class "Bscd", i.e. Black-Scholes Discrete class, that consists of several variables, e.g. q, u, d, etc, and TWO (2) matrices: (a) stock price rates lattice; and (b) futures price rates lattice. These matrices are based on an initial value of ONE (1) and could be used to construct option binomial tree prices. To obtain the actual prices, just multiply the matrix by the initial value S, e.g. 100*sRateMtx.
 
 ```{r}
-test.bscd <- BscdCreateModel(0.02, 0.01, 10, 0.5, 0.2)
-test.bscd
+test.bscd <- BscdCreateModel(0.02, 0.01, 15, 0.25, 0.3)
+str(test.bscd)
 stock <- 100*test.bscd$sRateMtx
-stock
+head(stock)
 ```
 
 ```{r}
@@ -134,6 +134,23 @@ BscdPayTwoLeafMtx <- function( q, finalNum, scalar=1 )
       ld <- retMtx[i+1, j+1]
       lu <- retMtx[i,   j+1]
       retMtx[i,j] <- scalar * (q*lu + qInv*ld)
+    }
+  }
+  retMtx
+}
+BscdPayTwoLeafAMtx <- function( q, finalMtx, scalar=1 )
+{
+  qInv        <- 1-q
+  n           <- nrow(finalMtx)
+  retMtx      <- matrix(rep(0, n*n), nrow=n, ncol=n)
+  retMtx[, n] <- finalMtx[ ,n]
+  for( j in (n-1):1 )
+  {
+    for( i in j:1 )
+    {
+      ld <- retMtx[i+1, j+1]
+      lu <- retMtx[i,   j+1]
+      retMtx[i,j] <- max( finalMtx[i,j], scalar * (q*lu + qInv*ld) )
     }
   }
   retMtx
@@ -192,6 +209,19 @@ BscdOptionPrice <- function( model, S, X, n=NULL, TypeFlag=c("ce", "pe", "ca", "
     payNum    <- sapply(flag*difNum, max, 0)
     peMtx     <- BscdPayTwoLeafMtx( model$q, payNum, scalar=model$RInv )
   }
+  difMtx    <- S*model$sRateMtx-X
+  if( caBln )
+  {
+    flag      <-  1
+    payMtx    <- matrix( sapply(flag*difMtx, max, 0), nrow=n1, ncol=n1 )
+    caMtx     <- BscdPayTwoLeafAMtx( model$q, payMtx, scalar=model$RInv )
+  }
+  if( paBln )
+  {
+    flag      <- -1
+    payMtx    <- matrix( sapply(flag*difMtx, max, 0), nrow=n1, ncol=n1 )
+    paMtx     <- BscdPayTwoLeafAMtx( model$q, payMtx, scalar=model$RInv )
+  }
   retBln <- c( ceBln, peBln, caBln, paBln )
   ret.lst <- vector("list", sum(retBln))
   if( retBln[1] & exists("ceMtx") ) ret.lst <- append.lst( ret.lst, ceMtx )
@@ -202,11 +232,16 @@ BscdOptionPrice <- function( model, S, X, n=NULL, TypeFlag=c("ce", "pe", "ca", "
   ret.lst
 }
 ```
-
+### 1.3.1) (size: 99) The function BscdOptionPrice() accepts FIVE (5) parameters as follows: (i) model - the Black-Scholes Discrete model; (ii) S - the initial price of the underlying security; (iii) X - the strike price; (iv) n - the number of periods for the option (default: NULL means the same number of periods as underlying security); (v) TypeFlag - a character vector for ONE (1) or MORE option types: (1) "ce": European call; (2) "pe": European put; (3) "ca": American call; and (4) "pa": American put. The function returns a list containing the specified number of option binomial tree prices as matrices. The option price is the value in FIRST row and FIRST column of EACH matrix.
 
 ```{r}
-options <- BscdOptionPrice(test.bscd, 100, 100)
-options
+test.op <- BscdOptionPrice(test.bscd, 100, 100)
+str(test.op)
+chooser.op    <- BscdOptionPrice(test.bscd, 100, 100)
+payChooserNum <- apply(cbind(chooser.op$ce[,11], chooser.op$pe[,11]), 1, max, 0) 
+payChooserNum <- payChooserNum[1:11]
+chooserMtx    <- BscdPayTwoLeafMtx( test.bscd$q, payChooserNum, scalar=test.bscd$RInv )
+str(chooserMtx)
 ```
 
 ```{r fig.width=12, fig.height=9}
@@ -214,9 +249,14 @@ suppressPackageStartupMessages(require(fOptions))
 suppressPackageStartupMessages(require(testthat))
 option.ce <- BinomialTreeOption("ce", 100, 100, Time=test.bscd$Time, r=test.bscd$r, b=test.bscd$b, sigma=test.bscd$sigma, n=test.bscd$n)
 option.pe <- BinomialTreeOption("pe", 100, 100, Time=test.bscd$Time, r=test.bscd$r, b=test.bscd$b, sigma=test.bscd$sigma, n=test.bscd$n)
-expect_that( options$ce, is_equivalent_to(option.ce) )
-expect_that( options$pe, is_equivalent_to(option.pe) )
+option.ca <- BinomialTreeOption("ca", 100, 100, Time=test.bscd$Time, r=test.bscd$r, b=test.bscd$b, sigma=test.bscd$sigma, n=test.bscd$n)
+option.pa <- BinomialTreeOption("pa", 100, 100, Time=test.bscd$Time, r=test.bscd$r, b=test.bscd$b, sigma=test.bscd$sigma, n=test.bscd$n)
+expect_that( test.op$ce, is_equivalent_to(option.ce) )
+expect_that( test.op$pe, is_equivalent_to(option.pe) )
+expect_that( test.op$ca, is_equivalent_to(option.ca) )
+expect_that( test.op$pa, is_equivalent_to(option.pa) )
 par(mfrow=c(1,2))
-BinomialTreePlot(options$ce)
-BinomialTreePlot(options$pe)
+BinomialTreePlot(test.op$ce)
+BinomialTreePlot(test.op$pe)
 ```
+### 1.4.1) (size: 112) The R package "fOptions" contain several functions that could replicate our results. The function BinomialTreeOption() returns a matrix that contains the binomial tree option price, which we could use to compare to our results. It appears that ALL our options prices are correct. The function BinomialTreePlot() plots an option binomial tree price matrix using a "tree" graph.
