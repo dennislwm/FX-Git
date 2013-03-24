@@ -9,6 +9,8 @@
 #| Assert Function                                                                          |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.0.2   The function jobEfcUpdateJobDfr() replaces double quote (") with single quote   |
+#|          (') before inserting a new job. The test script is in "R-test-07-job".          |
 #|  1.0.1   The function jobEfcUpdateNum() checks for ANY duplicate "hjob" before inserting |
 #|          a new job. Note that the function jobEfcUpdateJobDfr() already checks content   |
 #|          for comma (,) and replaces ALL commas with empty characters.                    |
@@ -174,6 +176,7 @@ jobEfcUpdateJobDfr <- function( rawDfr, waitNum=1 )
     
     mainChr     <- gsub(",", "", sapply(main.Htt, xmlValue))
     contentChr  <- gsub(",", "", sapply(content.Htt, xmlValue))
+    contentChr  <- gsub('"', "'", contentChr)
     
     if( length(mainChr) != 7 )    return( NULL )
     if( length(contentChr) > 1 )  return( NULL )
