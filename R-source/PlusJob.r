@@ -9,6 +9,9 @@
 #| Assert Function                                                                          |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.0.1   The function jobEfcUpdateNum() checks for ANY duplicate "hjob" before inserting |
+#|          a new job. Note that the function jobEfcUpdateJobDfr() already checks content   |
+#|          for comma (,) and replaces ALL commas with empty characters.                    |
 #|  1.0.0   This library contains external R functions to update, search, filter and manage |
 #|          data from eFinancialCareers.sg.                                                 |
 #|------------------------------------------------------------------------------------------|
@@ -105,6 +108,8 @@ jobEfcUpdateNum <- function( sectorStr, waitNum=1 )
       
       if( length(hjobChr)==0 ) break
       if( hjobChr==hjobStopChr ) break
+      if( length(grep(hjobChr, nawDfr$hjob))>0 ) break
+      if( length(grep(hjobChr, retDfr$hjob))>0 ) break
 
       rDfr <- data.frame( hjobChr, levels(jobDfr[, 4]),
                           NA, NA, NA, NA, NA, NA, NA )
