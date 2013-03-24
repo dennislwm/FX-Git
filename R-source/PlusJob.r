@@ -9,6 +9,10 @@
 #| Assert Function                                                                          |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.0.3   The saved CSV files have been deprecated, and replaced by RDA files. Added a    |
+#|          new function JobEfcCreateRdaNum() that will create ONE (1) RDA file per CSV     |
+#|          file. The existing functions works with BOTH an RDA file and a CSV file, but a  |
+#|          warning is given for the latter.                                                |
 #|  1.0.2   The function jobEfcUpdateJobDfr() replaces double quote (") with single quote   |
 #|          (') before inserting a new job. The test script is in "R-test-07-job".          |
 #|  1.0.1   The function jobEfcUpdateNum() checks for ANY duplicate "hjob" before inserting |
@@ -22,12 +26,9 @@ library(XML)
 source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusFile.R")
 
 #|------------------------------------------------------------------------------------------|
-#|                            I N T E R N A L   F U N C T I O N S                           |
+#|                          E X T E R N A L   A   F U N C T I O N S                         |
 #|------------------------------------------------------------------------------------------|
-#|------------------------------------------------------------------------------------------|
-#|                          I N T E R N A L   A   F U N C T I O N S                         |
-#|------------------------------------------------------------------------------------------|
-jobEfcUpdateNum <- function( sectorStr, waitNum=1 )
+JobEfcUpdateNum <- function( sectorStr, waitNum=1 )
 {                                                         
   #---  Assert TWO (2) arguments:                                                   
   #       sectorStr:    MUST specify EITHER "Accounting_Finance", "Asset_Management", 
@@ -45,16 +46,28 @@ jobEfcUpdateNum <- function( sectorStr, waitNum=1 )
     stop("sectorStr MUST be either: Accounting_Finance, Asset_Management,
           Capital_Markets, Commodities, Equities, FX_Money_Markets,
           Hedge_Funds, Quantitative_Analytics, Research OR Trading")
-  
-  retDfr <- fileReadDfr( paste0("jobEfc_", sectorStr) )
-  if( is.null(retDfr) )
+  fileStr <- paste0(RegGetRNonSourceDir(), "jobEfc_", sectorStr, ".rda")
+  deprecatedBln <- !file.exists(fileStr)
+  if( !deprecatedBln )
   {
-    retDfr <- dataFrame( colClasses=c( hjob="character", date="character",
-                                       company="character", location="character",
-                                       remuneration="character", postype="character",
-                                       employtype="character", ref="character",
-                                       content="character" ), 
-                         nrow=0 ) 
+    if( exists("retDfr") ) rm("retDfr")
+    load(fileStr)
+    if( !exists("retDfr") )
+      deprecatedBln <- TRUE
+  }
+  if( deprecatedBln )
+  {
+    warning("The CSV file has been deprecated. Call the function JobEfcCreateRdaNum() to create an RDA file.")
+    retDfr  <- fileReadDfr( paste0("jobEfc_", sectorStr) )
+    if( is.null(retDfr) )
+    {
+      retDfr <- dataFrame( colClasses=c( hjob="character", date="character",
+                                         company="character", location="character",
+                                         remuneration="character", postype="character",
+                                         employtype="character", ref="character",
+                                         content="character" ), 
+                           nrow=0 ) 
+    }
   }
   if( nrow(retDfr)>0 )
   {
@@ -129,19 +142,25 @@ jobEfcUpdateNum <- function( sectorStr, waitNum=1 )
   
   if( retNum > 0 )
   {
-    nawDfr <- jobEfcUpdateJobDfr( nawDfr )
+    nawDfr <- JobEfcUpdateJobDfr( nawDfr )
     if( is.null(nawDfr) ) retNum <- 0
     else
     {
-      retDfr <- rbind(nawDfr, retDfr)
-      formDfr <- as.data.frame(lapply(retDfr, function(x) if (is(x, "Date")) format(x, "%Y/%m/%d") else x))
-      fileWriteCsv( formDfr, paste0("jobEfc_", sectorStr) )
+      if( deprecatedBln )
+      {
+        retDfr <- rbind(nawDfr, retDfr)
+        formDfr <- as.data.frame(lapply(retDfr, function(x) if (is(x, "Date")) format(x, "%Y/%m/%d") else x))
+        fileWriteCsv( formDfr, paste0("jobEfc_", sectorStr) )
+      } else {
+        nawDfr$outcome <- NA
+        retDfr <- rbind(nawDfr, retDfr)
+        save(retDfr, file=fileStr)
+      }
     }
   }
   retNum
 }
-
-jobEfcUpdateJobDfr <- function( rawDfr, waitNum=1 )
+JobEfcUpdateJobDfr <- function( rawDfr, waitNum=1 )
 {                                                         
   #---  Assert TWO (2) arguments:                                                   
   #       rawDfr:       a data frame
@@ -198,6 +217,49 @@ jobEfcUpdateJobDfr <- function( rawDfr, waitNum=1 )
   
   return( rawDfr )
 }
+JobEfcCreateRdaNum <- function()
+{
+  typeStr <- c("Accounting_Finance", "Asset_Management", 
+               "Capital_Markets",    "Commodities", 
+               "Equities",           "FX_Money_Markets",
+               "Hedge_Funds",        "Quantitative_Analytics", 
+               "Research",           "Trading")
+  retNum <- 0
+  for( i in seq_along(typeStr) )
+  {
+    fileStr <- paste0(RegGetRNonSourceDir(), "jobEfc_", typeStr[i], ".rda")
+    deprecatedBln <- !file.exists(fileStr)
+    if( !deprecatedBln )
+    {
+      if( exists("retDfr") ) rm("retDfr")
+      load(fileStr)
+      if( !exists("retDfr") )
+        deprecatedBln <- TRUE
+    }
+    if( deprecatedBln )
+    {
+      retDfr <- fileReadDfr( paste0("jobEfc_", typeStr[i]) )
+      if( is.null(retDfr) )
+      {
+        retDfr <- dataFrame( colClasses=c( hjob="character", date="character",
+                                           company="character", location="character",
+                                           remuneration="character", postype="character",
+                                           employtype="character", ref="character",
+                                           content="character", outcome="numeric" ), 
+                             nrow=0 ) 
+      }
+      outcomeBln <- length(which(names(retDfr)=="outcome"))>0
+      if( !outcomeBln ) retDfr$outcome <- NA
+      save( retDfr, file=fileStr )  
+      retNum <- retNum + 1
+    }
+  }
+  retNum
+}
+
+#|------------------------------------------------------------------------------------------|
+#|                            I N T E R N A L   F U N C T I O N S                           |
+#|------------------------------------------------------------------------------------------|
 
 #|------------------------------------------------------------------------------------------|
 #|                                E N D   O F   S C R I P T                                 |
