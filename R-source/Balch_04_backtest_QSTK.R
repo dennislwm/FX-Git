@@ -55,6 +55,13 @@
 #|          return of the total portfolio.                                                  |
 #|                                                                                          |
 #| History                                                                                  |
+#|  0.9.2   Added the function PyCalcValueXts() that has THREE (3) parameters: (i) symChr - |
+#|          a character vector of symbols; (ii) orderDfr - a data frame for "trades"; (iii) |
+#|          priceXts - a data frame (xts) for prices of symbols. It returns a "values" data |
+#|          frame (xts). Added an internal function PyDfrToXts() that converts a data frame |
+#|          with a date column (as the FIRST column) to an xts object. Modified output from |
+#|          a data frame to an xts object for functions PyBillOrderXts(), PyMarketSimXts(). |
+#|          Modified input from a data frame to an xts object for function PyFileWriteCsv().|
 #|  0.9.1   Added the function PyBillOrderDfr() that has THREE (3) parameters: (i) initNum  |
 #|          - initial cash; (ii) orderDfr - a data frame for "trades"; (iii) priceXts - a   |
 #|          data frame (xts) for (adjusted close) prices of symbols. It returns a "cash"    |
@@ -76,7 +83,7 @@ library(R.utils)
 #|------------------------------------------------------------------------------------------|
 #|                            E X T E R N A L   F U N C T I O N S                           |
 #|------------------------------------------------------------------------------------------|
-PyMarketSim <- function(initNum, orderStr, outStr, 
+PyMarketSimXts <- function(initNum, orderStr, outStr=NULL, 
                         workDirStr="C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-nonsource")
 {
   #---  Assert THREE (3) arguments:                                                   
@@ -94,8 +101,8 @@ PyMarketSim <- function(initNum, orderStr, outStr,
   #---  Read in data, then scan it
   #       (1) Build list of symbols
   #       (2) Build date boundaries (min and max) per list, NOT per symbol
-  orderDfr  <- PyFileReadDfr(orderStr, header=FALSE)
-  symChr    <- unique(orderDfr$Symbol)
+  orderDfr  <- PyFileReadDfr(orderStr, workDirStr=workDirStr, header=FALSE)
+  symChr    <- as.character(sort(unique(orderDfr$Symbol)))
   startChr  <- as.character( min(orderDfr$Date), format="%Y-%m-%d" )
   finishChr <- as.character( max(orderDfr$Date), format="%Y-%m-%d" )
   
@@ -106,18 +113,76 @@ PyMarketSim <- function(initNum, orderStr, outStr,
   #       (1) Sort "trades" by date, and iterate over "trades"
   #       (2) Check with "prices" and update into "cash"
   orderDfr  <- orderDfr[with(orderDfr, order(Date)), ]
-  cashDfr   <- PyBillOrderDfr(initNum, orderDfr, priceXts)
-  cashDfr
-  #---  Scan
-
+  cashXts   <- PyBillOrderXts(initNum, orderDfr, priceXts)
+  
+  #---  Scan "trades" to update "values"
+  #       (1) Check with "prices" and update into "values"
+  valueXts  <- PyCalcValueXts(symChr, orderDfr, priceXts)
+  
+  #---  Sum "cash" and "values" to create "total"
+  totalNum  <- apply( cbind(cashXts$Cash, valueXts$Value), 1, sum )
+  totalDfr  <- data.frame(Date=index(valueXts), Total=totalNum)
+  totalXts  <- PyDfrToXts(totalDfr)
+  
   #---  Write the data
-  #PyFileWriteCsv(totalDfr)
+  if( is.null(outStr) )
+  {
+    return(totalXts)
+  } else
+  {
+    PyFileWriteCsv(totalXts, outStr, workDirStr=workDirStr)
+  }
 }
 
 #|------------------------------------------------------------------------------------------|
 #|                            I N T E R N A L   F U N C T I O N S                           |
 #|------------------------------------------------------------------------------------------|
-PyBillOrderDfr <- function(initNum, orderDfr, priceXts)
+PyCalcValueXts <- function(symChr, orderDfr, priceXts)
+{
+  sRow      <- nrow(priceXts)
+  part1Str  <- "dataFrame( colClasses=c(Date='character'," 
+  for( i in seq_along(symChr) )
+  {
+    if( i == 1 )
+    {
+      part2Str <- paste0(symChr[i],"='numeric',")
+    } else {
+      part2Str <- paste0(part2Str, symChr[i],"='numeric',")
+    }
+  }
+  part3Str  <- paste0("Value='numeric'), nrow=",sRow,")")
+  valueDfr  <- eval(parse(text=paste0(part1Str, part2Str, part3Str)))
+  valueDfr$Date   <- as.character(index(priceXts), format("%Y-%m-%d"))
+  for( iRow in 1:nrow(orderDfr) )
+  {
+    jRow    <- which(index(priceXts)==orderDfr$Date[iRow])
+    jSym    <- as.character(orderDfr$Symbol[iRow])
+    jPrice  <- as.numeric( priceXts[jRow, orderDfr$Symbol[iRow]] )
+    if( "buy"==tolower(orderDfr$Type[iRow]) )   jType=1
+    if( "sell"==tolower(orderDfr$Type[iRow]) )  jType=-1
+    jUnit   <- orderDfr$Unit[iRow] * jType
+    valueDfr[jRow, jSym]  <- valueDfr[jRow, jSym] + jUnit 
+    if( jRow < sRow )
+    {
+      valueDfr[(jRow+1):sRow, jSym] <- valueDfr[jRow, jSym]
+    }
+  }
+  valueXts  <- PyDfrToXts(valueDfr, "%Y-%m-%d")
+  
+  for( i in seq_along(symChr) )
+  {
+    if( i == 1 )
+    {
+      evalStr <- paste0( "apply(cbind(priceXts[,",i,"], valueXts[,",i,"]),1,prod)" )
+    } else {
+      evalStr <- paste0( evalStr, "+apply(cbind(priceXts[,",i,"], valueXts[,",i,"]),1,prod)" )
+    }
+  }
+  valueXts$Value <- eval(parse(text=evalStr))
+  valueXts  
+}
+
+PyBillOrderXts <- function(initNum, orderDfr, priceXts)
 {
   sRow      <- nrow(priceXts)
   cashDfr   <- dataFrame( colClasses=c(Date="character", 
@@ -144,7 +209,18 @@ PyBillOrderDfr <- function(initNum, orderDfr, priceXts)
       cashDfr[(jRow+1):sRow, "Cash"]    <- cashDfr[jRow, "Cash"]
     }
   }
-  cashDfr
+  cashXts  <- PyDfrToXts(cashDfr, "%Y-%m-%d")
+  cashXts
+}
+
+PyDfrToXts <- function(datDfr, formatChr=NULL)
+{
+  if( is.null(formatChr) )
+    retXts <- xts( datDfr[,-1], order.by=datDfr[,1] )
+  else
+    retXts <- xts( datDfr[,-1], order.by=as.Date(datDfr[,1], format=formatChr) )
+  names( retXts ) <- names( datDfr )[-1]
+  retXts
 }
 
 PyFileReadDfr <- function(fileStr, workDirStr="C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-nonsource", ...)
@@ -177,22 +253,22 @@ PyFileReadDfr <- function(fileStr, workDirStr="C:/Users/denbrige/100 FxOption/10
   return(retDfr)
 }
 
-PyFileWriteCsv <- function(datDfr, fileStr, 
+PyFileWriteCsv <- function(datXts, fileStr, 
                            workDirStr="C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-nonsource")
 {
   #---  Assert THREE (3) arguments:                                                   
-  #       datDfr:       data frame to be written                                               
+  #       datXts:       data frame (xts) to be written                                               
   #       fileStr:      name of the file (without the extension ".csv")
   #       workDirStr:   working directory                                             
   
   #---  Check that arguments are valid
   #       apply() function returns a list of arrays
   #       sapply() function returns a vector of numbers
-  gLst <- apply(datDfr, 2, grep, pattern=",")
+  gLst <- apply(datXts, 2, grep, pattern=",")
   if( length(gLst)>0 )
   {
     if( sum(sapply(gLst,sum))>0 )
-      stop("ONE (1) OR MORE columns in datStr contain comma as values.")
+      stop("ONE (1) OR MORE columns in datXts contain comma as values.")
   }
   if( missing(fileStr) )
     stop("fileStr CANNOT be EMPTY")
@@ -200,13 +276,17 @@ PyFileWriteCsv <- function(datDfr, fileStr,
     stop("fileStr CANNOT be EMPTY")
   
   #---  Split data into separate columns.
-  sizeNum       <- ncol(datDfr)
-  datDfr$Year   <- as.character(orderDfr$Date, format="%Y")
-  datDfr$Month  <- as.character(orderDfr$Date, format="%m")
-  datDfr$Day    <- as.character(orderDfr$Date, format="%d")
+  sizeNum       <- ncol(datXts)
+  datXts$Year   <- as.character(index(datXts), format="%Y")
+  datXts$Month  <- as.character(index(datXts), format="%m")
+  datXts$Day    <- as.character(index(datXts), format="%d")
   
-  outDfr <- data.frame(Year=datDfr$Year, Month=datDfr$Month, Day=datDfr$Day)
-  outDfr <- cbind(outDfr, datDfr[, 2:sizeNum])
+  outDfr <- data.frame(Year=datXts$Year, Month=datXts$Month, Day=datXts$Day)
+  for( i in 1:sizeNum )
+  {
+    nameChr     <- names(datXts) 
+    outDfr[, nameChr[i]] <- datXts[, nameChr[i]]
+  }
   
   #---  Set working directory                                                         
   setwd(workDirStr)
@@ -215,6 +295,7 @@ PyFileWriteCsv <- function(datDfr, fileStr,
   #       Remove row names 
   #       Remove col names
   write.table( outDfr, file=paste0( fileStr, ".csv" ), sep=",", quote=FALSE, row.names=FALSE, col.names=FALSE )
+  outDfr
 }
 
 QstkReadXts <- function(symChr, startDate, finishDate, qstkDir="C:/Python27/Lib/site-packages/QSTK/QSData/Yahoo/")
