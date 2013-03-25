@@ -1,5 +1,5 @@
 #|------------------------------------------------------------------------------------------|
-#|                                                                    Balch_04_quiz5_QSTK.R |
+#|                                                                 Balch_04_backtest_QSTK.R |
 #|                                                             Copyright © 2012, Dennis Lee |
 #| Background                                                                               |
 #|    The data for this R script comes from QTSK. We use the adjusted close prices. As the  |
@@ -55,6 +55,10 @@
 #|          return of the total portfolio.                                                  |
 #|                                                                                          |
 #| History                                                                                  |
+#|  0.9.1   Added the function PyBillOrderDfr() that has THREE (3) parameters: (i) initNum  |
+#|          - initial cash; (ii) orderDfr - a data frame for "trades"; (iii) priceXts - a   |
+#|          data frame (xts) for (adjusted close) prices of symbols. It returns a "cash"    |
+#|          data frame.                                                                     |
 #|  0.9.0   Coursera's "Computational Investing" course (Tucker Balch) Quiz 5 Week 5.       |
 #|          Todo: Part A is partially complete and we have not started on Part B.           |
 #|------------------------------------------------------------------------------------------|
@@ -62,6 +66,7 @@ source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/P
 source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusFile.R", echo=FALSE)
 library(quantmod)
 library(PerformanceAnalytics)
+library(R.utils)
 
 #---  Prerequisite. We have to perform these TWO (2) steps prior to running this script.
 #     (1) Download the data using the python script "Balch_01_tutorial01_QSTK.py" and save
@@ -97,24 +102,51 @@ PyMarketSim <- function(initNum, orderStr, outStr,
   #---  Read in "prices" of symbols
   priceXts  <- QstkReadXts(symChr, startChr, finishChr)
   
-  #---  Scan trades to update "cash"
-  #       (1) Sort "trades" by date
-  #       (2) Check with "prices" and update into "fill"
-  #       (3) Iterate over "fill" into "cash"
-  orderDfr <- orderDfr[with(orderDfr, order(Date)), ]
-  for( iRow in 1:nrow(orderDfr) )
-  {
-    jRow    <- which(index(priceXts)==orderDfr$Date[iRow])
-    jPrice  <- priceXts[jRow, orderDfr$Symbol[iRow])
-  }
+  #---  Scan "trades" to update "cash"
+  #       (1) Sort "trades" by date, and iterate over "trades"
+  #       (2) Check with "prices" and update into "cash"
+  orderDfr  <- orderDfr[with(orderDfr, order(Date)), ]
+  cashDfr   <- PyBillOrderDfr(initNum, orderDfr, priceXts)
+  cashDfr
+  #---  Scan
 
   #---  Write the data
-  PyFileWriteCsv(totalDfr)
+  #PyFileWriteCsv(totalDfr)
 }
 
 #|------------------------------------------------------------------------------------------|
 #|                            I N T E R N A L   F U N C T I O N S                           |
 #|------------------------------------------------------------------------------------------|
+PyBillOrderDfr <- function(initNum, orderDfr, priceXts)
+{
+  sRow      <- nrow(priceXts)
+  cashDfr   <- dataFrame( colClasses=c(Date="character", 
+                                       Billed="numeric", 
+                                       CashBf="numeric", 
+                                       Cash="numeric"), nrow=sRow )
+  cashDfr$Date    <- as.character(index(priceXts), format("%Y-%m-%d"))
+  cashDfr$Billed  <- 0  
+  cashDfr$CashBf  <- initNum
+  cashDfr$Cash    <- initNum
+  for( iRow in 1:nrow(orderDfr) )
+  {
+    jRow    <- which(index(priceXts)==orderDfr$Date[iRow])
+    jPrice  <- as.numeric( priceXts[jRow, orderDfr$Symbol[iRow]] )
+    jUnit   <- orderDfr$Unit[iRow]
+    if( "buy"==tolower(orderDfr$Type[iRow]) )   jType=-1
+    if( "sell"==tolower(orderDfr$Type[iRow]) )  jType=1
+    jBilled <- jPrice * jUnit * jType
+    cashDfr[jRow, "Billed"] <- cashDfr[jRow, "Billed"] + jBilled 
+    cashDfr[jRow, "Cash"]   <- cashDfr[jRow, "CashBf"] + cashDfr[jRow, "Billed"]
+    if( jRow < sRow )
+    {
+      cashDfr[(jRow+1):sRow, "CashBf"]  <- cashDfr[jRow, "Cash"]
+      cashDfr[(jRow+1):sRow, "Cash"]    <- cashDfr[jRow, "Cash"]
+    }
+  }
+  cashDfr
+}
+
 PyFileReadDfr <- function(fileStr, workDirStr="C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-nonsource", ...)
 {
   #---  Assert TWO (2) arguments:
@@ -126,10 +158,10 @@ PyFileReadDfr <- function(fileStr, workDirStr="C:/Users/denbrige/100 FxOption/10
     stop("fileStr CANNOT be EMPTY")
   else if( fileStr=="" )
     stop("fileStr CANNOT be EMPTY")
-
+  
   #---  Read in data using standard function                                                         
   rawDfr <- fileReadDfr(fileStr, ...)
-
+  
   #---  Coerce data into numeric or date.
   #     [6] Number of units
   #     [1] Year, e.g. 2013
@@ -146,7 +178,7 @@ PyFileReadDfr <- function(fileStr, workDirStr="C:/Users/denbrige/100 FxOption/10
 }
 
 PyFileWriteCsv <- function(datDfr, fileStr, 
-                         workDirStr="C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-nonsource")
+                           workDirStr="C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-nonsource")
 {
   #---  Assert THREE (3) arguments:                                                   
   #       datDfr:       data frame to be written                                               
