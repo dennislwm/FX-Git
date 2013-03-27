@@ -56,6 +56,10 @@
 #|    > head(chooserMtx)                                                                    |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  0.9.1   Added external function BscdOptionEarly() for constructing an early exercise    |
+#|          lattice (for American). Note: It is NEVER optimal to early exercise an American |
+#|          call option with NO dividends. The internal function BscdPayTwoLeafEarlyMtx()   |
+#|          is used by the former function. Todo: Create a test script.                     |
 #|  0.9.0   This library contains external R functions to specify and build a binomial tree |
 #|          model in terms of Black-Scholes parameters. Todo: (a) Construct an early        |
 #|          exercise lattice (for American), and (b) create a test script.                  |
@@ -210,7 +214,7 @@ BscdOptionPrice <- function( model, S, X, n=NULL, TypeFlag=c("ce", "pe", "ca", "
   difMtx    <- S*model$sRateMtx-X
   if( caBln )
   {
-    flag      <-  1
+    flag      <- 1
     payMtx    <- matrix( sapply(flag*difMtx, max, 0), nrow=n1, ncol=n1 )
     caMtx     <- BscdPayTwoLeafAMtx( model$q, payMtx, scalar=model$RInv )
   }
@@ -226,6 +230,65 @@ BscdOptionPrice <- function( model, S, X, n=NULL, TypeFlag=c("ce", "pe", "ca", "
   if( retBln[2] & exists("peMtx") ) ret.lst <- append.lst( ret.lst, peMtx )
   if( retBln[3] & exists("caMtx") ) ret.lst <- append.lst( ret.lst, caMtx )
   if( retBln[4] & exists("paMtx") ) ret.lst <- append.lst( ret.lst, paMtx )
+  names(ret.lst) <- typeStr[which(retBln)]
+  ret.lst
+}
+BscdOptionEarly <- function( model, S, X, n=NULL, TypeFlag=c("ca", "pa") )
+{
+  #---  Check that arguments are valid
+  if( is.null(n) )  
+    n <- model$n
+  if( n > model$n )
+    stop("n CANNOT be greater than model$n")
+  typeStr <- c("ca", "pa")
+  if( length(TypeFlag) == 0 )
+    stop("TypeFlag MUST be ONE (1) OR MORE of: ca, pa")
+  for( i in 1:length(TypeFlag) )
+  {
+    if( length(which(typeStr==TypeFlag[i])) == 0 )
+      stop("TypeFlag MUST be ONE (1) OR MORE of: ca, pa")
+  }
+  caBln <- length(which(typeStr[1]==TypeFlag)) > 0
+  paBln <- length(which(typeStr[2]==TypeFlag)) > 0
+  
+  #---  Construct early option lattice
+  #       (1) matrix n1 x n1, where n1=n+1 because of initial term at n=0
+  #       (2) Calculate the LAST column of typeMtx, where type: ca, pa
+  #           using the function max() with arguments ZERO (0) and the difference
+  #           in strike price (X) and the corresponding nth column stockMtx price.
+  #           For a put option, we need to invert the result of max, i.e. -result.
+  #       (3) Calculate backwards, starting from the previous column n-1 to 0
+  #           using the expected TWO (2) leaf values weighted on risk neutral 
+  #           probabilities (q) and (1-q) scaled by 1/R
+  #       (4)   ...   3                       4
+  #           1 ...   if(max(pay[1,3],0)>0)   max((flag*stockMtx[1,4]-X),0)
+  #                     if(q*[1,3]+qInv[2,3])
+  #                     < max(pay[1,3],0)
+  #                       if(max(pay[1,3],0)<op)
+  #                         early=TRUE
+  #           2 ...   ...                     max((flag*stockMtx[2,4]-X),0)
+  #           3 ...   ...                     max((flag*stockMtx[3,4]-X),0)
+  #           4 ...   ...                     max((flag*stockMtx[4,4]-X),0)
+  n1 <- n+1
+  difMtx    <- S*model$sRateMtx-X
+  if( caBln )
+  {
+    flag      <- 1
+    payMtx    <- matrix( sapply(flag*difMtx, max, 0), nrow=n1, ncol=n1 )
+    caMtx     <- BscdPayTwoLeafAMtx( model$q, payMtx, scalar=model$RInv )
+    caEarlyMtx<- BscdPayTwoLeafEarlyMtx( model$q, caMtx, payMtx, scalar=model$RInv )
+  }
+  if( paBln )
+  {
+    flag      <- -1
+    payMtx    <- matrix( sapply(flag*difMtx, max, 0), nrow=n1, ncol=n1 )
+    paMtx     <- BscdPayTwoLeafAMtx( model$q, payMtx, scalar=model$RInv )
+    paEarlyMtx<- BscdPayTwoLeafEarlyMtx( model$q, paMtx, payMtx, scalar=model$RInv )
+  }
+  retBln <- c( caBln, paBln )
+  ret.lst <- vector("list", sum(retBln))
+  if( retBln[1] & exists("caEarlyMtx") ) ret.lst <- append.lst( ret.lst, caEarlyMtx )
+  if( retBln[2] & exists("paEarlyMtx") ) ret.lst <- append.lst( ret.lst, paEarlyMtx )
   names(ret.lst) <- typeStr[which(retBln)]
   ret.lst
 }
@@ -263,6 +326,33 @@ BscdPayTwoLeafAMtx <- function( q, finalMtx, scalar=1 )
       ld <- retMtx[i+1, j+1]
       lu <- retMtx[i,   j+1]
       retMtx[i,j] <- max( finalMtx[i,j], scalar * (q*lu + qInv*ld) )
+    }
+  }
+  retMtx
+}
+BscdPayTwoLeafEarlyMtx <- function( q, opMtx, finalMtx, scalar=1 )
+{
+  qInv        <- 1-q
+  n           <- nrow(finalMtx)
+  retMtx      <- matrix(rep(0, n*n), nrow=n, ncol=n)
+  retMtx[, n] <- finalMtx[ ,n]
+  opNum       <- opMtx[1,1]
+  for( j in (n-1):1 )
+  {
+    for( i in j:1 )
+    {
+      ld <- opMtx[i+1, j+1]
+      lu <- opMtx[i,   j+1]
+      if( max( finalMtx[i,j], 0 ) > 0 )
+      {
+        if( scalar * (q*lu + qInv*ld) < max( finalMtx[i,j], 0 ) )
+        {
+          if( max( finalMtx[i,j], 0 ) > opNum )
+          {
+            retMtx[i,j] <- 1
+          }
+        }
+      }
     }
   }
   retMtx
