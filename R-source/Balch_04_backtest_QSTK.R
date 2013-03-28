@@ -54,7 +54,16 @@
 #|          a year, and risk free rate = 0) of the total portfolio; and (iv) Cumulative     |
 #|          return of the total portfolio.                                                  |
 #|                                                                                          |
+#| Example                                                                                  |
+#|    A.  > valueXts  <- PyMarketSimXts(1000000, "Balch_04_backtest_orders")                |
+#|        > fundLst   <- PyAnalyzerLst(valueXts, "SPX")                                     |
+#|                                                                                          |
+#|    B.  > valu2Xts  <- PyMarketSimXts(1000000, "Balch_04_backtest_order2")                |
+#|        > fun2Lst   <- PyAnalyzerLst(valu2Xts, "SPX")                                     |
+#|                                                                                          |
 #| History                                                                                  |
+#|  0.9.3   Completed Part B, that is created a function PyAnalyzerLst(). Changed name of   |
+#|          function PyFileReadDfr() to PyOrderReadDfr().                                   | 
 #|  0.9.2   Added the function PyCalcValueXts() that has THREE (3) parameters: (i) symChr - |
 #|          a character vector of symbols; (ii) orderDfr - a data frame for "trades"; (iii) |
 #|          priceXts - a data frame (xts) for prices of symbols. It returns a "values" data |
@@ -75,14 +84,56 @@ library(quantmod)
 library(PerformanceAnalytics)
 library(R.utils)
 
-#---  Prerequisite. We have to perform these TWO (2) steps prior to running this script.
-#     (1) Download the data using the python script "Balch_01_tutorial01_QSTK.py" and save
-#         it as a CSV file "Balch_02_tutorial01". Note: The python script saves the adjusted
-#         closing price ONLY.
-#     (2) Copy the CSV file into the folder "R-nonsource".
 #|------------------------------------------------------------------------------------------|
 #|                            E X T E R N A L   F U N C T I O N S                           |
 #|------------------------------------------------------------------------------------------|
+PyAnalyzerLst <- function(valueXts, benchChr)
+{
+  #---  Assert TWO (2) arguments:                                                   
+  #       valueXts:     a data frame (xts) of "values"
+  #       benchChr:     symbol for benchmark
+  
+  #---  Check that arguments are valid
+  if( missing(valueXts) )
+    stop("valueXts CANNOT be EMPTY")
+  if( missing(benchChr) )
+    stop("benchChr CANNOT be EMPTY")
+  else if( benchChr=="" )
+    stop("benchChr CANNOT be EMPTY")
+  
+  #---  Read in data, then analyze it
+  symChr    <- benchChr
+  startChr  <- as.character( min(index(valueXts)), format="%Y-%m-%d" )
+  finishChr <- as.character( max(index(valueXts)), format="%Y-%m-%d" )
+  
+  #---  Read in "prices" of symbols
+  priceXts  <- QstkReadXts(symChr, startChr, finishChr)
+  
+  #---  Calculate ratios
+  value.mean.daily  <- mean(dailyReturn(valueXts[,1]))
+  value.sd.daily    <- sqrt(var(dailyReturn(valueXts[,1])))
+  value.sharpe.pa   <- sqrt(252)*value.mean.daily/value.sd.daily
+  value.tsr         <- as.numeric(valueXts[nrow(valueXts),1])/as.numeric(valueXts[1,1])
+  
+  price.mean.daily  <- mean(dailyReturn(priceXts[,1]))
+  price.sd.daily    <- sqrt(var(dailyReturn(priceXts[,1])))
+  price.sharpe.pa   <- sqrt(252)*price.mean.daily/price.sd.daily
+  price.tsr         <- as.numeric(priceXts[nrow(priceXts),1])/as.numeric(priceXts[1,1])
+  
+  #---  Return a list
+  #
+  retLst <- list("fund.sharpe"  = as.numeric(value.sharpe.pa),
+                 "fund.tsr"     = as.numeric(value.tsr),
+                 "fund.sd"      = as.numeric(value.sd.daily),
+                 "fund.mean"    = as.numeric(value.mean.daily),
+                 "bench.sharpe" = as.numeric(price.sharpe.pa),
+                 "bench.tsr"    = as.numeric(price.tsr),
+                 "bench.sd"     = as.numeric(price.sd.daily),
+                 "bench.mean"   = as.numeric(price.mean.daily) 
+                 )
+  retLst
+}  
+
 PyMarketSimXts <- function(initNum, orderStr, outStr=NULL, 
                         workDirStr="C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-nonsource")
 {
@@ -101,7 +152,7 @@ PyMarketSimXts <- function(initNum, orderStr, outStr=NULL,
   #---  Read in data, then scan it
   #       (1) Build list of symbols
   #       (2) Build date boundaries (min and max) per list, NOT per symbol
-  orderDfr  <- PyFileReadDfr(orderStr, workDirStr=workDirStr, header=FALSE)
+  orderDfr  <- PyOrderReadDfr(orderStr, workDirStr=workDirStr, header=FALSE)
   symChr    <- as.character(sort(unique(orderDfr$Symbol)))
   startChr  <- as.character( min(orderDfr$Date), format="%Y-%m-%d" )
   finishChr <- as.character( max(orderDfr$Date), format="%Y-%m-%d" )
@@ -223,7 +274,8 @@ PyDfrToXts <- function(datDfr, formatChr=NULL)
   retXts
 }
 
-PyFileReadDfr <- function(fileStr, workDirStr="C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-nonsource", ...)
+PyOrderReadDfr <- function(fileStr, 
+                          workDirStr="C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-nonsource", ...)
 {
   #---  Assert TWO (2) arguments:
   #       fileStr:      name of the file (without the extension ".csv")
