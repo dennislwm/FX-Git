@@ -56,6 +56,14 @@
 #|    > head(chooserMtx)                                                                    |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  0.9.3   Fixed call and put options (for American), however they still do NOT tally with |
+#|          the function BinaryTreeOption() in library(fOptions), which may be a different  |
+#|          algorithm. For the functions BscdOptionPrice() and BscdOptionEarly(), we added  |
+#|          a parameter subMtx that allows a user to replace the stockMtx = model$sRate * S.|
+#|          The reason is to be able to reproduce Kang's (2004) case study on "Valuing      |
+#|          Flexibilities in the development of New Songdo City (NSC)" in the R Markdown    |
+#|          file "Kang_02_nsc_Bscd". Also, this file validates the "ca" output from the     |
+#|          function BscdOptionPrice().                                                     |
 #|  0.9.2   Fixed warnings when n is LESS THAN model$n in functions BscdOptionPrice() and   |
 #|          BscdOptionEarly(). Todo: (a) call and put options (for American) do NOT tally   |
 #|          with the library(fOptions); (b) Create a test script.                           |
@@ -160,13 +168,21 @@ BscdCreateModel <- function(r, b, n, Time, sigma)
   class(ret.Bscd) <- "Bscd"
   ret.Bscd
 }
-BscdOptionPrice <- function( model, S, X, n=NULL, TypeFlag=c("ce", "pe", "ca", "pa") )
+BscdOptionPrice <- function( model, S, X, subMtx=NULL, n=NULL, 
+                             TypeFlag=c("ce", "pe", "ca", "pa") )
 {
   #---  Check that arguments are valid
   if( is.null(n) )  
     n <- model$n
   if( n > model$n )
     stop("n CANNOT be greater than model$n")
+  if( !is.null(subMtx) )
+  {
+    if( nrow(subMtx) != ncol(subMtx) )
+      stop("subMtx MUST be a square matrix")
+    if( n > nrow(subMtx) )
+      stop("n CANNOT be greater than nrow(subMtx)")
+  }
   typeStr <- c("ce", "pe", "ca", "pa")
   if( length(TypeFlag) == 0 )
     stop("TypeFlag MUST be ONE (1) OR MORE of: ce, pe, ca, pa")
@@ -181,7 +197,10 @@ BscdOptionPrice <- function( model, S, X, n=NULL, TypeFlag=c("ce", "pe", "ca", "
   paBln <- length(which(typeStr[4]==TypeFlag)) > 0
   
   #---  Construct a stock lattice using model and initial price S
-  stockMtx <- model$sRateMtx * S
+  if( is.null(subMtx) )
+    stockMtx <- model$sRateMtx * S
+  else
+    stockMtx <- subMtx
   
   #---  Construct EACH option lattice
   #       (1) matrix n1 x n1, where n1=n+1 because of initial term at n=0
@@ -201,7 +220,7 @@ BscdOptionPrice <- function( model, S, X, n=NULL, TypeFlag=c("ce", "pe", "ca", "
   #                                 qI*[4,4]
   #           4                               max((flag*stockMtx[4,n]-X),0)
   n1 <- n+1
-  difNum    <- S*model$sRateMtx[, model$n1]-X
+  difNum    <- stockMtx[, n1]-X
   difNum    <- difNum[1:n1]
   if( ceBln )
   {
@@ -215,19 +234,21 @@ BscdOptionPrice <- function( model, S, X, n=NULL, TypeFlag=c("ce", "pe", "ca", "
     payNum    <- sapply(flag*difNum, max, 0)
     peMtx     <- BscdPayTwoLeafMtx( model$q, payNum, scalar=model$RInv )
   }
-  difMtx    <- S*model$sRateMtx-X
+  difMtx    <- stockMtx-X
   difMtx    <- difMtx[1:n1, 1:n1]
   if( caBln )
   {
     flag      <- 1
-    payMtx    <- matrix( sapply(flag*difMtx, max, 0), nrow=n1, ncol=n1 )
-    caMtx     <- BscdPayTwoLeafAMtx( model$q, payMtx, scalar=model$RInv )
+    payNum    <- sapply(flag*difNum, max, 0)
+    payMtx    <- difMtx[1:n, 1:n]
+    caMtx     <- BscdPayTwoLeafAMtx( model$q, payNum, payMtx, scalar=model$RInv )
   }
   if( paBln )
   {
     flag      <- -1
-    payMtx    <- matrix( sapply(flag*difMtx, max, 0), nrow=n1, ncol=n1 )
-    paMtx     <- BscdPayTwoLeafAMtx( model$q, payMtx, scalar=model$RInv )
+    payNum    <- sapply(flag*difNum, max, 0)
+    payMtx    <- difMtx[1:n, 1:n]
+    paMtx     <- BscdPayTwoLeafAMtx( model$q, payNum, payMtx, scalar=model$RInv )
   }
   retBln <- c( ceBln, peBln, caBln, paBln )
   ret.lst <- vector("list", sum(retBln))
@@ -238,13 +259,20 @@ BscdOptionPrice <- function( model, S, X, n=NULL, TypeFlag=c("ce", "pe", "ca", "
   names(ret.lst) <- typeStr[which(retBln)]
   ret.lst
 }
-BscdOptionEarly <- function( model, S, X, n=NULL, TypeFlag=c("ca", "pa") )
+BscdOptionEarly <- function( model, S, X, subMtx=NULL, n=NULL, TypeFlag=c("ca", "pa") )
 {
   #---  Check that arguments are valid
   if( is.null(n) )  
     n <- model$n
   if( n > model$n )
     stop("n CANNOT be greater than model$n")
+  if( !is.null(subMtx) )
+  {
+    if( nrow(subMtx) != ncol(subMtx) )
+      stop("subMtx MUST be a square matrix")
+    if( n > nrow(subMtx) )
+      stop("n CANNOT be greater than nrow(subMtx)")
+  }
   typeStr <- c("ca", "pa")
   if( length(TypeFlag) == 0 )
     stop("TypeFlag MUST be ONE (1) OR MORE of: ca, pa")
@@ -255,6 +283,12 @@ BscdOptionEarly <- function( model, S, X, n=NULL, TypeFlag=c("ca", "pa") )
   }
   caBln <- length(which(typeStr[1]==TypeFlag)) > 0
   paBln <- length(which(typeStr[2]==TypeFlag)) > 0
+  
+  #---  Construct a stock lattice using model and initial price S
+  if( is.null(subMtx) )
+    stockMtx <- model$sRateMtx * S
+  else
+    stockMtx <- subMtx
   
   #---  Construct early option lattice
   #       (1) matrix n1 x n1, where n1=n+1 because of initial term at n=0
@@ -275,21 +309,25 @@ BscdOptionEarly <- function( model, S, X, n=NULL, TypeFlag=c("ca", "pa") )
   #           3 ...   ...                     max((flag*stockMtx[3,4]-X),0)
   #           4 ...   ...                     max((flag*stockMtx[4,4]-X),0)
   n1 <- n+1
-  difMtx    <- S*model$sRateMtx-X
+  difNum    <- stockMtx[, n1]-X
+  difNum    <- difNum[1:n1]
+  difMtx    <- stockMtx-X
   difMtx    <- difMtx[1:n1, 1:n1]
   if( caBln )
   {
     flag      <- 1
-    payMtx    <- matrix( sapply(flag*difMtx, max, 0), nrow=n1, ncol=n1 )
-    caMtx     <- BscdPayTwoLeafAMtx( model$q, payMtx, scalar=model$RInv )
-    caEarlyMtx<- BscdPayTwoLeafEarlyMtx( model$q, caMtx, payMtx, scalar=model$RInv )
+    payNum    <- sapply(flag*difNum, max, 0)
+    payMtx    <- difMtx[1:n, 1:n]
+    caMtx     <- BscdPayTwoLeafAMtx( model$q, payNum, payMtx, scalar=model$RInv )
+    caEarlyMtx<- BscdPayTwoLeafEarlyMtx( model$q, caMtx, payNum, payMtx, scalar=model$RInv )
   }
   if( paBln )
   {
     flag      <- -1
-    payMtx    <- matrix( sapply(flag*difMtx, max, 0), nrow=n1, ncol=n1 )
-    paMtx     <- BscdPayTwoLeafAMtx( model$q, payMtx, scalar=model$RInv )
-    paEarlyMtx<- BscdPayTwoLeafEarlyMtx( model$q, paMtx, payMtx, scalar=model$RInv )
+    payNum    <- sapply(flag*difNum, max, 0)
+    payMtx    <- difMtx[1:n, 1:n]
+    paMtx     <- BscdPayTwoLeafAMtx( model$q, payNum, payMtx, scalar=model$RInv )
+    paEarlyMtx<- BscdPayTwoLeafEarlyMtx( model$q, paMtx, payNum, payMtx, scalar=model$RInv )
   }
   retBln <- c( caBln, paBln )
   ret.lst <- vector("list", sum(retBln))
@@ -319,12 +357,12 @@ BscdPayTwoLeafMtx <- function( q, finalNum, scalar=1 )
   }
   retMtx
 }
-BscdPayTwoLeafAMtx <- function( q, finalMtx, scalar=1 )
+BscdPayTwoLeafAMtx <- function( q, finalNum, finalMtx, scalar=1 )
 {
   qInv        <- 1-q
-  n           <- nrow(finalMtx)
+  n           <- length(finalNum)
   retMtx      <- matrix(rep(0, n*n), nrow=n, ncol=n)
-  retMtx[, n] <- finalMtx[ ,n]
+  retMtx[, n] <- finalNum
   for( j in (n-1):1 )
   {
     for( i in j:1 )
@@ -336,12 +374,12 @@ BscdPayTwoLeafAMtx <- function( q, finalMtx, scalar=1 )
   }
   retMtx
 }
-BscdPayTwoLeafEarlyMtx <- function( q, opMtx, finalMtx, scalar=1 )
+BscdPayTwoLeafEarlyMtx <- function( q, opMtx, finalNum, finalMtx, scalar=1 )
 {
   qInv        <- 1-q
-  n           <- nrow(finalMtx)
+  n           <- length(finalNum)
   retMtx      <- matrix(rep(0, n*n), nrow=n, ncol=n)
-  retMtx[, n] <- finalMtx[ ,n]
+  retMtx[, n] <- finalNum
   opNum       <- opMtx[1,1]
   for( j in (n-1):1 )
   {
