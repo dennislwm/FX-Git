@@ -56,6 +56,9 @@
 #|    > head(chooserMtx)                                                                    |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  0.9.2   Fixed warnings when n is LESS THAN model$n in functions BscdOptionPrice() and   |
+#|          BscdOptionEarly(). Todo: (a) call and put options (for American) do NOT tally   |
+#|          with the library(fOptions); (b) Create a test script.                           |
 #|  0.9.1   Added external function BscdOptionEarly() for constructing an early exercise    |
 #|          lattice (for American). Note: It is NEVER optimal to early exercise an American |
 #|          call option with NO dividends. The internal function BscdPayTwoLeafEarlyMtx()   |
@@ -199,6 +202,7 @@ BscdOptionPrice <- function( model, S, X, n=NULL, TypeFlag=c("ce", "pe", "ca", "
   #           4                               max((flag*stockMtx[4,n]-X),0)
   n1 <- n+1
   difNum    <- S*model$sRateMtx[, model$n1]-X
+  difNum    <- difNum[1:n1]
   if( ceBln )
   {
     flag      <- 1
@@ -212,6 +216,7 @@ BscdOptionPrice <- function( model, S, X, n=NULL, TypeFlag=c("ce", "pe", "ca", "
     peMtx     <- BscdPayTwoLeafMtx( model$q, payNum, scalar=model$RInv )
   }
   difMtx    <- S*model$sRateMtx-X
+  difMtx    <- difMtx[1:n1, 1:n1]
   if( caBln )
   {
     flag      <- 1
@@ -271,6 +276,7 @@ BscdOptionEarly <- function( model, S, X, n=NULL, TypeFlag=c("ca", "pa") )
   #           4 ...   ...                     max((flag*stockMtx[4,4]-X),0)
   n1 <- n+1
   difMtx    <- S*model$sRateMtx-X
+  difMtx    <- difMtx[1:n1, 1:n1]
   if( caBln )
   {
     flag      <- 1
