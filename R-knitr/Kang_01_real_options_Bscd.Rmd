@@ -12,11 +12,11 @@ if( Sys.info()["sysname"] == "Windows" )
 suppressPackageStartupMessages(source( paste0(RegGetRSourceDir(),"PlusBscd.R") ))
 suppressPackageStartupMessages(require( stats ))
 sigma       <- 0.2
-top.month   <- 68
-top.year    <- top.month/12
+top.month   <- 60
+top.year    <- 5
 rf          <- 0.03
-aqua.bscd   <- BscdCreateModel(rf, 0, top.month, top.year, sigma)
-bench.bscd  <- BscdCreateModel(rf, 0.09, top.month, top.year, sigma)
+aqua.bscd   <- BscdCreateModel(rf, 0, top.year, top.year, sigma)
+bench.bscd  <- BscdCreateModel(rf, 0.09, top.year, top.year, sigma)
 sell.gross  <- 6500/32.35
 sell.net    <- sell.gross * 0.94
 npv           <- function(ir, cf, t=seq(along=cf)) sum(cf/(1+ir)^t) 
@@ -54,11 +54,28 @@ obs.op <- c(aquaSpot.op$ce[1,1],
 ### 1.1.2) We valued the FOUR (4) options above while keeping the remaining FOUR (4) parameters of the Black-Scholes Discrete model constant: (i) S - selling price less 6% CGT, where selling price is assumed to be the listed purchase price; (ii) sigma - 0.2; (iii) T - 68/12; and (iv) r - 0.03;
 
 ```{r fig.width=9, fig.height=6}
-plot(seq(1,4,by=1), obs.op, col=seq(1:4),
+plot(seq(1:4), obs.op, col=seq(1:4),
      xlab="", ylab="Real Option Value (ROV in SGD 1K)", main="Comparison of Financing Options",
      pch=19)
 legend(3.5, max(obs.op), c("Spot","Equal","Defer","Bench"), col=seq(1:4),
        pch=19)
 text(seq(1,4,by=1)+0.1, obs.op, round(obs.op,1), col=seq(1:4))
-```
 
+BscdSaMtx <- function(model, S, X, row.seq=seq(0.01, 0.2, by=0.01), col.seq=seq(1.0, 0.7, by=-0.05))
+{
+  sMtx <- matrix(0, nrow=length(row.seq), ncol=length(col.seq))
+  for( vRow in seq_along(row.seq) )
+  {
+    sa.bscd <- BscdCreateModel(model$r, model$b, model$n, model$Time, row.seq[vRow])
+    for( wCol in seq_along(col.seq) )
+    {
+      sa.op           <- BscdOptionPrice( sa.bscd, S*col.seq[wCol], X, TypeFlag="ce" )
+      sMtx[vRow,wCol] <- sa.op$ce[1,1]
+    }
+  }
+  sMtx
+}
+sMtx <- BscdSaMtx(aqua.bscd, S=sell.net, X=aquaEqualNum(sell.gross, rf, top.month))
+round(sMtx,1)
+```
+### 1.1.3) The estimated sigma (0.2) is, to a large extent, a subjective estimate and thus it warrants a sensitivity analysis about this value. We show the result of option value sensitivity in relation to volatility (sigma) and asset value (S). For the SECOND option - equal payment - as asset value (net selling price) DECREASES from left (100%) to right (70%) column, the option price DECREASES. However, as volatility increases from top (1%) to bottom (20%) row, the option price INCREASES. The option price is positive for ALL parameters, except when asset value is LESS THAN EIGHTY FIVE (85%) and volatility is LESS THAN FIVE (5%) percent.
