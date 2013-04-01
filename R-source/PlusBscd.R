@@ -56,6 +56,9 @@
 #|    > head(chooserMtx)                                                                    |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  0.9.4   Fixed minor bug (flag) for put options (for American) in both functions         |
+#|          BscdOptionPrice() and BscdOptionEarly(). The output from these functions        |
+#|          tallied with the answers from Coursera FERM's Quiz 2 Week 2.                    |
 #|  0.9.3   Fixed call and put options (for American), however they still do NOT tally with |
 #|          the function BinaryTreeOption() in library(fOptions), which may be a different  |
 #|          algorithm. For the functions BscdOptionPrice() and BscdOptionEarly(), we added  |
@@ -240,14 +243,14 @@ BscdOptionPrice <- function( model, S, X, subMtx=NULL, n=NULL,
   {
     flag      <- 1
     payNum    <- sapply(flag*difNum, max, 0)
-    payMtx    <- difMtx[1:n, 1:n]
+    payMtx    <- flag*difMtx[1:n, 1:n]
     caMtx     <- BscdPayTwoLeafAMtx( model$q, payNum, payMtx, scalar=model$RInv )
   }
   if( paBln )
   {
     flag      <- -1
     payNum    <- sapply(flag*difNum, max, 0)
-    payMtx    <- difMtx[1:n, 1:n]
+    payMtx    <- flag*difMtx[1:n, 1:n]
     paMtx     <- BscdPayTwoLeafAMtx( model$q, payNum, payMtx, scalar=model$RInv )
   }
   retBln <- c( ceBln, peBln, caBln, paBln )
@@ -317,7 +320,7 @@ BscdOptionEarly <- function( model, S, X, subMtx=NULL, n=NULL, TypeFlag=c("ca", 
   {
     flag      <- 1
     payNum    <- sapply(flag*difNum, max, 0)
-    payMtx    <- difMtx[1:n, 1:n]
+    payMtx    <- flag*difMtx[1:n, 1:n]
     caMtx     <- BscdPayTwoLeafAMtx( model$q, payNum, payMtx, scalar=model$RInv )
     caEarlyMtx<- BscdPayTwoLeafEarlyMtx( model$q, caMtx, payNum, payMtx, scalar=model$RInv )
   }
@@ -325,7 +328,7 @@ BscdOptionEarly <- function( model, S, X, subMtx=NULL, n=NULL, TypeFlag=c("ca", 
   {
     flag      <- -1
     payNum    <- sapply(flag*difNum, max, 0)
-    payMtx    <- difMtx[1:n, 1:n]
+    payMtx    <- flag*difMtx[1:n, 1:n]
     paMtx     <- BscdPayTwoLeafAMtx( model$q, payNum, payMtx, scalar=model$RInv )
     paEarlyMtx<- BscdPayTwoLeafEarlyMtx( model$q, paMtx, payNum, payMtx, scalar=model$RInv )
   }
