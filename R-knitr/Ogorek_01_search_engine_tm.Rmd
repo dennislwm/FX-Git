@@ -1,0 +1,114 @@
+Ogorek_01_search_engine_tm
+==================================================================================================================================
+## Motivational Buckets
+### 1) (size: 52) This R Markdown file contains text and code taken "verbatim" from Ogorek's blog, "Anything but R-bitrary" [0]. 
+### 1.1) (size: 11) We're going to implement the vector space model of information retrieval in R. In the process, you'll hopefully learn something about the "tm" package. Pretend you have the Big Data and the Big File System.
+### 1.2) (size: 25) In text mining and related fields, a corpus is a collection of texts, often with extensive manual annotation. Not surprisingly, the Corpus class is a fundamental data structure in tm.
+### 1.3) (size: 29) Represent EACH document as a vector in R^N (with N as the number of words) and use the angle theta (??) between the vectors as a similarity measure. Rank by the similarity of EACH document to the query and you have a search engine.
+### 1.4) (size: 41) The tm function weightTfIdf() offers ONE (1) variety of tfidf weighting, but we build our own. For BOTH the document and query, we choose tfidf weights of (1+log2(tf))×log2(N/df), which are defined to be 0 if tf=0. Note that whenever a term does NOT occur in a specific document, OR when it appears in EVERY document, its weight is ZERO (0).
+### 1.5) (size: 45) A benefit of being in the vector space R^N is the use of its dot product. For vectors a and b, the geometric definition of the dot product is a???b=||a||.||b||.cos??, where ||???|| is the euclidean norm (the root sum of squares) and theta (??) is the angle between a and b. In fact, we can work directly with the cosine of theta (??). For theta (??) in the interval [???pi(??),???pi(??)], the endpoints are orthogonality (totally unrelated documents) and the center, ZERO (0), is complete collinearity (maximally similar documents). 
+### 1.6) (size: 52) Our "best" document, at least in an intuitive sense, comes out ahead with a score nearly TWICE as HIGH as its nearest competitor. Notice however that this next competitor has nothing to do with cats. This is due to the relative rareness of the word "healthy" in the documents and our choice to incorporate the inverse document frequency weighting for both documents and query. Fortunately, the profoundly uninformative document SEVEN (7) has been ranked dead LAST.
+
+```{r}
+doc1 <- "Stray cats are running all over the place. I see 10 a day!"
+doc2 <- "Cats are killers. They kill billions of animals a year."
+doc3 <- "The best food in Columbus, OH is   the North Market."
+doc4 <- "Brand A is the best tasting cat food around. Your cat will love it."
+doc5 <- "Buy Brand C cat food for your cat. Brand C makes healthy and happy cats."
+doc6 <- "The Arnold Classic came to town this weekend. It reminds us to be healthy."
+doc7 <- "I have nothing to say. In summary, I have told you nothing."
+doc.list <- list(doc1, doc2, doc3, doc4, doc5, doc6, doc7)
+N.docs <- length(doc.list)
+names(doc.list) <- paste0("doc", c(1:N.docs))
+query <- "Healthy cat food"
+```
+### 1.1.1) (size: 11) Pretend the above is Big Data and the Big File System. You have an information need that is expressed via the above text query. How will you meet your information need amidst all this unstructured text? We're going to use an old method, one that's tried and true, one that goes way back to the 1960's. We're going to implement the vector space model of information retrieval in R. In the process, you'll hopefully learn something about the "tm" package and about the analysis of unstructured data before it was Big.
+
+```{r}
+library(tm)
+my.docs <- VectorSource(c(doc.list, query))
+my.docs$Names <- c(names(doc.list), "query")
+my.corpus <- Corpus(my.docs)
+my.corpus
+getTransformations()
+my.corpus <- tm_map(my.corpus, removePunctuation)
+my.corpus$doc1
+library(Snowball)
+my.corpus <- tm_map(my.corpus, stemDocument)
+my.corpus$doc1
+my.corpus <- tm_map(my.corpus, removeNumbers)
+my.corpus <- tm_map(my.corpus, tolower)
+my.corpus <- tm_map(my.corpus, stripWhitespace)
+my.corpus$doc1
+```
+### 1.2.1) (size: 25) If you have not installed the tm [1][2] and Snowball [3] packages, please do so now. Load the "tm" package into memory.
+### 1.2.2) In text mining and related fields, a corpus is a collection of texts, often with extensive manual annotation. Not surprisingly, the "Corpus" class is a fundamental data structure in "tm". Above we treated the query like any other document. It is, after all, just another string of text. Queries are not typically known a priori, but in the processing steps that follow, we will pretend like we knew ours in advance to avoid repeating steps. 
+### 1.2.3) One of the nice things about the "Corpus" class is the tm_map() function, which cleans and standardizes documents within a "Corpus" object. Above are some of the transformations.
+### 1.2.4) First, let's get rid of punctuation. Suppose we don't want to count "cats" and "cat" as two separate words. Then we will use the "stemDocument" transformation to implement the famous Porter Stemmer algorithm. To use this particular transformation, first load the "Snowball" package. Finally, remove numbers and any extra white space.
+
+```{r}
+term.doc.matrix.stm <- TermDocumentMatrix(my.corpus)
+inspect(term.doc.matrix.stm[0:14, ])
+term.doc.matrix <- as.matrix(term.doc.matrix.stm)
+cat("Dense matrix representation costs", object.size(term.doc.matrix), "bytes.\n", 
+    "Simple triplet matrix representation costs", object.size(term.doc.matrix.stm), 
+    "bytes.")
+```
+### 1.3.1) (size: 29) We applied ALL these standardization techniques without much thought. For instance, we sacrificed inflection in favor of FEWER words. But at least the transformations make sense on a heuristic level, much like the similarity concepts to follow above. Here's a trick that's been around for a while: represent EACH document as a vector in R^N (with N as the number of words) and use the angle theta (??) between the vectors as a similarity measure. Rank by the similarity of EACH document to the query and you have a search engine.
+### 1.3.2) One of the simplest things we can do is to count words within documents. This naturally forms a two dimensional structure, the term document matrix, with rows corresponding to the words and the columns corresponding to the documents. As with any matrix, we may think of a term document matrix as a collection of column vectors existing in a space defined by the rows. The query lives in this space as well, though in practice we wouldn't know it beforehand.
+### 1.3.3) The matrices in package "tm" are of type Simple Triplet Matrix where only the triples (i,j,value) are stored for non-zero values. To work directly with these objects, you may use install the "slam" [4] package. We bear some extra cost by making the matrix "dense" (i.e., storing all the zeros) above.
+
+```{r}
+get.tf.idf.weights <- function(tf.vec, df) {
+    # Computes tfidf weights from a term frequency vector and a document
+    # frequency scalar
+    weight = rep(0, length(tf.vec))
+    weight[tf.vec > 0] = (1 + log2(tf.vec[tf.vec > 0])) * log2(N.docs/df)
+    weight
+}
+cat("A word appearing in 4 of 6 documents, occuring 1, 2, 3, and 6 times, respectively: \n", 
+    get.tf.idf.weights(c(1, 2, 3, 0, 0, 6), 4))
+get.weights.per.term.vec <- function(tfidf.row) {
+    term.df <- sum(tfidf.row[1:N.docs] > 0)
+    tf.idf.vec <- get.tf.idf.weights(tfidf.row, term.df)
+    return(tf.idf.vec)
+}
+tfidf.matrix <- t(apply(term.doc.matrix, c(1), FUN = get.weights.per.term.vec))
+colnames(tfidf.matrix) <- colnames(term.doc.matrix)
+tfidf.matrix[0:3, ]
+```
+### 1.4.1) (size: 41) In term.doc.matrix, the dimensions of the document space are simple term frequencies. This is fine, but other heuristics are available. For instance, rather than a linear increase in the term frequency tf, perhaps sqrt(tf) or log(tf) would provide a more reasonable diminishing returns on word counts within documents. Rare words can also get a boost. The word "healthy" appears in only ONE (1) document, whereas "cat" appears in FOUR (4). A word's document frequency df is the number of documents that contain it, and a natural choice is to weight words inversely proportional to their dfs. As with term frequency, we may use logarithms or other transformations to achieve the desired effect.
+### 1.4.2) The tm function weightTfIdf() offers ONE (1) variety of tfidf weighting, but above we build our own. Visit the Wikipedia page for the SMART Information Retrieval System for a brief history and a list of popular weighting choices. Different weighting choices are often made for the query and the documents. For instance, Manning et al.'s worked example [5] uses idf weighting only for the query.
+### 1.4.3) For BOTH the document and query, we choose tfidf weights of (1+log2(tf))×log2(N/df), which are defined to be 0 if tf=0. Note that whenever a term does NOT occur in a specific document, OR when it appears in EVERY document, its weight is ZERO (0). We implement this weighting function across ENTIRE rows of the term document matrix, and therefore our tfidf() function must take a term frequency vector and a document frequency scalar as inputs.
+### 1.4.4) Using apply(), we run the tfidf() weighting function on EVERY row of the term document matrix. The document frequency is easily derived from EACH row by the counting the non-zero entries (not including the query).
+
+```{r}
+angle <- seq(-pi, pi, by = pi/16)
+plot(cos(angle) ~ angle, type = "b", xlab = "angle in radians", main = "Cosine similarity by angle")
+tfidf.matrix <- scale(tfidf.matrix, center = FALSE, scale = sqrt(colSums(tfidf.matrix^2)))
+tfidf.matrix[0:3, ]
+```
+### 1.5.1) (size: 45) A benefit of being in the vector space R^N is the use of its dot product. For vectors a and b, the geometric definition of the dot product is a???b=||a||.||b||.cos??, where ||???|| is the euclidean norm (the root sum of squares) and theta (??) is the angle between a and b. In fact, we can work directly with the cosine of theta (??). For theta (??) in the interval [?????,?????], the endpoints are orthogonality (totally unrelated documents) and the center, ZERO (0), is complete collinearity (maximally similar documents). We can see that the cosine DECREASES from its maximum value of ONE (1.0) as the angle DEPARTS from ZERO (0) in either direction.
+### 1.5.2) We may furthermore normalize EACH column vector in our tfidf matrix so that its norm is ONE (1). Now the dot product is cos theta (??).
+
+```{r}
+query.vector <- tfidf.matrix[, (N.docs + 1)]
+tfidf.matrix <- tfidf.matrix[, 1:N.docs]
+doc.scores <- t(query.vector) %*% tfidf.matrix
+results.df <- data.frame(doc = names(doc.list), score = t(doc.scores), text = unlist(doc.list))
+results.df <- results.df[order(results.df$score, decreasing = TRUE), ]
+options(width = 2000)
+print(results.df, row.names = FALSE, right = FALSE, digits = 2)
+```
+### 1.6.1) (size: 52) Keeping the query alongside the other documents let us AVOID repeating the SAME steps. But now it's time to pretend it was never there. With the query vector and the set of document vectors in hand, it is time to go after the cosine similarities. These are simple dot products as our vectors have been normalized to unit length. Recall that matrix multiplication is really just a sequence of vector dot products. The matrix operation above returns values of cos theta (??) for EACH document vector and the query vector.
+### 1.6.2) With scores in hand, rank the documents by their cosine similarities with the query vector. How did our search engine do? Our "best" document, at least in an intuitive sense, comes out ahead with a score nearly twice as high as its nearest competitor. Notice however that this next competitor has nothing to do with cats. This is due to the relative rareness of the word "healthy" in the documents and our choice to incorporate the inverse document frequency weighting for both documents and query. Fortunately, the profoundly uninformative document SEVEN (7) has been ranked dead LAST.
+### 1.6.3) Though "tfidf" weighting and the vector space model may now be old school, its core concepts are still used in industrial search solutions built using Lucene. In more modern (and statistical) approaches based on probabilistic language modeling, documents are ranked by the probability that their underlying language model produced the query [6]. While there's nothing inherently statistical about the vector space model, a link to probabilistic language modeling has been demonstrated [7].
+## References
+### 0) Ben Ogorek. Build a search engine in 20 minutes or less ... or your money back. URL: http://anythingbutrbitrary.blogspot.sg/2013/03/build-search-engine-in-20-minutes-or.html. Accessed on 1 Apr 2013.
+### 1) Ingo Feinerer and Kurt Hornik (2013). tm: Text Mining Package. R package version 0.5-8.3. http://CRAN.R-project.org/package=tm
+### 2) Ingo Feinerer, Kurt Hornik, and David Meyer (2008). Text Mining Infrastructure in R. Journal of Statistical Software 25(5): 1-54. URL: http://www.jstatsoft.org/v25/i05/.
+### 3) Kurt Hornik (2013). Snowball: Snowball Stemmers. R package version 0.0-8. http://CRAN.R-project.org/package=Snowball
+### 4) Kurt Hornik, David Meyer and Christian Buchta (2013). slam: Sparse Lightweight Arrays and Matrices. R package version 0.1-28. http://CRAN.R-project.org/package=slam
+### 5) Christopher D. Manning, Prabhakar Raghavan and Hinrich Schutze, Introduction to Information Retrieval, Cambridge University Press. 2008. URL: http://www-nlp.stanford.edu/IR-book/
+### 6) Hugo Zaragoza, Djoerd Hiemstra, and Michael Tipping. "Bayesian extension to the language model for ad hoc information retrieval." Proceedings of the 26th annual international ACM SIGIR conference on Research and development in information retrieval. ACM, 2003. URL
+### 7) Thorsten Joachims. A Probabilistic Analysis of the Rocchio Algorithm with TFIDF for Text Categorization. No. CMU-CS-96-118. Carnegie-Mellon University of Pittsburgh, PA. Department of Computer Science, 1996. 
