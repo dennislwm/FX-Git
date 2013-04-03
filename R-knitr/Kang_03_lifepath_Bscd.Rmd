@@ -54,3 +54,39 @@ round(peMtx,1)
 ### 1.2.1) (size: 26) It is interesting to note that the (European) put value (23.8) is HIGHER than the call value (19.16). This implies that this joint venture will most likely result in a DECREASE in relationship value, due to the LOWER offset factor (rf), which takes into account the "inherent" risk of co-investing with family over a longer time (T).
 ### 1.2.2) The rf (0.01) is, to a large extent, a subjective estimate and thus it warrants a sensitivity analysis about this value. We show the result of relationship value sensitivity in relation to offset factor (rf) and asset value (S). The analysis of BOTH put and call options (European) showed that rf has to INCREASE by 0.01 in order to have EQUAL relationship values for BOTH put and call options. 
 ### 1.2.3) We have to proactively identify parameters that could potentially INCREASE the relationship value: (i) n - changing the number of periods does NOT alter the outcome of the relationship value; (ii) T - the time to maturity could be LOWERED - by disposing the property BEFORE TOP - to ENHANCE the relationship value, but this event is very unlikely; (iii) sigma - the build factor has to INCREASE in order for the relationship value to IMPROVE, but this parameter depends on EACH person's LP, which is a fixed value; (iv) cc - the maintenance cost could be LOWERED - by INCREASING the quality, NOT the quantity, of interaction - to ENHANCE the relationship value.
+
+```{r}
+rf          <- 0.03
+cc          <- 0.05
+sigma       <- 0.4
+top.step    <- 5
+top.year    <- 5
+wp.bscd <- BscdCreateModel(rf, cc, top.step, top.year, sigma)
+wp.op   <- BscdOptionPrice(wp.bscd, S=100, X=100)
+wp.ce   <- BscdSaMtx(wp.bscd, S=100, X=100, "ce")
+wp.pe   <- BscdSaMtx(wp.bscd, S=100, X=100, "pe")
+round(wp.ce,1)
+round(wp.pe,1)
+```
+### 1.3.1) (size: ) The SECOND model is for a relationship between Worker's Party (WP) elected MP, Sylvia Lim, and I. With the future of my kids at stake, I have considered performing voluteer work for an organisation that will bring benefits to Singapore and to its people. The positions that I can contribute "best" are technical positions, such as IT data analyst, or Financial / economic data analyst: (i) rf=0.03 - this could be a "perceived" probability of success OR an  offset factor, where it has to offset ALL other parameters (default: 0.03); (ii) c=0.05 - this could be a maintenance factor, where it has to be LOWER than the upper value for a hypothetical insincere/insincere (c: 0.06=0.03+0.03) relationship (iii) sigma=0.4 - this could be a build factor, where it has to be LOWER than OR EQUAL to the upper value for a hypothetical builder/builder (sigma: 0.4=(0.4+0.4)/2) relationship; (iv) n=5 - a HIGHER n INCREASES the "perceived" relationship, hence we use year as period because it does NOT produce a HIGHER relationship value; (v) T=5 - this could be a period between general elections for Singapore, OR it could be closely linked to "inherent" risk, a HIGHER T creates a HIGHER relationship value that has to be offset by rf.
+
+```{r}
+rf          <- 0.03
+cc          <- 0.02
+sigma       <- 0.35
+top.step    <- 5
+top.year    <- 3
+mod.bscd  <- BscdCreateModel(rf, cc, top.step, top.year, sigma)
+mod.op    <- BscdOptionPrice(mod.bscd, S=100, X=100)
+mod.ce    <- BscdSaMtx(mod.bscd, S=100, X=100, "ce")
+mod.pe    <- BscdSaMtx(mod.bscd, S=100, X=100, "pe")
+round(mod.ce,1)
+round(mod.pe,1)
+agg.bscd  <- BscdCreateModel(rf, cc+0.02, top.step, top.year, sigma-0.1)
+agg.op    <- BscdOptionPrice(agg.bscd, S=100, X=100)
+agg.ce    <- BscdSaMtx(agg.bscd, S=100, X=100, "ce")
+agg.pe    <- BscdSaMtx(agg.bscd, S=100, X=100, "pe")
+round(agg.ce,1)
+round(agg.pe,1)
+```
+### 1.3.1) (size: ) The THIRD model is for a relationship between a hypothetical client with MODERATE (AGGRESSIVE) risk tolerance and I, Dennis Lee: (i) rf=0.03 - this could be a "perceived" probability of success OR an  offset factor, where it has to offset ALL other parameters (default: 0.03); (ii) c=0.02(0.04) - this could be a maintenance factor, where it has to be LOWER than the upper value for a hypothetical insincere/insincere (c: 0.06=0.03+0.03) relationship (iii) sigma=0.35(0.25) - this could be a build factor, where it has to be LOWER than OR EQUAL to the upper value for a hypothetical builder/builder (sigma: 0.4=(0.4+0.4)/2) relationship; (iv) n=5 - a HIGHER n INCREASES the "perceived" relationship, hence we use year as period because it does NOT produce a HIGHER relationship value; (v) T=3(3) - this could be a period between general elections for Singapore, OR it could be closely linked to "inherent" risk, a HIGHER T creates a HIGHER relationship value that has to be offset by rf.
