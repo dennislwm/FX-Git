@@ -14,17 +14,29 @@
 #|      taken from the course can be used to extend the functionality of this package.      |
 #|                                                                                          |
 #| Homework                                                                                 |
-#|    In this Homework THREE (3) you will create a basic market simulator that accepts      |
-#|  trading orders and keeps track of a portfolio's value and saves it to a file. You will  |
-#|  also create another program that assesses the performance of that portfolio.            |
+#|    In this homework you will take the output of your Event Study work to build a more    |
+#|  complete back testing platform. Specifically, you should choose an event from the ones  |
+#|  you have experimented with in this class, assess it and tune it using the Event         |
+#|  Profiler, then back test it with the simulator you created.                             |
 #|                                                                                          |
-#|    A.  Create a market simulation tool, marketsim.py that takes a command line like this |
-#|                                                                                          |
-#|    B.  Create a portfolio analysis tool, analyze.py, that takes a command line like this | 
+#|    A.  Revise your event analyzer to output a series of trades based on events. Instead  |
+#|      of putting a ONE (1) in the event matrix, output to a file.                         |
+#|        Feed that output into your market simulator, and report the performance of your   |
+#|      strategy in terms of total return, average daily return, STDDEV of daily return,    |
+#|      and Sharpe Ratio for the time period.                                               |
 #|                                                                                          |
 #| Example                                                                                  |
-#|    A.  > valueXts  <- PyMarketSimXts(1000000, "Balch_04_backtest_orders")                |
+#|    A.  > eventXts  <- tutorialXts()                                                      |
+#|        > orderXts  <- PyOrderWriteCsv(eventXts, ""Balch_05_event_orders")                |
 #|                                                                                          |
+#| History                                                                                  |
+#|  0.9.1   Added TWO (2) external functions tutorialXts() and PyOrderWriteCsv(), and       |
+#|          FOUR (4) internal functions shiftDfr(), QstkGetSymbolChr(), PyFileWriteCsv()    |
+#|          and PyDfrToXts(). The latter TWO (2) functions were copied from the R script    |
+#|          "Balch_04_backtest_QSTK.R". Also, we added a parameter priceChr (default:       |
+#|          "Adjusted") to the function QstkReadXts() to specify the price column to be     |
+#|          used, and we added a new method "ofill" in function fill.na(). Todo: Write code |
+#|          for eventProfiler() function.                                                   | 
 #|  0.9.0   Coursera's "Computational Investing" course (Tucker Balch) Quiz 6 Week 6.       |
 #|          Todo: Function eventProfiler() and Homework 4.                                  |
 #|------------------------------------------------------------------------------------------|
@@ -37,23 +49,97 @@ library(R.utils)
 #|------------------------------------------------------------------------------------------|
 #|                            E X T E R N A L   F U N C T I O N S                           |
 #|------------------------------------------------------------------------------------------|
-tutorial <- function()
+tutorialXts <- function()
 {
   startChr  <- "2008-01-01"
-  finishChr <- "2009-12-31"
-#---  (2) Use a smaller subset of symbols to validate function fill.na()
-  #symChr    <- c('A', 'AA', 'AAPL', 'ABC', 'ABT', 'ACE', 'ACN', 'ADBE', 'ADI', 'ADM', 'ADP', 'ADSK', 'AEE', 'AEP', 'AES', 'AET', 'AFL', 'AGN', 'AIG', 'AIV', 'AIZ', 'AKAM', 'ALL', 'ALTR', 'ALXN', 'AMAT', 'AMD', 'AMGN', 'AMP', 'AMT', 'AMZN', 'AN', 'ANF', 'ANR', 'AON', 'APA', 'APC', 'APD', 'APH', 'APOL', 'ARG', 'ATI', 'AVB', 'AVP', 'AVY', 'AXP', 'AZO', 'BA', 'BAC', 'BAX', 'BBBY', 'BBT', 'BBY', 'BCR', 'BDX', 'BEAM', 'BEN', 'BF.B', 'BHI', 'BIG', 'BIIB', 'BK', 'BLK', 'BLL', 'BMC', 'BMS', 'BMY', 'BRCM', 'BRK.B', 'BSX', 'BTU', 'BWA', 'BXP', 'C', 'CA', 'CAG', 'CAH', 'CAM', 'CAT', 'CB', 'CBE', 'CBG', 'CBS', 'CCE', 'CCI', 'CCL', 'CELG', 'CERN', 'CF', 'CFN', 'CHK', 'CHRW', 'CI', 'CINF', 'CL', 'CLF', 'CLX', 'CMA', 'CMCSA', 'CME', 'CMG', 'CMI', 'CMS', 'CNP', 'CNX', 'COF', 'COG', 'COH', 'COL', 'COP', 'COST', 'COV', 'CPB', 'CRM', 'CSC', 'CSCO', 'CSX', 'CTAS', 'CTL', 'CTSH', 'CTXS', 'CVC', 'CVH', 'CVS', 'CVX', 'D', 'DD', 'DE', 'DELL', 'DF', 'DFS', 'DGX', 'DHI', 'DHR', 'DIS', 'DISCA', 'DLTR', 'DNB', 'DNR', 'DO', 'DOV', 'DOW', 'DPS', 'DRI', 'DTE', 'DTV', 'DUK', 'DV', 'DVA', 'DVN', 'EA', 'EBAY', 'ECL', 'ED', 'EFX', 'EIX', 'EL', 'EMC', 'EMN', 'EMR', 'EOG', 'EQR', 'EQT', 'ESRX', 'ESV', 'ETFC', 'ETN', 'ETR', 'EW', 'EXC', 'EXPD', 'EXPE', 'F', 'FAST', 'FCX', 'FDO', 'FDX', 'FE', 'FFIV', 'FHN', 'FII', 'FIS', 'FISV', 'FITB', 'FLIR', 'FLR', 'FLS', 'FMC', 'FOSL', 'FRX', 'FSLR', 'FTI', 'FTR', 'GAS', 'GCI', 'GD', 'GE', 'GILD', 'GIS', 'GLW', 'GME', 'GNW', 'GOOG', 'GPC', 'GPS', 'GS', 'GT', 'GWW', 'HAL', 'HAR', 'HAS', 'HBAN', 'HCBK', 'HCN', 'HCP', 'HD', 'HES', 'HIG', 'HNZ', 'HOG', 'HON', 'HOT', 'HP', 'HPQ', 'HRB', 'HRL', 'HRS', 'HSP', 'HST', 'HSY', 'HUM', 'IBM', 'ICE', 'IFF', 'IGT', 'INTC', 'INTU', 'IP', 'IPG', 'IR', 'IRM', 'ISRG', 'ITW', 'IVZ', 'JBL', 'JCI', 'JCP', 'JDSU', 'JEC', 'JNJ', 'JNPR', 'JOY', 'JPM', 'JWN', 'K', 'KEY', 'KFT', 'KIM', 'KLAC', 'KMB', 'KMI', 'KMX', 'KO', 'KR', 'KSS', 'L', 'LEG', 'LEN', 'LH', 'LIFE', 'LLL', 'LLTC', 'LLY', 'LM', 'LMT', 'LNC', 'LO', 'LOW', 'LRCX', 'LSI', 'LTD', 'LUK', 'LUV', 'LXK', 'LYB', 'M', 'MA', 'MAR', 'MAS', 'MAT', 'MCD', 'MCHP', 'MCK', 'MCO', 'MDT', 'MET', 'MHP', 'MJN', 'MKC', 'MMC', 'MMM', 'MNST', 'MO', 'MOLX', 'MON', 'MOS', 'MPC', 'MRK', 'MRO', 'MS', 'MSFT', 'MSI', 'MTB', 'MU', 'MUR', 'MWV', 'MYL', 'NBL', 'NBR', 'NDAQ', 'NE', 'NEE', 'NEM', 'NFLX', 'NFX', 'NI', 'NKE', 'NOC', 'NOV', 'NRG', 'NSC', 'NTAP', 'NTRS', 'NU', 'NUE', 'NVDA', 'NWL', 'NWSA', 'NYX', 'OI', 'OKE', 'OMC', 'ORCL', 'ORLY', 'OXY', 'PAYX', 'PBCT', 'PBI', 'PCAR', 'PCG', 'PCL', 'PCLN', 'PCP', 'PCS', 'PDCO', 'PEG', 'PEP', 'PFE', 'PFG', 'PG', 'PGR', 'PH', 'PHM', 'PKI', 'PLD', 'PLL', 'PM', 'PNC', 'PNW', 'POM', 'PPG', 'PPL', 'PRGO', 'PRU', 'PSA', 'PSX', 'PWR', 'PX', 'PXD', 'QCOM', 'QEP', 'R', 'RAI', 'RDC', 'RF', 'RHI', 'RHT', 'RL', 'ROK', 'ROP', 'ROST', 'RRC', 'RRD', 'RSG', 'RTN', 'S', 'SAI', 'SBUX', 'SCG', 'SCHW', 'SE', 'SEE', 'SHLD', 'SHW', 'SIAL', 'SJM', 'SLB', 'SLM', 'SNA', 'SNDK', 'SNI', 'SO', 'SPG', 'SPLS', 'SRCL', 'SRE', 'STI', 'STJ', 'STT', 'STX', 'STZ', 'SUN', 'SWK', 'SWN', 'SWY', 'SYK', 'SYMC', 'SYY', 'T', 'TAP', 'TDC', 'TE', 'TEG', 'TEL', 'TER', 'TGT', 'THC', 'TIE', 'TIF', 'TJX', 'TMK', 'TMO', 'TRIP', 'TROW', 'TRV', 'TSN', 'TSO', 'TSS', 'TWC', 'TWX', 'TXN', 'TXT', 'TYC', 'UNH', 'UNM', 'UNP', 'UPS', 'URBN', 'USB', 'UTX', 'V', 'VAR', 'VFC', 'VIAB', 'VLO', 'VMC', 'VNO', 'VRSN', 'VTR', 'VZ', 'WAG', 'WAT', 'WDC', 'WEC', 'WFC', 'WFM', 'WHR', 'WIN', 'WLP', 'WM', 'WMB', 'WMT', 'WPI', 'WPO', 'WPX', 'WU', 'WY', 'WYN', 'WYNN', 'X', 'XEL', 'XL', 'XLNX', 'XOM', 'XRAY', 'XRX', 'XYL', 'YHOO', 'YUM', 'ZION', 'ZMH', 'SPY')
-  symChr    <- c('A', 'SNI', 'SPY')
-  
-  priceXts  <- QstkReadXts(symChr, startChr, finishChr)
-  priceXts  <- fill.na(priceXts, method='ffill')
-  priceXts  <- fill.na(priceXts, method='bfill')
+  finishChr <- "2009-12-30"
+#---  Read symbols from file "sp5002012"
+#       (1) Use a smaller subset of symbols, with at least ONE (1) NA to validate the 
+#           function fill.na().
+  symChr    <- QstkGetSymbolChr("sp5002012")
+  #symChr    <- c('A', 'SNI')
+  symChr    <- c(symChr, 'SPY')
   
   actualXts <- QstkReadXts(symChr, startChr, finishChr, priceChr='Close')
   actualXts <- fill.na(actualXts, method='ffill')
   actualXts <- fill.na(actualXts, method='bfill')
+  actualXts <- fill.na(actualXts, method='ofill')
   
   eventXts  <- findEvents(symChr, actualXts) 
+  eventXts
+}
+
+PyOrderWriteCsv <- function(eventXts, fileStr, tNum=5,
+                            workDirStr="C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-nonsource")
+{
+  #---  Assert FOUR (4) arguments:                                                   
+  #       eventXts:     data frame (xts) with event matrix
+  #       fileStr:      name of the file (without the extension ".csv")
+  #       tNum:         a numeric for the number of trading days
+  #       workDirStr:   working directory                                             
+  
+  #---  Check that arguments are valid
+  if( missing(fileStr) )
+    stop("fileStr CANNOT be EMPTY")
+  else if( fileStr=="" )
+    stop("fileStr CANNOT be EMPTY")
+  if( tNum <= 0 )
+    stop("tNum MUST be greater than ZERO (0)")
+  
+  #---  Create a sell data frame
+  #       (1) Copy and shift the event data frame by tNum days, i.e.
+  #           the LAST tNum rows has shifted to the FIRST tNum rows, while shifting rows down
+  #       (2) For EACH symbol, sum(buy[1:tNum,sym]) into finalNum, i.e.
+  #           buy orders with LESS than tNum days.
+  #       (3) Assign finalNum into the LAST row and the FIRST tNum rows to ZERO (0)
+  #           of the sell data frame
+  #       (4) (Optional) Multiply sell data frame by -1
+  #       (5) Rename the rows using the index(event)
+  sellDfr   <- shiftDfr(as.data.frame(eventXts), tNum)
+  finalNum  <- apply(sellDfr[1:tNum,], 2, sum)
+  if( sum(finalNum) > 0 )
+  {
+    sellDfr[1:tNum, ] <- 0
+    sellDfr[nrow(sellDfr), ] <- finalNum
+  }
+  sellDfr   <- -1 * sellDfr
+  row.names(sellDfr) <- index(eventXts)
+  
+  #---  Combine event and sell into an order data frame (xts)
+  #       (1) Check that the sum(order[sym]) for EACH symbol = 0
+  #       (2) Write the order data frame using the function PyFileWriteCsv().
+  orderDfr  <- dataFrame( colClasses=c(Date="character", 
+                                       Symbol="character", 
+                                       Order="character", 
+                                       Unit="numeric"), nrow=0 )
+  for( iRow in 1:nrow(eventXts) )
+  {
+    buyBln  <- sum(eventXts[iRow,]) != 0
+    sellBln <- sum(sellDfr[iRow,]) != 0
+    if( buyBln | sellBln )
+    {
+      for( jSym in 1:ncol(eventXts) )
+      {
+        dateChr     <- as.character(index(eventXts)[iRow])
+        symChr      <- names(eventXts)[jSym]
+        if( eventXts[iRow, jSym] != 0 )
+        {
+          #--- append buy order
+          qtyNum    <- 100 * as.numeric(eventXts[iRow, jSym])
+          newDfr    <- data.frame(Date=dateChr, Symbol=symChr, Order="Buy", Unit=qtyNum)
+          orderDfr  <- rbind(orderDfr, newDfr)
+        }
+        if( sellDfr[iRow, jSym] != 0 )
+        {
+          #--- append sell order
+          qtyNum    <- abs(100 * as.numeric(sellDfr[iRow, jSym]))
+          newDfr    <- data.frame(Date=dateChr, Symbol=symChr, Order="Sell", Unit=qtyNum)
+          orderDfr  <- rbind(orderDfr, newDfr)
+        }
+      }
+    }
+  }
+  PyDfrToXts(orderDfr, formatChr="%Y-%m-%d")
 }
 
 findEvents <- function(symChr, priceXts, mktChr="SPY")
@@ -74,7 +160,8 @@ findEvents <- function(symChr, priceXts, mktChr="SPY")
       daily.sym <- (today.sym/ysday.sym) - 1
       daily.mkt <- (today.mkt/ysday.mkt) - 1
       
-      if( daily.sym <= -0.03 & daily.mkt >= 0.02 )
+      #if( daily.sym <= -0.03 & daily.mkt >= 0.02 )
+      if( today.sym < 5.0 & ysday.sym >= 5.0 )
         eventXts[jRow, iSym] <- TRUE
     }
   }
@@ -146,6 +233,8 @@ eventProfiler <- function(event, data, lookBack=20, lookForward=20, fileStr="stu
 #|------------------------------------------------------------------------------------------|
 #|                            I N T E R N A L   F U N C T I O N S                           |
 #|------------------------------------------------------------------------------------------|
+shiftDfr <- function(df,offset) df[((1:nrow(df))-1-offset)%%nrow(df)+1,]
+
 fill.na <- function(priceXts, method="ffill")
 {
   if( method=="ffill" )
@@ -156,27 +245,98 @@ fill.na <- function(priceXts, method="ffill")
   {
     fil.num <- as.numeric(priceXts[nrow(priceXts), ])
     row.seq <- (nrow(priceXts)-1):1
+  } else if( method =="ofill" ) {
+    fil.num <- rep(1.0, nrow(priceXts))
   } else
-    stop("method MUST be EITHER 'ffill' OR 'bfill'")
-  
-  for( iRow in row.seq )
+    stop("method MUST be EITHER 'ffill', 'bfill', OR 'ofill'")
+
+  if( method=="ofill")
   {
-    naBln <- sum(is.na(priceXts[iRow,])) > 0
-    if( naBln )
+    for( jCol in 1:ncol(priceXts) )
     {
-      for( jCol in 1:ncol(priceXts) )
-      {
-        val   <- as.numeric(priceXts[iRow, jCol])
-        fil   <- fil.num[jCol]
-        if( is.na(val) & !is.na(fil) )
-          priceXts[iRow, jCol] <- fil
-      }
+      naBln <- sum(is.na(priceXts[, jCol])) == nrow(priceXts)
+      if( naBln ) priceXts[, jCol] <- fil.num
     }
-    fil.num <- as.numeric(priceXts[iRow,])
+  } else {
+    for( iRow in row.seq )
+    {
+      naBln <- sum(is.na(priceXts[iRow,])) > 0
+      if( naBln )
+      {
+        for( jCol in 1:ncol(priceXts) )
+        {
+          val   <- as.numeric(priceXts[iRow, jCol])
+          fil   <- fil.num[jCol]
+          if( is.na(val) & !is.na(fil) )
+            priceXts[iRow, jCol] <- fil
+        }
+      }
+      fil.num <- as.numeric(priceXts[iRow,])
+    }
   }
   priceXts
 }
-
+PyDfrToXts <- function(datDfr, formatChr=NULL)
+{
+  if( is.null(formatChr) )
+    retXts <- xts( datDfr[,-1], order.by=datDfr[,1] )
+  else
+    retXts <- xts( datDfr[,-1], order.by=as.Date(datDfr[,1], format=formatChr) )
+  names( retXts ) <- names( datDfr )[-1]
+  retXts
+}
+PyFileWriteCsv <- function(datXts, fileStr, 
+                           workDirStr="C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-nonsource")
+{
+  #---  Assert THREE (3) arguments:                                                   
+  #       datXts:       data frame (xts) to be written                                               
+  #       fileStr:      name of the file (without the extension ".csv")
+  #       workDirStr:   working directory                                             
+  
+  #---  Check that arguments are valid
+  #       apply() function returns a list of arrays
+  #       sapply() function returns a vector of numbers
+  gLst <- apply(datXts, 2, grep, pattern=",")
+  if( length(gLst)>0 )
+  {
+    if( sum(sapply(gLst,sum))>0 )
+      stop("ONE (1) OR MORE columns in datXts contain comma as values.")
+  }
+  if( missing(fileStr) )
+    stop("fileStr CANNOT be EMPTY")
+  else if( fileStr=="" )
+    stop("fileStr CANNOT be EMPTY")
+  
+  #---  Split data into separate columns.
+  sizeNum       <- ncol(datXts)
+  datXts$Year   <- as.character(index(datXts), format="%Y")
+  datXts$Month  <- as.character(index(datXts), format="%m")
+  datXts$Day    <- as.character(index(datXts), format="%d")
+  
+  outDfr <- data.frame(Year=datXts$Year, Month=datXts$Month, Day=datXts$Day)
+  for( i in 1:sizeNum )
+  {
+    nameChr     <- names(datXts) 
+    outDfr[, nameChr[i]] <- datXts[, nameChr[i]]
+  }
+  
+  #---  Set working directory                                                         
+  setwd(workDirStr)
+  #---  Write data
+  #       Remove quotes from characters
+  #       Remove row names 
+  #       Remove col names
+  write.table( outDfr, file=paste0( fileStr, ".csv" ), sep=",", quote=FALSE, row.names=FALSE, col.names=FALSE )
+  outDfr
+}
+QstkGetSymbolChr <- function(fileChr, qstkDir="C:/Python27/Lib/site-packages/QSTK/QSData/Yahoo/Lists/")
+{
+  pathChr <- paste0(qstkDir,fileChr,".txt")
+  if( !file.exists(pathChr) ) return( NULL )
+  else
+    retDfr <- read.csv(pathChr, header=FALSE, colClasses="character", sep=",")
+  return( as.character(retDfr[,1]) )
+}
 QstkReadXts <- function(symChr, startDate, finishDate, priceChr="Adjusted", qstkDir="C:/Python27/Lib/site-packages/QSTK/QSData/Yahoo/")
 {
   plt.first.date <- as.Date(startDate, format="%Y-%m-%d")
