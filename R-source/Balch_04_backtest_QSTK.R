@@ -62,6 +62,10 @@
 #|        > fun2Lst   <- PyAnalyzerLst(valu2Xts, "SPX")                                     |
 #|                                                                                          |
 #| History                                                                                  |
+#|  0.9.4   Fixed THREE (3) bugs: (i) Used function fill.na() to ensure NO NAs in prices    |
+#|          for functions PyAnalyzerLst() and PyMarketSimXts(); (ii) Converted factor into  |
+#|          character for function PyBillOrderXts(); and (iii) Changed order for names()    |
+#|          function to be applied in function PyOrderReadDfr(). Added function fill.na().  |
 #|  0.9.3   Completed Part B, that is created a function PyAnalyzerLst(). Changed name of   |
 #|          function PyFileReadDfr() to PyOrderReadDfr().                                   | 
 #|  0.9.2   Added the function PyCalcValueXts() that has THREE (3) parameters: (i) symChr - |
@@ -108,6 +112,9 @@ PyAnalyzerLst <- function(valueXts, benchChr)
   
   #---  Read in "prices" of symbols
   priceXts  <- QstkReadXts(symChr, startChr, finishChr)
+  priceXts  <- fill.na(priceXts, method='ffill')
+  priceXts  <- fill.na(priceXts, method='bfill')
+  priceXts  <- fill.na(priceXts, method='ofill')
   
   #---  Calculate ratios
   value.mean.daily  <- mean(dailyReturn(valueXts[,1]))
@@ -159,6 +166,9 @@ PyMarketSimXts <- function(initNum, orderStr, outStr=NULL,
   
   #---  Read in "prices" of symbols
   priceXts  <- QstkReadXts(symChr, startChr, finishChr)
+  priceXts  <- fill.na(priceXts, method='ffill')
+  priceXts  <- fill.na(priceXts, method='bfill')
+  priceXts  <- fill.na(priceXts, method='ofill')
   
   #---  Scan "trades" to update "cash"
   #       (1) Sort "trades" by date, and iterate over "trades"
@@ -247,7 +257,7 @@ PyBillOrderXts <- function(initNum, orderDfr, priceXts)
   for( iRow in 1:nrow(orderDfr) )
   {
     jRow    <- which(index(priceXts)==orderDfr$Date[iRow])
-    jPrice  <- as.numeric( priceXts[jRow, orderDfr$Symbol[iRow]] )
+    jPrice  <- as.numeric( priceXts[jRow, as.character(orderDfr$Symbol[iRow])] )
     jUnit   <- orderDfr$Unit[iRow]
     if( "buy"==tolower(orderDfr$Type[iRow]) )   jType=-1
     if( "sell"==tolower(orderDfr$Type[iRow]) )  jType=1
@@ -295,9 +305,9 @@ PyOrderReadDfr <- function(fileStr,
   #     [1] Year, e.g. 2013
   #     [2] Month, e.g. 2
   #     [3] Day, e.g. 15
-  names(rawDfr) <- c("Year", "Month", "Day", "Symbol", "Type", "Unit", "Date")
   rawDfr[, 6] <- suppressWarnings( as.numeric( rawDfr[, 6] ) )
   rawDfr[, 7] <- as.Date(paste(rawDfr[, 1],rawDfr[, 2],rawDfr[, 3],sep="/"), "%Y/%m/%d")
+  names(rawDfr) <- c("Year", "Month", "Day", "Symbol", "Type", "Unit", "Date")
   
   retDfr <- data.frame(Date=rawDfr$Date, Symbol=rawDfr$Symbol, Type=rawDfr$Type, Unit=rawDfr$Unit)
   
@@ -348,6 +358,47 @@ PyFileWriteCsv <- function(datXts, fileStr,
   #       Remove col names
   write.table( outDfr, file=paste0( fileStr, ".csv" ), sep=",", quote=FALSE, row.names=FALSE, col.names=FALSE )
   outDfr
+}
+fill.na <- function(priceXts, method="ffill")
+{
+  if( method=="ffill" )
+  {
+    fil.num <- as.numeric(priceXts[1, ])
+    row.seq <- 2:nrow(priceXts)
+  } else if( method =="bfill" ) 
+  {
+    fil.num <- as.numeric(priceXts[nrow(priceXts), ])
+    row.seq <- (nrow(priceXts)-1):1
+  } else if( method =="ofill" ) {
+    fil.num <- rep(1.0, nrow(priceXts))
+  } else
+    stop("method MUST be EITHER 'ffill', 'bfill', OR 'ofill'")
+  
+  if( method=="ofill")
+  {
+    for( jCol in 1:ncol(priceXts) )
+    {
+      naBln <- sum(is.na(priceXts[, jCol])) == nrow(priceXts)
+      if( naBln ) priceXts[, jCol] <- fil.num
+    }
+  } else {
+    for( iRow in row.seq )
+    {
+      naBln <- sum(is.na(priceXts[iRow,])) > 0
+      if( naBln )
+      {
+        for( jCol in 1:ncol(priceXts) )
+        {
+          val   <- as.numeric(priceXts[iRow, jCol])
+          fil   <- fil.num[jCol]
+          if( is.na(val) & !is.na(fil) )
+            priceXts[iRow, jCol] <- fil
+        }
+      }
+      fil.num <- as.numeric(priceXts[iRow,])
+    }
+  }
+  priceXts
 }
 
 QstkReadXts <- function(symChr, startDate, finishDate, qstkDir="C:/Python27/Lib/site-packages/QSTK/QSData/Yahoo/")
