@@ -27,9 +27,10 @@
 #|                                                                                          |
 #| Example                                                                                  |
 #|    A.  > eventXts  <- tutorialXts()                                                      |
-#|        > orderXts  <- PyOrderWriteCsv(eventXts, ""Balch_05_event_orders")                |
+#|        > orderXts  <- PyOrderWriteCsv(eventXts, "Balch_05_event_orders")                 |
 #|                                                                                          |
 #| History                                                                                  |
+#|  0.9.2   Fixed missing code (write to csv) in function PyOrderWriteCsv().                |
 #|  0.9.1   Added TWO (2) external functions tutorialXts() and PyOrderWriteCsv(), and       |
 #|          FOUR (4) internal functions shiftDfr(), QstkGetSymbolChr(), PyFileWriteCsv()    |
 #|          and PyDfrToXts(). The latter TWO (2) functions were copied from the R script    |
@@ -139,7 +140,9 @@ PyOrderWriteCsv <- function(eventXts, fileStr, tNum=5,
       }
     }
   }
-  PyDfrToXts(orderDfr, formatChr="%Y-%m-%d")
+  orderXts <- PyDfrToXts(orderDfr, formatChr="%Y-%m-%d")
+  PyFileWriteCsv(orderXts, fileStr)
+  orderXts
 }
 
 findEvents <- function(symChr, priceXts, mktChr="SPY")
@@ -161,7 +164,7 @@ findEvents <- function(symChr, priceXts, mktChr="SPY")
       daily.mkt <- (today.mkt/ysday.mkt) - 1
       
       #if( daily.sym <= -0.03 & daily.mkt >= 0.02 )
-      if( today.sym < 5.0 & ysday.sym >= 5.0 )
+      if( today.sym < 9.0 & ysday.sym >= 9.0 )
         eventXts[jRow, iSym] <- TRUE
     }
   }
