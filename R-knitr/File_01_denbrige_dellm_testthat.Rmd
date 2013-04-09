@@ -1,0 +1,37 @@
+File_01_denbrige_dellm_testthat
+==================================================================================================================================
+## Motivational Buckets
+### 1.1) (size: 21) We saved a snapshot image of Dell's Mini Tower OEM Windows 7 Home Premium operating system (OS). Also, we installed some desktop applications, such as R Studio, and some thin applications, such as Git. Todo: (i) backup ".ssh" folder; (ii) backup "RescueMedia2013-04-05.iso" file.
+### 1.2) (size: ) I am exploring BitBucket.org (BB) as a replacement for GitHub.com (GH) due to the following reasons: (i) a public fork was created on my Fx-Git repository; (ii) BB gives up to FIVE (5) private repositories for EACH free account; (iii) BB has an option to prevent public forks of a repository.
+
+```{r}
+if( Sys.info()["sysname"] == "Linux" )
+  suppressPackageStartupMessages(source("~/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusReg.R", echo=FALSE))
+if( Sys.info()["sysname"] == "Windows" )
+  suppressPackageStartupMessages(source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusReg.R", echo=FALSE))
+suppressPackageStartupMessages(source( paste0(RegGetRSourceDir(),"PlusFile.R") ))
+suppressPackageStartupMessages(require( testthat ))
+expect_that( file.exists("C:/Program Files (x86)/Acronis/TrueImageHome/TrueImageLauncher.exe"), is_true() )
+expect_that( file.exists("C:/Users/denbrige/Documents/RescueMedia2013-04-05.iso"), is_false() )
+expect_that( file.exists("C:/Program Files/R/R-3.0.0/bin/x64/Rgui.exe"), is_true() )
+expect_that( file.exists("C:/Program Files/RStudio/bin/rstudio.exe"), is_true() )
+expect_that( file.exists("C:/Program Files (x86)/Mozilla Firefox/firefox.exe"), is_true() )
+expect_that( file.exists("C:/Users/denbrige/220 AppThin/222 AppThinVer/001 Allway Sync 11.3"), is_true() )
+expect_that( file.exists("C:/Users/denbrige/220 AppThin/222 AppThinVer/313 VLC Media Player 1.1.6 GPL"), is_true() )
+expect_that( file.exists("C:/Users/denbrige/220 AppThin/222 AppThinVer/340 WinRar 4"), is_true() )
+expect_that( file.exists("C:/Users/denbrige/220 AppThin/222 AppThinVer/454 USB Safely Remove"), is_true() )
+expect_that( file.exists("C:/Users/denbrige/220 AppThin/222 AppThinVer/611 SmartGit 2.0"), is_true() )
+expect_that( file.exists("C:/Users/denbrige/220 AppThin/222 AppThinVer/612 Notepad++"), is_true() )
+expect_that( file.exists("C:/Users/denbrige/220 AppThin/222 AppThinVer/610 Git"), is_true() )
+expect_that( file.exists("C:/Users/denbrige/.ssh/id_rsa"), is_true() )
+expect_that( file.exists("C:/Users/denbrige/.ssh/id_rsa.pub"), is_true() )
+expect_that( file.exists("C:/Users/denbrige/220 AppThin/222 AppThinVer/399 TeamViewer 6"), is_false() )
+```
+### 1.1.1) (size: 21) We installed Acronis True Image Home 2012 Easter edition (ATI) and created a 50 Gb Acronis Secure Zone (ASZ) (default: admin). We made a full image backup, and set the subsequent images to incremental backups. Also, we made a Rescue Media disc (iso) that NOT reside on the local hard disk. Note: ATI has a sandbox installation feature.
+### 1.1.2) We installed desktop applications: (i) R 3.0.0; (ii) R Studio; (iii) Firefox. For the latter, we also installed add-ons: (i) Memory Restart; (ii) Xmarks; (iii) LastPass; (iv) Video DownloadHelper; (v) Download Statusbar; (vi) Memory Fox.
+### 1.1.3) We installed thin applications: (i) Allway Sync 11.3; (ii) VLC 1.1.6; (iii) WinRar 4; (iv) USB Safely Remove; (v) SmartGit 2.0; (vi) Notepad++; (vii) Git. For the latter, we copied the files "id_rsa" and "id_rsa.pub" from the older Sony laptop. Also, we did NOT install TeamViewer 6, because the newer versions (8+) are NOT backward compatible.
+
+```{r}
+
+```
+### 1.2.1) (size: ) The newer version SmartGit (>2.0) has support for BB. As, I would like to make this into a thin application, I need to install the VMWare software.
