@@ -89,4 +89,61 @@ agg.pe    <- BscdSaMtx(agg.bscd, S=100, X=100, "pe")
 round(agg.ce,1)
 round(agg.pe,1)
 ```
-### 1.3.1) (size: ) The THIRD model is for a relationship between a hypothetical client with MODERATE (AGGRESSIVE) risk tolerance and I, Dennis Lee: (i) rf=0.03 - this could be a "perceived" probability of success OR an  offset factor, where it has to offset ALL other parameters (default: 0.03); (ii) c=0.02(0.04) - this could be a maintenance factor, where it has to be LOWER than the upper value for a hypothetical insincere/insincere (c: 0.06=0.03+0.03) relationship (iii) sigma=0.35(0.25) - this could be a build factor, where it has to be LOWER than OR EQUAL to the upper value for a hypothetical builder/builder (sigma: 0.4=(0.4+0.4)/2) relationship; (iv) n=5 - a HIGHER n INCREASES the "perceived" relationship, hence we use year as period because it does NOT produce a HIGHER relationship value; (v) T=3(3) - this could be a period between general elections for Singapore, OR it could be closely linked to "inherent" risk, a HIGHER T creates a HIGHER relationship value that has to be offset by rf.
+### 1.4.1) (size: ) The THIRD model is for a relationship between a hypothetical client with MODERATE (AGGRESSIVE) risk tolerance and I, Dennis Lee: (i) rf=0.03 - this could be a "perceived" probability of success OR an  offset factor, where it has to offset ALL other parameters (default: 0.03); (ii) c=0.02(0.04) - this could be a maintenance factor, where it has to be LOWER than the upper value for a hypothetical insincere/insincere (c: 0.06=0.03+0.03) relationship (iii) sigma=0.35(0.25) - this could be a build factor, where it has to be LOWER than OR EQUAL to the upper value for a hypothetical builder/builder (sigma: 0.4=(0.4+0.4)/2) relationship; (iv) n=5 - a HIGHER n INCREASES the "perceived" relationship, hence we use year as period because it does NOT produce a HIGHER relationship value; (v) T=3(3) - this could be a period between general elections for Singapore, OR it could be closely linked to "inherent" risk, a HIGHER T creates a HIGHER relationship value that has to be offset by rf.
+
+```{r}
+rf          <- 0.03
+cc          <- 0.05
+sigma       <- 0.4
+top.step    <- 12
+top.year    <- 1
+mod.bscd  <- BscdCreateModel(rf, cc, top.step, top.year, sigma)
+mod.op    <- BscdOptionPrice(mod.bscd, S=100, X=100)
+mod.ce    <- BscdSaMtx(mod.bscd, S=100, X=100, "ce")
+mod.pe    <- BscdSaMtx(mod.bscd, S=100, X=100, "pe")
+round(mod.ce,1)
+round(mod.pe,1)
+agg.bscd  <- BscdCreateModel(rf, cc+0.02, top.step, top.year, sigma-0.1)
+agg.op    <- BscdOptionPrice(agg.bscd, S=100, X=100)
+agg.ce    <- BscdSaMtx(agg.bscd, S=100, X=100, "ce")
+agg.pe    <- BscdSaMtx(agg.bscd, S=100, X=100, "pe")
+round(agg.ce,1)
+round(agg.pe,1)
+```
+### 1.5.1) (size: ) The FOURTH model is for a relationship between Lim & Tan's Business Manager, Lionel, and I. The job position that I applied for is mobile broker.
+### 1.5.2) c=0.05 - this could be a maintenance factor, where it has to be LOWER than the upper value for a hypothetical insincere/insincere, (c: 0.05=0.02+0.03). Lionel's sincerity is based on "perceived" knowledge of position, but is insincere about older workers, and expected success rate.
+### 1.5.3) sigma=0.4 - this could be a build factor, where it has to be LOWER than OR EQUAL to the upper value for a hypothetical builder/builder (sigma: 0.4=(0.4+0.4)/2) relationship; 
+### 1.5.4) n=12 - a HIGHER n INCREASES the "perceived" relationship, hence we use year as period because it does NOT produce a HIGHER relationship value; 
+### 1.5.5) T=1 - this could be a period of "honeymoon" it could be closely linked to "inherent" risk, a HIGHER T creates a HIGHER relationship value that has to be offset by rf.
+### 1.5.6) rf=0.03 - this could be a "perceived" probability of success OR an  offset factor, where it has to offset ALL other parameters (default: 0.03).
+
+```{r}
+rf          <- 0.04
+cc          <- 0.04
+sigma       <- 0.2
+top.step    <- 12
+top.year    <- 4
+mod.bscd  <- BscdCreateModel(rf, cc, top.step, top.year, sigma)
+mod.op    <- BscdOptionPrice(mod.bscd, S=100, X=100)
+mod.ce    <- BscdSaMtx(mod.bscd, S=100, X=100, "ce", row.seq=seq(0.01, 0.09, by=0.01))
+mod.pe    <- BscdSaMtx(mod.bscd, S=100, X=100, "pe", row.seq=seq(0.01, 0.09, by=0.01))
+round(mod.ce,1)
+round(mod.pe,1)
+agg.bscd  <- BscdCreateModel(rf, cc+0.02, top.step, top.year-2, sigma+0.2)
+agg.op    <- BscdOptionPrice(agg.bscd, S=100, X=100)
+agg.ce    <- BscdSaMtx(agg.bscd, S=100, X=100, "ce", row.seq=seq(0.01, 0.09, by=0.01))
+agg.pe    <- BscdSaMtx(agg.bscd, S=100, X=100, "pe", row.seq=seq(0.01, 0.09, by=0.01))
+round(agg.ce,1)
+round(agg.pe,1)
+```
+### 1.6.1) (size: ) The FIFTH model is for a relationship between a hypothetical MT4 client with MODERATE (AGGRESSIVE) coder experience and I, Dennis Lee. 
+### 1.6.2) c=0.04(0.06) - this could be a maintenance factor, where it has to be LOWER than the upper value for a hypothetical insincere/insincere, (c: 0.06=0.03+0.03). E.g. for moderate clients: (a) incorrectly "perceived" to pay MORE for technical support; (b) incorrectly "perceived" to NOT pirate code;
+### 1.6.3) sigma=0.2(0.4) - this could be a build factor, where it has to be LOWER than OR EQUAL to the upper value for a hypothetical builder/builder (sigma: 0.4=(0.4+0.4)/2) relationship; 
+### 1.6.4) n=12 - a HIGHER n INCREASES the "perceived" relationship, hence we use months as period because it does NOT produce a HIGHER relationship value; 
+### 1.6.5) T=4(2) - this could be a period that creates "long-term" value with clients, OR it could be closely linked to "inherent" risk, a HIGHER T creates a HIGHER relationship value that has to be offset by rf. E.g. for moderate clients: (a) there is NO inherent risk of family/friends; (b) willing to pay MORE for BETTER technical support.
+### 1.6.6) rf=0.05 - this could be a "perceived" probability of success OR an offset factor, where it has to offset ALL other parameters (default: 0.03).
+### 1.6.7) It is interesting to note that the (European) put value is HIGHER than the call value for BOTH moderate AND aggressive clients at rf=0.03 (default). This implies that this sales venture will most likely result in a DECREASE in relationship value, due to the HIGHER maintenance factor (cc), which takes into account the "insincere" risk of investing with a complete stranger, however this should get better over time.
+### 1.6.8) The rf is, to a large extent, a subjective estimate and thus it warrants a sensitivity analysis about this value. We show the result of relationship value sensitivity in relation to offset factor (rf) and asset value (S). The analysis of BOTH put and call options (European) showed that rf has to INCREASE (moderate: +0.01; aggressive: +0.03) from rf=0.03 (default) in order to have EQUAL relationship values for BOTH put and call options.
+### 1.6.9) The pricing plan is as follows: (a) MQL code with NO plan: US$ 325; (b) MQL code with TWO(2)-year support plan: US$ 325 + 75, where support plan includes email support, minor version upgrades (and discounts on major upgrades). E.g. for aggressive client over 5 years is $1,925 ( = 325 + 350 + 375 + 400 + 475 ), while for moderate client (with $150 discount for major upgrades) over 5 years is $1,650 ( = 400 + 275 + 300 + 325 + 350 ). Note: Due to the rf offset, there will be a "honeymoon" discount of US$ 100, hence the MQL code will be "downsized" appropriately.
+### 1.6.10) The evaluation plan is as follows: (i) customized compiled restricted expert advisor; (ii) mql code documentation; (iii) downloadable demo installer; (iv) create links for "honeymoon" payments via Paypal that expires in SIXTY (60) days.
+### 1.6.11) The delivery plan is as follows: (i) "downsized" MQL code; (ii) mql code documentation; (iii) agreement contract; (iv) tax invoice; and (v) downloadable installer; 
