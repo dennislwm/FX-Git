@@ -1,0 +1,85 @@
+Mt4r_01_Keiji_mt4to5_tseries
+==================================================================================================================================
+## Motivational Buckets
+### 1.1) (size: )  Keiji is the author of a script, namely "mt4to5rewrite_sample_v4_2.mq4", that converts MT4 code into MT5 code. This R Markdown file bases the main function on this script, in particular the start() function, but rather to convert MT4 to SqLite. 
+### 1.2) (size: ) There are SIX (6) internal functions: (i) FuncAddTop(); (ii) FuncAddInInit(); (iii) FuncAddInStart(); (iv) FuncAddInDeinit(); (v) FuncFind(); (vi) FuncRewrite().
+### 1.3) (size: ) There are FIVE (5) include files: (i) "mt4accountinfo.mqh"; (ii) "mt4string.mqh"; (iii) "mt4datetime.mqh"; (iv) "mt4objects_1.mqh"; and (v) "mt4timeseries_2.mqh".
+
+```{r}
+if( Sys.info()["sysname"] == "Linux" )
+{
+  suppressPackageStartupMessages(source("~/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusReg.R", echo=FALSE))
+}
+if( Sys.info()["sysname"] == "Windows" )
+{
+  suppressPackageStartupMessages(source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusReg.R", echo=FALSE))
+}
+suppressPackageStartupMessages(source(paste0(RegGetRSourceDir(),"PlusFile.R"), echo=FALSE))
+suppressPackageStartupMessages(require(zoo))
+suppressPackageStartupMessages(require(tseries))
+mt.str <- "../experts/Pro_Bot_EURUSD_m15_Risk.java"
+mt.list <- lapply(readLines(mt.str), function(x) scan(text=x, sep=" ", what=c("char"), strip.white=c(FALSE)))
+```
+### 1.1.1) (size: ) In this instance, we "normalize" the Expert Advisor (EA) named "Pro_Bot_EURUSD_m15_Risk.mq4" into a java file "Pro_Bot_EURUSD_m15_Risk.java" by using the executable file "mq4_writer.exe". "Normalize" means to clean up and standardize the format of the code without changing its implementation. Ideally, we would have preferred to "normalize" the EA into a MQ4 file but there is no utility to perform this.
+### 1.1.2) After the normalization process, we then read the java file into a list, where an element of the list corresponds to a line in the text file, and EACH element contains a vector of characters (including indentation).
+
+```{r}
+head(mt.list)
+sql.list <- list()
+j <- 1
+for( i in seq_along(mt.list) )
+{
+  #--- Read Line
+  lineChr <- mt.list[[i]]
+  
+  #--- Account Query
+  lineChr <- gsub("AccountFreeMargin", "GhostAccountFreeMargin", lineChr)
+  
+  #--- Sql Query  
+  lineChr <- gsub("OrderTicket",      "GhostOrderTicket", lineChr)
+  lineChr <- gsub("OrderSymbol",      "GhostOrderSymbol", lineChr)
+  lineChr <- gsub("OrderOpenPrice",   "GhostOrderOpenPrice", lineChr)
+  lineChr <- gsub("OrderMagicNumber", "GhostOrderMagicNumber", lineChr)
+  lineChr <- gsub("OrderType",        "GhostOrderType", lineChr)
+  lineChr <- gsub("OrderStopLoss",    "GhostOrderStopLoss", lineChr)
+  lineChr <- gsub("OrderTakeProfit",  "GhostOrderTakeProfit", lineChr)
+  
+  #--- Sql Query with special cases
+  lineChr <- gsub("OrderSelect", "GhostOrderSelect", lineChr)
+  subBln  <- length(grep("GhostOrdersSelect", lineChr)) > 0
+  posBln  <- length(grep("SELECT_BY_POS", lineChr)) > 0
+  tktBln  <- length(grep("SELECT_BY_TICKET", lineChr)) > 0
+  trdBln  <- length(grep("MODE_TRADES", lineChr)) > 0
+  hsyBln  <- length(grep("MODE_HISTORY", lineChr)) > 0
+  if( posBln & subBln )
+  {
+    
+  }
+  if( tktBln & subBln )
+  {
+    
+  }  
+  
+  lineChr <- gsub("OrdersTotal", "GhostOrdersTotal", lineChr)
+  subBln  <- length(grep("GhostOrdersTotal", lineChr)) > 0
+  forBln  <- length(grep("for", lineChr)) > 0
+  if( forBln & subBln )
+  {
+    #--- Prepend a line
+    sql.list[[j]] <- c("int", "total", "=", "GhostOrdersTotal();")
+    j <- j + 1
+    lineChr <- gsub("GhostOrdersTotal\\(\\)", "total", lineChr)
+  }
+  
+  #--- Sql Command
+  lineChr <- gsub("OrderSend",   "GhostOrderSend", lineChr)
+  lineChr <- gsub("OrderModify", "GhostOrderModify", lineChr)
+  
+  #--- Write Line
+  sql.list[[j]] <- lineChr
+  j <- j + 1
+}
+sql.list
+```
+### 1.2.1) (size: ) The internal function FuncRewrite() has an equivalent function gsub() in R. 
+
