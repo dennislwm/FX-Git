@@ -14,11 +14,29 @@ if( Sys.info()["sysname"] == "Windows" )
 {
   suppressPackageStartupMessages(source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusReg.R", echo=FALSE))
 }
-suppressPackageStartupMessages(source(paste0(RegGetRSourceDir(),"PlusFile.R"), echo=FALSE))
+suppressPackageStartupMessages(source(paste0(RegRSourceDir(),"PlusFile.R"), echo=FALSE))
 suppressPackageStartupMessages(require(zoo))
 suppressPackageStartupMessages(require(tseries))
-mt.str <- "../experts/Pro_Bot_EURUSD_m15_Risk.java"
-mt.list <- lapply(readLines(mt.str), function(x) scan(text=x, sep=" ", what=c("char"), strip.white=c(FALSE)))
+name.str  <- "Pro_Bot_EURUSD_m15_Risk"
+ea.str    <- paste0(name.str, ".mq4")
+java.str  <- paste0(name.str, ".java")
+exe.dir   <- paste0(RegProgramDir(), "mq4_converter/")
+ea.dir    <- RegEaDir()
+ea.dir
+java.dir  <- RegJavaDir()
+exe.str   <- "mq4_writer.exe"
+cmd.str   <- paste0('"', exe.dir, exe.str, '" "', ea.dir, ea.str, 
+                    '" java "', java.dir, java.str, '"')
+cmd.str
+if( !file.exists(paste0(exe.dir, exe.str)) )
+  stop(paste0(exe.str, ' MUST be installed first'))
+if( !file.exists(paste0(ea.dir, ea.str)) )
+  stop(paste0(ea.str, ' file MUST exists'))
+errNum <- RegSystemNum(cmd.str)
+if( errNum != 0 ) errNum
+if( !file.exists(paste0(java.dir, java.str)) )
+  stop(paste0(java.str, ' is missing (OR NOT converted correctly)'))
+mt.list <- lapply(readLines(paste0(java.dir, java.str)), function(x) scan(text=x, sep=" ", what=c("char"), strip.white=c(FALSE)))
 ```
 ### 1.1.1) (size: ) In this instance, we "normalize" the Expert Advisor (EA) named "Pro_Bot_EURUSD_m15_Risk.mq4" into a java file "Pro_Bot_EURUSD_m15_Risk.java" by using the executable file "mq4_writer.exe". "Normalize" means to clean up and standardize the format of the code without changing its implementation. Ideally, we would have preferred to "normalize" the EA into a MQ4 file but there is no utility to perform this.
 ### 1.1.2) After the normalization process, we then read the java file into a list, where an element of the list corresponds to a line in the text file, and EACH element contains a vector of characters (including indentation).
