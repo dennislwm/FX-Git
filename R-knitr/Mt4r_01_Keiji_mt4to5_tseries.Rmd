@@ -15,34 +15,79 @@ if( Sys.info()["sysname"] == "Windows" )
   suppressPackageStartupMessages(source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusReg.R", echo=FALSE))
 }
 suppressPackageStartupMessages(source(paste0(RegRSourceDir(),"PlusFile.R"), echo=FALSE))
-suppressPackageStartupMessages(require(zoo))
-suppressPackageStartupMessages(require(tseries))
-name.str  <- "Pro_Bot_EURUSD_m15_Risk"
-ea.str    <- paste0(name.str, ".mq4")
-java.str  <- paste0(name.str, ".java")
-exe.dir   <- paste0(RegProgramDir(), "mq4_converter/")
-ea.dir    <- RegEaDir()
-ea.dir
-java.dir  <- RegJavaDir()
-exe.str   <- "mq4_writer.exe"
-cmd.str   <- paste0('"', exe.dir, exe.str, '" "', ea.dir, ea.str, 
+suppressPackageStartupMessages(library(R.utils))
+suppressPackageStartupMessages(library(tseries))
+MtrConvertStr <- function(name.str, exe.dir=paste0(RegProgramDir(),"mq4_converter/"),
+                       ea.dir=RegEaDir(), java.dir=RegJavaDir())
+{
+  ea.str    <- paste0(name.str, ".mq4")
+  java.str  <- paste0(name.str, ".java")
+  exe.str   <- "mq4_writer.exe"
+  cmd.str   <- paste0('"', exe.dir, exe.str, '" "', ea.dir, ea.str, 
                     '" java "', java.dir, java.str, '"')
-cmd.str
-if( !file.exists(paste0(exe.dir, exe.str)) )
-  stop(paste0(exe.str, ' MUST be installed first'))
-if( !file.exists(paste0(ea.dir, ea.str)) )
-  stop(paste0(ea.str, ' file MUST exists'))
-errNum <- RegSystemNum(cmd.str)
-if( errNum != 0 ) errNum
-if( !file.exists(paste0(java.dir, java.str)) )
-  stop(paste0(java.str, ' is missing (OR NOT converted correctly)'))
-mt.list <- lapply(readLines(paste0(java.dir, java.str)), function(x) scan(text=x, sep=" ", what=c("char"), strip.white=c(FALSE)))
+  if( !file.exists(paste0(exe.dir, exe.str)) )
+    stop(paste0(exe.str, ' MUST be installed first'))
+  if( !file.exists(paste0(ea.dir, ea.str)) )
+    stop(paste0(ea.str, ' file MUST exists'))
+  errNum <- RegSystemNum(cmd.str)
+  if( errNum!=0 | !file.exists(paste0(java.dir, java.str)) )
+    return( paste0(errNum, ': ', java.str, ' is missing (OR NOT converted correctly)') )
+  else
+    return( paste0(java.dir, java.str) )
+}
+name.str  <- "Pro_Bot_EURUSD_m15_Risk"
+#name.str  <- "Gday mark 2"
+java.str  <- MtrConvertStr(name.str)
+if( file.exists(java.str) )
+  mt.list <- lapply(readLines(paste0(java.str)), function(x) scan(text=x, sep=" ", 
+                                                 what=c("char"), strip.white=c(FALSE)))
 ```
 ### 1.1.1) (size: ) In this instance, we "normalize" the Expert Advisor (EA) named "Pro_Bot_EURUSD_m15_Risk.mq4" into a java file "Pro_Bot_EURUSD_m15_Risk.java" by using the executable file "mq4_writer.exe". "Normalize" means to clean up and standardize the format of the code without changing its implementation. Ideally, we would have preferred to "normalize" the EA into a MQ4 file but there is no utility to perform this.
 ### 1.1.2) After the normalization process, we then read the java file into a list, where an element of the list corresponds to a line in the text file, and EACH element contains a vector of characters (including indentation).
 
 ```{r}
 head(mt.list)
+MtrFindCmtDfr <- function(mt.list)
+{
+  endNum <- length(mt.list)
+  retDfr <- dataFrame( colClasses=c(Token="character", Open="numeric", 
+                                    First="numeric"), nrow=0 )
+  rowNum <- which(lapply(mt.list, function(x) { sum(grep("//", x)) })>0)
+  for( n in seq_along(rowNum) )
+  {
+    openNum     <- rowNum[n]
+    indentNum   <- which(nchar(mt.list[[openNum]])>0)
+    rDfr        <- data.frame("cmt", openNum, indentNum[1] )
+    names(rDfr) <- names(retDfr)
+    retDfr      <- rbind(retDfr, rDfr)
+  }
+  retDfr
+}
+MtrFindLoopDfr <- function(mt.list)
+{
+  endNum <- length(mt.list)
+  retDfr <- dataFrame( colClasses=c(Token="character", Open="numeric", 
+                                    Close="numeric", First="numeric"), nrow=0 )
+  rowNum <- which(lapply(mt.list, function(x) { sum(grep("for", x)) })>0)
+  for( n in seq_along(rowNum) )
+  {
+    openNum     <- rowNum[n]
+    indentNum   <- which(nchar(mt.list[[openNum]])>0)
+    for( mRow in (openNum+1):endNum )
+    {
+      iNum <- which(nchar(mt.list[[mRow]])>0)
+      if( length(iNum)>0 )
+        if( iNum[1]==indentNum[1] )
+          break
+    }
+    rDfr        <- data.frame("for", openNum, mRow-1, indentNum[1] )
+    names(rDfr) <- names(retDfr)
+    retDfr      <- rbind(retDfr, rDfr)
+  }
+  retDfr
+}
+MtrFindCmtDfr(mt.list)
+MtrFindLoopDfr(mt.list)
 sql.list <- list()
 j <- 1
 for( i in seq_along(mt.list) )
