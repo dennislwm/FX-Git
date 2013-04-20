@@ -50,20 +50,31 @@ head(mt.list)
 MtrFindCmtDfr <- function(mt.list)
 {
   endNum <- length(mt.list)
-  retDfr <- dataFrame( colClasses=c(Token="character", Open="numeric", 
+  retDfr <- dataFrame( colClasses=c(Token="character", Open="numeric", Close="numeric",
                                     First="numeric"), nrow=0 )
   rowNum <- which(lapply(mt.list, function(x) { sum(grep("//", x)) })>0)
   for( n in seq_along(rowNum) )
   {
     openNum     <- rowNum[n]
     indentNum   <- which(nchar(mt.list[[openNum]])>0)
-    rDfr        <- data.frame("cmt", openNum, indentNum[1] )
+    rDfr        <- data.frame("cmt", openNum, openNum, indentNum[1] )
+    names(rDfr) <- names(retDfr)
+    retDfr      <- rbind(retDfr, rDfr)
+  }
+  rowNum    <- which(lapply(mt.list, function(x) { sum(grep("\\/\\*", x)) })>0)
+  rowcNum   <- which(lapply(mt.list, function(x) { sum(grep("\\*\\/", x)) })>0)
+  for( n in seq_along(rowNum) )
+  {
+    openNum     <- rowNum[n]
+    indentNum   <- which(nchar(mt.list[[openNum]])>0)
+    closeNum    <- rowcNum[n]
+    rDfr        <- data.frame("cmt", openNum, closeNum, indentNum[1] )
     names(rDfr) <- names(retDfr)
     retDfr      <- rbind(retDfr, rDfr)
   }
   retDfr
 }
-MtrFindLoopDfr <- function(mt.list)
+MtrFindLoopDfr <- function(mt.list, cmtDfr)
 {
   endNum <- length(mt.list)
   retDfr <- dataFrame( colClasses=c(Token="character", Open="numeric", 
@@ -73,21 +84,53 @@ MtrFindLoopDfr <- function(mt.list)
   {
     openNum     <- rowNum[n]
     indentNum   <- which(nchar(mt.list[[openNum]])>0)
-    for( mRow in (openNum+1):endNum )
+    #---  Identify non-valid tokens
+    #     (1) tokens may be within a comment: (a) // for; (b) /* for */
+    #     (2) tokens may be within a string, i.e. " this is for "
+    isOpenCmt   <- nrow(cmtDfr[cmtDfr$Open<=openNum & openNum<=cmtDfr$Close,])>0
+    if( length(indentNum)>1 )
+      isOpenStr   <- substr(mt.list[[openNum]][indentNum[2]],1,1)!="("
+    else
+      isOpenStr   <- TRUE
+    if( !isOpenCmt &  !isOpenStr )
     {
-      iNum <- which(nchar(mt.list[[mRow]])>0)
-      if( length(iNum)>0 )
-        if( iNum[1]==indentNum[1] )
-          break
+      #---  Knowledge when "for" has braces OR NOT
+      #     (1) check if next token is "{"
+      nextNum     <- openNum+1
+      indnxtNum   <- which(nchar(mt.list[[nextNum]])>0)
+      if( indentNum[1]==indnxtNum[1] )
+        isOpenBrs   <- substr(mt.list[[nextNum]][indnxtNum[1]],1,1)=="{"
+      else
+        isOpenBrs   <- FALSE
+      if( !isOpenBrs )
+        startNum <- openNum + 1
+      else
+        startNum <- openNum + 2
+      for( mRow in startNum:endNum )
+      {
+        iNum <- which(nchar(mt.list[[mRow]])>0)
+        if( length(iNum)>0 )
+          if( iNum[1]==indentNum[1] )
+          {
+            isCloseCmt  <- nrow(cmtDfr[cmtDfr$Open==mRow,])>0
+            if( !isCloseCmt ) break
+          }
+      }
+      if( !isOpenBrs ) 
+        closeNum  <- mRow - 1
+      else
+        closeNum  <- mRow
+      rDfr        <- data.frame("for", openNum, closeNum, indentNum[1] )
+      names(rDfr) <- names(retDfr)
+      retDfr      <- rbind(retDfr, rDfr)
     }
-    rDfr        <- data.frame("for", openNum, mRow-1, indentNum[1] )
-    names(rDfr) <- names(retDfr)
-    retDfr      <- rbind(retDfr, rDfr)
   }
   retDfr
 }
-MtrFindCmtDfr(mt.list)
-MtrFindLoopDfr(mt.list)
+cmtDfr <- MtrFindCmtDfr(mt.list)
+cmtDfr
+forDfr <- MtrFindLoopDfr(mt.list, cmtDfr)
+forDfr
 sql.list <- list()
 j <- 1
 for( i in seq_along(mt.list) )
