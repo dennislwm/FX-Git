@@ -3,6 +3,9 @@
 #|                                                             Copyright © 2012, Dennis Lee |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  0.9.1   Added functions to validate parameters that are TWO(2)-dimensions, e.g. check   |
+#|          for number of rows/cols, names. The function AddTypeM() has been superceded by  |
+#|          AddNamexxx() functions.                                                         |
 #|  0.9.0   This library contains external R functions to validate parameters of functions. |
 #|          The naming convention is that a function with suffix "N", e.g. AddExistN(),     |
 #|          is categorized as a multi-validation function, as opposed to a single           |
@@ -44,22 +47,100 @@ AddAvoidN <- function(a)
     return( stopStr )
   return( NULL )  
 }
-
 #|------------------------------------------------------------------------------------------|
 #|                            E X T E R N A L   F U N C T I O N S                           |
 #|------------------------------------------------------------------------------------------|
-AddTypeM <- function(a, typeChr)
+AddNameMatchE <- function(a, typeChr)
+{
+  nameStr <- deparse(substitute(a))
+  stopStr <- paste0(nameStr, " MUST be exactly ALL of: ", paste0(typeChr, collapse=", "))
+  isOfBln <- sapply(typeChr, function(x) {any(x==a)})
+  stopBln <- suppressWarnings(sum(isOfBln) != length(typeChr) 
+                              | length(isOfBln) != length(typeChr)
+                              | length(isOfBln) != length(a))
+  if( stopBln )
+    return( stopStr )
+  return( NULL )
+}
+AddNameMatch <- function(a, typeChr)
+{
+  nameStr <- deparse(substitute(a))
+  stopStr <- paste0(nameStr, " MUST be at least ALL of: ", paste0(typeChr, collapse=", "))
+  isOfBln <- sapply(typeChr, function(x) {any(x==a)})
+  stopBln <- suppressWarnings(sum(isOfBln) != length(typeChr)
+                               | length(isOfBln) != length(typeChr))
+  if( stopBln )
+    return( stopStr )
+  return( NULL )
+}
+AddNameExists <- function(a, typeChr)
+{
+  nameStr <- deparse(substitute(a))
+  stopStr <- paste0(nameStr, " MUST be ONE (1) of: ", paste0(typeChr, collapse=", "))
+  isOfBln <- sapply(typeChr, function(x) {any(x==a)})
+  stopBln <- suppressWarnings(sum(isOfBln) != 1
+                              | length(isOfBln) < 1 
+                              | length(a) != 1 )
+  if( stopBln )
+    return( stopStr )
+  return( NULL )
+}
+AddNameBetween <- function(a, typeChr)
 {
   nameStr <- deparse(substitute(a))
   stopStr <- paste0(nameStr, " MUST be ONE (1) OR MORE of: ", paste0(typeChr, collapse=", "))
-  if( length(a) == 0 )
+  isOfBln <- sapply(typeChr, function(x) {any(x==a)})
+  stopBln <- suppressWarnings(sum(isOfBln) < 1
+                              | length(isOfBln) < 1 
+                              | length(isOfBln) > length(typeChr)
+                              | length(isOfBln) != length(a))
+  if( stopBln )
     return( stopStr )
-  for( i in 1:length(a) )
-  {
-    stopBln <- length(which( typeChr==a[i] ))==0
-    if( stopBln )
-      return( stopStr )
-  }
+  return( NULL )
+}
+AddColEqual <- function(a, m)
+{
+  nameStr <- deparse(substitute(a))
+  stopStr <- paste0("Number of cols for ", nameStr, " MUST be equal to ", m)
+  stopBln <- ncol(a) != m
+  if( stopBln )
+    return( stopStr )
+  return( NULL )
+}
+AddColMore <- function(a, m)
+{
+  nameStr <- deparse(substitute(a))
+  stopStr <- paste0("Number of cols for ", nameStr, " MUST be greater than ", m)
+  stopBln <- ncol(a) <= m
+  if( stopBln )
+    return( stopStr )
+  return( NULL )
+}
+AddColMoreE <- function(a, m)
+{
+  nameStr <- deparse(substitute(a))
+  stopStr <- paste0("Number of cols for ", nameStr, " MUST be greater than OR equal to ", m)
+  stopBln <- ncol(a) < m
+  if( stopBln )
+    return( stopStr )
+  return( NULL )
+}
+AddRowMore <- function(a, m)
+{
+  nameStr <- deparse(substitute(a))
+  stopStr <- paste0("Number of rows for ", nameStr, " MUST be greater than ", m)
+  stopBln <- nrow(a) <= m
+  if( stopBln )
+    return( stopStr )
+  return( NULL )
+}
+AddRowMoreE <- function(a, m)
+{
+  nameStr <- deparse(substitute(a))
+  stopStr <- paste0("Number of rows for ", nameStr, " MUST be greater than OR equal to ", m)
+  stopBln <- nrow(a) < m
+  if( stopBln )
+    return( stopStr )
   return( NULL )
 }
 AddEqual <- function(n, m)
@@ -139,11 +220,13 @@ AddAvoidI <- function(a, nameStr=NULL)
 {
   if( is.null(nameStr) ) 
     nameStr <- deparse(substitute(a))
-  stopStr <- paste0(nameStr, " CANNOT be ONE (1) of: character(0), numeric(0), logical(0), integer(0)")
+  stopStr <- paste0(nameStr, " CANNOT be ONE (1) of: character(0), numeric(0), 
+                    logical(0), integer(0), data.frame(NULL)")
   stopBln <- length(which( identical(a, character(0))
                            | identical(a, numeric(0))
                            | identical(a, logical(0))
-                           | identical(a, integer(0)) ))>0
+                           | identical(a, integer(0))
+                           | identical(a, data.frame())))>0
   if( stopBln )
     return( stopStr )
   return( NULL )
