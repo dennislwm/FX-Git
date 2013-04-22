@@ -3,6 +3,8 @@
 #|                                                             Copyright © 2012, Dennis Lee |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.0.1   Fixed minor bugs: (a) missing argument for MtrIsComment(); (b) empty rowNum in  |
+#|          functions MtrBetweenxxx().                                                      |
 #|  1.0.0   Added test script "R-test-09-mtr/testPlusMtr.R" for TWO (2) functions           |
 #|          MtrFindCmtDfr() and MtrIsComment(). Todo: Test script for FIVE (5) functions    |
 #|          MtrConvertStr(), MtrFindLoopDfr(), MtrFindFunDfr(), MtrBetweenLoopDfr(), and    |
@@ -53,8 +55,11 @@ MtrBetweenFunDfr <- function(mt.list, funDfr, cmtDfr, funThatChr=NULL)
     nameStr   <- funDfr$Name[n]
     rowNum    <- which(lapply(mt.list[openNum:closeNum],
                               function(x) { sum(grep("OrderSelect", x)) })>0)
-    cmtBln    <- MtrIsComment("OrderSelect", rowNum+openNum-1, cmtDfr)
-    isOpenSelect <- sum(cmtBln)<length(cmtBln)
+    if( length(rowNum)>0 )
+    {
+      cmtBln    <- MtrIsComment(mt.list, "OrderSelect", rowNum+openNum-1, cmtDfr)
+      isOpenSelect <- sum(cmtBln)<length(cmtBln)
+    } else isOpenSelect <- FALSE
     if( !isOpenSelect )
     {
       isOpenFun   <- FALSE
@@ -63,8 +68,11 @@ MtrBetweenFunDfr <- function(mt.list, funDfr, cmtDfr, funThatChr=NULL)
         funStr    <- funChr[o]
         fRowNum   <- which(lapply(mt.list[openNum:closeNum],
                                   function(x) { sum(grep(funStr, x)) })>0)
-        fCmtBln   <- MtrIsComment(funStr, fRowNum+openNum-1, cmtDfr)
-        isOpenFun <- isOpenFun | (sum(fCmtBln)<length(fCmtBln))
+        if( length(fRowNum)>0 )
+        {
+          fCmtBln   <- MtrIsComment(mt.list, funStr, fRowNum+openNum-1, cmtDfr)
+          isOpenFun <- isOpenFun | (sum(fCmtBln)<length(fCmtBln))
+        } else isOpenFun <- isOpenFun | FALSE
       }
       if( isOpenFun )
       {
@@ -104,8 +112,11 @@ MtrBetweenLoopDfr <- function(mt.list, loopDfr, cmtDfr, funThatChr=NULL)
     firstNum  <- loopDfr$First[n]
     rowNum    <- which(lapply(mt.list[openNum:closeNum],
                               function(x) { sum(grep("OrderSelect", x)) })>0)
-    cmtBln    <- MtrIsComment("OrderSelect", rowNum+openNum-1, cmtDfr)
-    isOpenSelect <- sum(cmtBln)<length(cmtBln)
+    if( length(rowNum)>0 )
+    {
+      cmtBln <- MtrIsComment(mt.list, "OrderSelect", rowNum+openNum-1, cmtDfr)
+      isOpenSelect <- sum(cmtBln)<length(cmtBln)
+    } else isOpenSelect <- FALSE
     if( isOpenSelect )
     {
       isOpenFun   <- FALSE
@@ -114,8 +125,11 @@ MtrBetweenLoopDfr <- function(mt.list, loopDfr, cmtDfr, funThatChr=NULL)
         funStr    <- funChr[o]
         fRowNum   <- which(lapply(mt.list[openNum:closeNum],
                                   function(x) { sum(grep(funStr, x)) })>0)
-        fCmtBln   <- MtrIsComment(funStr, fRowNum+openNum-1, cmtDfr)
-        isOpenFun <- isOpenFun | (sum(fCmtBln)<length(fCmtBln))
+        if( length(fRowNum)>0 )
+        {
+          fCmtBln   <- MtrIsComment(mt.list, funStr, fRowNum+openNum-1, cmtDfr)
+          isOpenFun <- isOpenFun | (sum(fCmtBln)<length(fCmtBln))
+        } else isOpenFun <- isOpenFun | FALSE
       }
       if( isOpenFun )
       {
@@ -145,7 +159,7 @@ MtrFindFunDfr <- function(mt.list, cmtDfr, tokenChr=c("public"), offset=3)
   {
     tokenStr  <- tokenChr[m]
     rowNum    <- which(lapply(mt.list, function(x) { sum(grep(tokenStr, x)) })>0)
-    cmtBln    <- MtrIsComment(tokenStr, rowNum, cmtDfr)
+    cmtBln    <- MtrIsComment(mt.list, tokenStr, rowNum, cmtDfr)
     for( n in seq_along(rowNum) )
     {
       openNum     <- rowNum[n]
@@ -212,7 +226,7 @@ MtrFindLoopDfr <- function(mt.list, cmtDfr, tokenChr=c("for"))
     tokenStr  <- tokenChr[m]
     rowNum    <- which(lapply(mt.list, function(x) { sum(grep(tokenStr, x)) })>0)
     if(length(rowNum)>0)
-      cmtBln    <- MtrIsComment(tokenStr, rowNum, cmtDfr)
+      cmtBln    <- MtrIsComment(mt.list, tokenStr, rowNum, cmtDfr)
     for( n in seq_along(rowNum) )
     {
       openNum     <- rowNum[n]
