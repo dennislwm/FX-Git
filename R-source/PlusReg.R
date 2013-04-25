@@ -4,6 +4,7 @@
 #| Assert Function                                                                          |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.0.4   Added function RegLocalProgramDir().                                            |
 #|  1.0.3   Renamed several functions from RegGetxxxDir() to RegxxxDir() to simplify names. |
 #|          Changed name of function RegGetRDir() to RegGitDir().                           |
 #|          Added functions RegBitDir(), RegProgramDir() and RegIsWindows64Bln().           |
@@ -94,6 +95,15 @@ RegProgramDir <- function()
     retDir <- "C:/Program Files (x86)/"
   else if( RegIsWindowsBln() )
     retDir <- "C:/Program Files/"
+  retDir
+}
+RegLocalProgramDir <- function()
+{
+  retDir <- NULL
+  if( RegIsWindows64Bln() )
+    retDir <- paste0(RegHomeDir(),"AppData/Local/VirtualStore/Program Files (x86)/")
+  else if( RegIsWindowsBln() )
+    retDir <- paste0(RegHomeDir(),"AppData/Local/VirtualStore/Program Files/")
   retDir
 }
 RegIsWindowsBln <- function()
