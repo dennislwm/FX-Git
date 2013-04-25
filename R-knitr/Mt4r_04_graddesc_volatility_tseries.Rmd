@@ -1,0 +1,235 @@
+Mt4r_04_graddesc_volatility_tseries
+==================================================================================================================================
+## Motivational Buckets
+### 1.1) (size: ) The motivation comes from Coursera's Stanford Online Machine Learning (STML) course by Professor Andrew Ng, in particular the Gradient Descent (GD) method to minimize a cost function. For least square regression model (lm), the cost function is represented by J(b0,b1), where b1 is the intercept (coefficient 0) and b2 is the slope (coefficient 1), that is a convex-shaped curve.
+### 1.2) (size: ) Mathematically, the formula to obtain the minimum J(b0,b1) is given by TWO (2) "simultaneous" equations: (a) b0 = b0 - alpha * dJ()/dx; (b) b1 = b1 - alpha * dJ()/dx, where alpha is the rate of descent and dJ()/dx is the first differential equation (FDE) of the cost function J.
+### 1.3) (size: ) When alpha is too small, the GD method may converge too slowly, but when alpha is too large, the GD method may NOT converge. In the case of least square regression, the FDE of J is the slope of tangent-line to the convex-shaped curve. Hence, when the slope is positive, the equations above result in smaller values, e.g. b0 = (b0 - positive number), but when the slope is negative, the results are larger values, e.g. b1 = (b1 - negative number). Eventually, when the slope is ZERO (0), the results do NOT change.
+### 1.4) (size: ) The idea is to extend the GD method to create a volatility indicator based on close price. For a given range of prices, we build a lm and return the slope, which is analogous to the FDE above. Therefore, when the slope is positive, the formula to obtain the minimum volatility is b0 = (b0 - positive number), but when the slope is negative, the formula to obtain the minimum volatility is b0 = (b0 - negative number). The minimum volatility is when the slope is ZERO (0), the price is a support/resistance price.
+### 1.5) (size: ) When parameter alpha is too small, the indicator converges slowly to the support/resistance price, but when alpha is too large, the indicator may overshoot the support/resistance price. The other parameter is the width (or window size) of the price range. When the width is too small, the slope may be volatile, but when the width is too large, the slope may be "smoothed" too much.
+
+```{r}
+if( Sys.info()["sysname"] == "Linux" )
+  suppressPackageStartupMessages(source("~/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusReg.R", echo=FALSE))
+if( Sys.info()["sysname"] == "Windows" )
+  suppressPackageStartupMessages(source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusReg.R", echo=FALSE))
+suppressPackageStartupMessages(source(paste0(RegRSourceDir(),"PlusFile.R"), echo=FALSE))
+suppressPackageStartupMessages(source(paste0(RegRSourceDir(),"PlusMtr.R"), echo=FALSE))
+suppressPackageStartupMessages(library(R.utils))
+suppressPackageStartupMessages(library(tseries))
+```
+
+```{r}
+MtrAddTop <- function(linkType, linkName, linkVal, extType, extName, extVal)
+{
+  top <- list(c('//:::::::::::::::::::::::::::::::::::::::::::::'))
+  for( i in seq_along(linkType) )
+    top <- append(top, list(c(paste0('#',linkType[i]),linkName[i],linkVal[i])))
+  for( i in seq_along(extType) )
+    top <- append(top, list(c('extern',extType[i],extName[i],'=',paste0(extVal[i],';'))))
+  
+  end <- list(c('//:::::::::::::::::::::::::::::::::::::::::::::'))
+  
+  return( append(top,end) )
+}
+MtrAddInit <- function(nameStr, verStr, bufNum, styleChr=NULL, drawBegin=NULL)
+{
+  if( is.null(styleChr) )
+    styleChr  <- rep( 'DRAW_LINE', bufNum )
+  if( is.null(drawBegin) )
+    drawBegin <- rep( 0, bufNum )
+  
+  top <- list(c('//:::::::::::::::::::::::::::::::::::::::::::::'),
+              c('string','IndName=',paste0('\"',nameStr,'\";')),
+              c('string','IndVer=',paste0('\"',verStr,'\";')))
+  
+  for( i in 1:bufNum )
+    top <- append(top, list(c('double',paste0('ExtMapBuffer',i,'[];'))))
+
+  mid <- list(c('int','init()'),
+              c('{'),
+              c('','',paste0('IndicatorBuffers(',bufNum,');')),
+              c('','','IndicatorDigits(Digits+10);'),
+              c('','','IndicatorShortName(StringConcatenate(IndName," ",IndVer));'))
+  names(mid)[1] <- "init"
+  
+  for( i in 1:bufNum )
+    mid <- append(mid, list(c('','','SetIndexStyle(',i-1,',',styleChr[i],');')))
+  for( i in 1:bufNum )
+    mid <- append(mid, list(c('','','SetIndexDrawBegin(',i-1,',',drawBegin[i],');')))
+  for( i in 1:bufNum )
+    mid <- append(mid, list(c('','','SetIndexBuffer(',i-1,',',paste0('ExtMapBuffer',i),');')))
+
+  end <- list(c('','','return(0);'), 
+              c('}'),
+              c('//:::::::::::::::::::::::::::::::::::::::::::::'))
+  names(end)[2] <- "init-end"
+  
+  ret <- append(top, mid)
+  ret <- append(ret, end)
+              
+  return( ret )
+}
+MtrAddDeinit <- function()
+{
+  ret <- list(c('//:::::::::::::::::::::::::::::::::::::::::::::'),
+              c('int','deinit()'),
+              c('{'),
+              c('','','return(0);'), 
+              c('}'),
+              c('//:::::::::::::::::::::::::::::::::::::::::::::'))
+  names(ret)[2] <- "deinit"
+  names(ret)[5] <- "deinit-end"
+
+  return( ret )
+}
+MtrAddStart <- function()
+{
+  top <- list(c('int','start()'),
+              c('{'),
+              c('','','int','i;'),
+              c('','','int','unused_bars;'),
+              c('','','int','used_bars=IndicatorCounted();'),
+              c(''),
+              c('','','if','(used_bars<0)','return(-1);'),
+              c('','','if','(used_bars>0)','used_bars--;'),
+              c('','','unused_bars=Bars-used_bars;'),
+              c(''))
+  names(top)[1] <- "start"
+  
+  mid <- list(c('','','for(i=unused_bars-1;i>=0;i--)'),
+              c('','','{'),
+              c('','','}'))
+
+  end <- list(c('','','return(0);'), 
+              c('}'),
+              c('//:::::::::::::::::::::::::::::::::::::::::::::'))
+  names(end)[2] <- "start-end"
+
+  #ret <- append(top, mid)
+  ret <- append(top, end)
+              
+  return( ret )
+}
+MtrAddInVar <- function(varType, varName, indent=0)
+{
+  ret <- list()
+  for( i in seq_along(varType) )
+    ret <- append(ret, list(c(rep('',indent),varType[i],varName[i],';')))
+  ret
+}
+MtrAddInModel <- function()
+{
+  ret <- list(c('','','ArrayResize(hist,unused_bars);'),
+              c('','','for(i=unused_bars-1;i>=0;i--)'),
+              c('','','{'),
+              c('','','','','hist[i]','=','Close[i];'),
+              c('','','}'),
+              c('','','RAssignVector(R,',pasteq("hNum"),',hist,ArraySize(hist));'),
+              c('','','RExecute(R,',pasteq("hNum <- rev(hNum)"),');'),
+              c('','','RExecute(R,',pasteq("histNum <- c(histNum,hNum)"),');'),
+              c('','','RExecuteAsync(R,',pasteq("model <- rollapply(histNum,20,function(x) as.numeric(lm(x ~ seq_along(x))$coeff[2]))*1000"),');'))
+   
+  return( ret )
+}
+MtrAddInResult <- function()
+{
+  cmd <- paste0("as.integer(exists(",pasteq0("model"),"))")
+  ret <- list(c(rep('',2),'ArrayResize(ret,GdvLookBack);'),
+              c(rep('',2),'if(RGetInteger(R,',pasteq(cmd),')==1)'),
+              c(rep('',2),'{'),
+              c(rep('',4),'int','len=RGetInteger(R,',pasteq("length(model)"),');'),
+              c(rep('',4),'RGetVector(R,',pasteq("model"),',ret,len);'),
+              c(rep('',4),'for(i=0;i<len;i++)'),
+              c(rep('',4),'{'),
+              c(rep('',6),'ExtMapBuffer1[i]','=','ret[i];'),
+              c(rep('',4),'}'),
+              c(rep('',2),'}'))
+  
+  return( ret) 
+}
+MtrEaWriterStr <- function(name.str, mt.list, save.dir=RegHomeDir())
+{
+  #---  Check that arguments are valid
+  stopStr <- AddAvoidN(name.str)
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddAvoidN(mt.list)
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddExistN(substr(save.dir,1,nchar(save.dir)-1))
+  if( !is.null(stopStr) ) stop(stopStr)
+  
+  ea.str  <- paste0(name.str, ".mq4")
+    
+  #---  Write data
+  #       Write EACH node of the list as a line
+  #       Separate the elements of EACH node with a space.
+  fCon    <-file(paste0(save.dir,ea.str))
+  writeLines(unlist(lapply(mt.list, paste, collapse=" ")), fCon)
+  close(fCon)
+  return( paste0(save.dir,ea.str) )
+}
+pasteq <- function(x) paste0("\"",x,"\"")
+pasteq0 <- function(x) paste0("\'",x,"\'")
+```
+
+```{r}
+name.str      <- "GradientVolatility"
+ver.str       <- "0.1.0"
+ind.dir.str   <- paste0(RegGitDir(),"/indicators/",name.str,".mq4")
+bufNum        <- 2
+styleChr      <- c('DRAW_LINE','DRAW_NONE')
+lType         <- c(rep('property', 6),'include')
+lName         <- c('indicator_buffers','indicator_color1','indicator_color2',
+                   'indicator_minimum','indicator_maximum',
+                   'indicator_separate_window','<mt4R.mqh>')
+lVal          <- c(bufNum,'Red','Black','-1','1','','')
+eType         <- c('int','int','double','string')
+eName         <- c('GdvPeriod','GdvLookBack','GdvAlpha','Rpath')
+eVal          <- c('20','500','1.0',pasteq('C:Program Files/R/R-3.0.0/bin/i386/Rterm.exe'))
+mt.list       <- MtrAddTop(lType,lName,lVal,eType,eName,eVal)
+mt.list       <- append( mt.list, MtrAddInit(name.str,ver.str,bufNum,
+                                             styleChr,rep(eName[1],bufNum)) )
+mt.list       <- append( mt.list, MtrAddStart() )
+mt.list       <- append( mt.list, MtrAddDeinit() )
+```
+
+```{r}
+ins.list  <- MtrAddInVar('int','R')
+mt.list   <- append( mt.list, ins.list, 
+                     after=which(names(mt.list)=="init")-1 )
+ins.list  <- list(c('','','string','Rterm','=','StringConcatenate(Rpath,',pasteq(" --no-save"),');'),
+                  c('','','R=Rinit(Rterm,2);'),
+                  c('','','RExecute(R,',pasteq("histNum <- numeric(0)"),');'),
+                  c('','','RExecute(R,',pasteq("library(zoo)"),');'))
+                  
+mt.list   <- append( mt.list, ins.list,
+                     after=which(names(mt.list)=="init-end")-2 )
+ins.list  <- list(c('','','RDeinit(R);'))
+mt.list   <- append( mt.list, ins.list,
+                     after=which(names(mt.list)=="deinit-end")-2 )
+ins.list  <- MtrAddInVar(rep('double',2),
+                         c('hist[]','ret[]'), indent=2)
+mt.list   <- append( mt.list, ins.list, 
+                     after=which(names(mt.list)=="start")+2 )
+ins.list  <- list(c('','','if(RIsBusy(R))','return(0);'))
+ins.list  <- append( ins.list, MtrAddInResult() )
+ins.list  <- append( ins.list, MtrAddInModel() )
+mt.list   <- append( mt.list, ins.list,
+                     after=which(names(mt.list)=="start-end")-2 )
+
+mt.list
+exe.dir     <- paste0(RegProgramDir(), "Go MT4 001/")
+exe.str     <- "metalang.exe"
+ind.dir     <- paste0(RegLocalProgramDir(), "Go MT4 001/experts/indicators/")
+ea.dir.str  <- MtrEaWriterStr(name.str, mt.list, save.dir=ind.dir)
+cmd.str     <- paste0('"', exe.dir, exe.str, '" "', ea.dir.str, '"')
+cmd.str
+errChr      <- suppressWarnings(system(cmd.str, intern=TRUE, 
+                                       wait=TRUE, show.output.on.console=FALSE))
+out.list    <- strsplit(errChr, ";", fixed=TRUE)
+err.list    <- out.list[which(lapply(out.list, "[", c(1))=="2")]
+warn.list   <- out.list[which(lapply(out.list, "[", c(1))=="1")]
+length(err.list)
+head(err.list)
+length(warn.list)
+head(warn.list)
+```
