@@ -16,6 +16,11 @@ suppressPackageStartupMessages(source(paste0(RegRSourceDir(),"PlusFile.R"), echo
 suppressPackageStartupMessages(source(paste0(RegRSourceDir(),"PlusMtr.R"), echo=FALSE))
 suppressPackageStartupMessages(library(R.utils))
 suppressPackageStartupMessages(library(tseries))
+name.str      <- "GradientVolatility"
+ver.str       <- "0.1.0"
+exe.dir     <- paste0(RegProgramDir(), "Go MT4 001/")
+exe.str     <- "metalang.exe"
+ind.dir     <- paste0(RegLocalProgramDir(), "Go MT4 001/experts/indicators/")
 ```
 
 ```{r}
@@ -47,19 +52,19 @@ MtrAddInit <- function(nameStr, verStr, bufNum, styleChr=NULL, drawBegin=NULL)
 
   mid <- list(c('int','init()'),
               c('{'),
-              c('','',paste0('IndicatorBuffers(',bufNum,');')),
-              c('','','IndicatorDigits(Digits+10);'),
-              c('','','IndicatorShortName(StringConcatenate(IndName," ",IndVer));'))
+              cs(2,paste0('IndicatorBuffers(',bufNum,');')),
+              cs(2,'IndicatorDigits(Digits+10);'),
+              cs(2,'IndicatorShortName(StringConcatenate(IndName," ",IndVer));'))
   names(mid)[1] <- "init"
   
   for( i in 1:bufNum )
-    mid <- append(mid, list(c('','','SetIndexStyle(',i-1,',',styleChr[i],');')))
+    mid <- append(mid, list(cs(2,'SetIndexStyle(',i-1,',',styleChr[i],');')))
   for( i in 1:bufNum )
-    mid <- append(mid, list(c('','','SetIndexDrawBegin(',i-1,',',drawBegin[i],');')))
+    mid <- append(mid, list(cs(2,'SetIndexDrawBegin(',i-1,',',drawBegin[i],');')))
   for( i in 1:bufNum )
-    mid <- append(mid, list(c('','','SetIndexBuffer(',i-1,',',paste0('ExtMapBuffer',i),');')))
+    mid <- append(mid, list(cs(2,'SetIndexBuffer(',i-1,',',paste0('ExtMapBuffer',i),');')))
 
-  end <- list(c('','','return(0);'), 
+  end <- list(cs(2,'return(0);'), 
               c('}'),
               c('//:::::::::::::::::::::::::::::::::::::::::::::'))
   names(end)[2] <- "init-end"
@@ -74,7 +79,7 @@ MtrAddDeinit <- function()
   ret <- list(c('//:::::::::::::::::::::::::::::::::::::::::::::'),
               c('int','deinit()'),
               c('{'),
-              c('','','return(0);'), 
+              cs(2,'return(0);'), 
               c('}'),
               c('//:::::::::::::::::::::::::::::::::::::::::::::'))
   names(ret)[2] <- "deinit"
@@ -86,21 +91,21 @@ MtrAddStart <- function()
 {
   top <- list(c('int','start()'),
               c('{'),
-              c('','','int','i;'),
-              c('','','int','unused_bars;'),
-              c('','','int','used_bars=IndicatorCounted();'),
+              cs(2,'int','i;'),
+              cs(2,'int','unused_bars;'),
+              cs(2,'int','used_bars=IndicatorCounted();'),
               c(''),
-              c('','','if','(used_bars<0)','return(-1);'),
-              c('','','if','(used_bars>0)','used_bars--;'),
-              c('','','unused_bars=Bars-used_bars;'),
+              cs(2,'if','(used_bars<0)','return(-1);'),
+              cs(2,'if','(used_bars>0)','used_bars--;'),
+              cs(2,'unused_bars=Bars-used_bars;'),
               c(''))
   names(top)[1] <- "start"
   
-  mid <- list(c('','','for(i=unused_bars-1;i>=0;i--)'),
-              c('','','{'),
-              c('','','}'))
+  mid <- list(cs(2,'for(i=unused_bars-1;i>=0;i--)'),
+              cs(2,'{'),
+              cs(2,'}'))
 
-  end <- list(c('','','return(0);'), 
+  end <- list(cs(2,'return(0);'), 
               c('}'),
               c('//:::::::::::::::::::::::::::::::::::::::::::::'))
   names(end)[2] <- "start-end"
@@ -119,31 +124,31 @@ MtrAddInVar <- function(varType, varName, indent=0)
 }
 MtrAddInModel <- function()
 {
-  ret <- list(c('','','ArrayResize(hist,unused_bars);'),
-              c('','','for(i=unused_bars-1;i>=0;i--)'),
-              c('','','{'),
-              c('','','','','hist[i]','=','Close[i];'),
-              c('','','}'),
-              c('','','RAssignVector(R,',pasteq("hNum"),',hist,ArraySize(hist));'),
-              c('','','RExecute(R,',pasteq("hNum <- rev(hNum)"),');'),
-              c('','','RExecute(R,',pasteq("histNum <- c(histNum,hNum)"),');'),
-              c('','','RExecuteAsync(R,',pasteq("model <- rollapply(histNum,20,function(x) as.numeric(lm(x ~ seq_along(x))$coeff[2]))*1000"),');'))
+  ret <- list(cs(2,'ArrayResize(hist,unused_bars-1);'),
+              cs(2,'for(i=unused_bars-2;i>=0;i--)'),
+              cs(2,'{'),
+              cs(4,'hist[i]','=','Close[i];'),
+              cs(2,'}'),
+              cs(2,MtrAssignVector0("hNum",',hist,ArraySize(hist)')),
+              cs(2,MtrExecute0("hNum <- rev(hNum)")),
+              cs(2,MtrExecute0("histNum <- c(histNum,hNum)")),
+              cs(2,MtrExecuteAsync0("model <- rollapply(histNum,20,function(x) as.numeric(lm(x ~ seq_along(x))$coeff[2]))*1000")))
    
   return( ret )
 }
 MtrAddInResult <- function()
 {
   cmd <- paste0("as.integer(exists(",pasteq0("model"),"))")
-  ret <- list(c(rep('',2),'ArrayResize(ret,GdvLookBack);'),
-              c(rep('',2),'if(RGetInteger(R,',pasteq(cmd),')==1)'),
-              c(rep('',2),'{'),
-              c(rep('',4),'int','len=RGetInteger(R,',pasteq("length(model)"),');'),
-              c(rep('',4),'RGetVector(R,',pasteq("model"),',ret,len);'),
-              c(rep('',4),'for(i=0;i<len;i++)'),
-              c(rep('',4),'{'),
-              c(rep('',6),'ExtMapBuffer1[i]','=','ret[i];'),
-              c(rep('',4),'}'),
-              c(rep('',2),'}'))
+  ret <- list(cs(2,'ArrayResize(ret,GdvLookBack);'),
+              cs(2,'int','len=',MtrGetInteger0("length(histNum)")),
+              cs(2,'if(',MtrGetInteger(cmd),'==1)'),
+              cs(2,'{'),
+              cs(4,'RGetVector(R, StringConcatenate(',pasteq("model[1:"),',GdvLookBack,',pasteq("]"),'),ret,GdvLookBack);'),
+              cs(4,'for(i=0;i<GdvLookBack;i++)'),
+              cs(4,'{'),
+              cs(6,'ExtMapBuffer1[i]','=','ret[i];'),
+              cs(4,'}'),
+              cs(2,'}'))
   
   return( ret) 
 }
@@ -167,14 +172,18 @@ MtrEaWriterStr <- function(name.str, mt.list, save.dir=RegHomeDir())
   close(fCon)
   return( paste0(save.dir,ea.str) )
 }
-pasteq <- function(x) paste0("\"",x,"\"")
+pasteq  <- function(x) paste0("\"",x,"\"")
 pasteq0 <- function(x) paste0("\'",x,"\'")
+cs      <- function(n, ...) c(rep('',n), ...)
+MtrExecute0         <- function(x) c('RExecute(R,',pasteq(x),');')
+MtrExecuteAsync0    <- function(x) c('RExecuteAsync(R,',pasteq(x),');')
+MtrGetInteger       <- function(x) c('RGetInteger(R,',pasteq(x),')')
+MtrGetInteger0      <- function(x) c('RGetInteger(R,',pasteq(x),');')
+MtrGetVector0       <- function(x,...) c('RGetVector(R,',pasteq(x),...,');')
+MtrAssignVector0    <- function(x,...) c('RAssignVector(R,',pasteq(x),...,');')
 ```
 
 ```{r}
-name.str      <- "GradientVolatility"
-ver.str       <- "0.1.0"
-ind.dir.str   <- paste0(RegGitDir(),"/indicators/",name.str,".mq4")
 bufNum        <- 2
 styleChr      <- c('DRAW_LINE','DRAW_NONE')
 lType         <- c(rep('property', 6),'include')
@@ -184,7 +193,7 @@ lName         <- c('indicator_buffers','indicator_color1','indicator_color2',
 lVal          <- c(bufNum,'Red','Black','-1','1','','')
 eType         <- c('int','int','double','string')
 eName         <- c('GdvPeriod','GdvLookBack','GdvAlpha','Rpath')
-eVal          <- c('20','500','1.0',pasteq('C:Program Files/R/R-3.0.0/bin/i386/Rterm.exe'))
+eVal          <- c('20','500','1.0',pasteq('C:/Program Files/R/R-2.15.3/bin/i386/Rterm.exe'))
 mt.list       <- MtrAddTop(lType,lName,lVal,eType,eName,eVal)
 mt.list       <- append( mt.list, MtrAddInit(name.str,ver.str,bufNum,
                                              styleChr,rep(eName[1],bufNum)) )
@@ -196,30 +205,27 @@ mt.list       <- append( mt.list, MtrAddDeinit() )
 ins.list  <- MtrAddInVar('int','R')
 mt.list   <- append( mt.list, ins.list, 
                      after=which(names(mt.list)=="init")-1 )
-ins.list  <- list(c('','','string','Rterm','=','StringConcatenate(Rpath,',pasteq(" --no-save"),');'),
-                  c('','','R=Rinit(Rterm,2);'),
-                  c('','','RExecute(R,',pasteq("histNum <- numeric(0)"),');'),
-                  c('','','RExecute(R,',pasteq("library(zoo)"),');'))
+ins.list  <- list(cs(2,'string','Rterm','=','StringConcatenate(Rpath,',pasteq(" --no-save"),');'),
+                  cs(2,'R=Rinit(Rterm,2);'),
+                  cs(2,MtrExecute0("histNum <- numeric(0)")),
+                  cs(2,MtrExecute0("library(zoo)")))
                   
 mt.list   <- append( mt.list, ins.list,
                      after=which(names(mt.list)=="init-end")-2 )
-ins.list  <- list(c('','','RDeinit(R);'))
+ins.list  <- list(cs(2,'RDeinit(R);'))
 mt.list   <- append( mt.list, ins.list,
                      after=which(names(mt.list)=="deinit-end")-2 )
 ins.list  <- MtrAddInVar(rep('double',2),
                          c('hist[]','ret[]'), indent=2)
 mt.list   <- append( mt.list, ins.list, 
                      after=which(names(mt.list)=="start")+2 )
-ins.list  <- list(c('','','if(RIsBusy(R))','return(0);'))
+ins.list  <- list(cs(2,'if(RIsBusy(R))','return(0);'))
 ins.list  <- append( ins.list, MtrAddInResult() )
 ins.list  <- append( ins.list, MtrAddInModel() )
 mt.list   <- append( mt.list, ins.list,
                      after=which(names(mt.list)=="start-end")-2 )
 
 mt.list
-exe.dir     <- paste0(RegProgramDir(), "Go MT4 001/")
-exe.str     <- "metalang.exe"
-ind.dir     <- paste0(RegLocalProgramDir(), "Go MT4 001/experts/indicators/")
 ea.dir.str  <- MtrEaWriterStr(name.str, mt.list, save.dir=ind.dir)
 cmd.str     <- paste0('"', exe.dir, exe.str, '" "', ea.dir.str, '"')
 cmd.str
