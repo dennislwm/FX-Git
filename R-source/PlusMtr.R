@@ -3,13 +3,8 @@
 #|                                                             Copyright © 2012, Dennis Lee |
 #|                                                                                          |
 #| Assert History                                                                           |
-#|  1.0.1   Fixed minor bugs: (a) missing argument for MtrIsComment(); (b) empty rowNum in  |
-#|          functions MtrBetweenxxx().                                                      |
-#|  1.0.0   Added test script "R-test-09-mtr/testPlusMtr.R" for TWO (2) functions           |
-#|          MtrFindCmtDfr() and MtrIsComment(). Todo: Test script for FIVE (5) functions    |
-#|          MtrConvertStr(), MtrFindLoopDfr(), MtrFindFunDfr(), MtrBetweenLoopDfr(), and    |
-#|          MtrBetweenFunDfr().                                                             |
 #|  0.9.0   This library contains external R functions to interact with MetaTrader 4.       |
+#|          Note: The previous "PlusMtr.R" has been renamed to "PlusMtrGhost.R".            |
 #|------------------------------------------------------------------------------------------|
 if( Sys.info()["sysname"] == "Linux" )
 {
@@ -22,367 +17,351 @@ if( Sys.info()["sysname"] == "Windows" )
 suppressPackageStartupMessages(source(paste0(RegRSourceDir(),"PlusAddThat.R"), echo=FALSE))
 suppressPackageStartupMessages(library(R.utils))
 
-#|------------------------------------------------------------------------------------------|
-#|                            E X T E R N A L   F U N C T I O N S                           |
-#|------------------------------------------------------------------------------------------|
-MtrBetweenFunDfr <- function(mt.list, funDfr, cmtDfr, funThatChr=NULL)
+MtrAddRTop <- function(linkType, linkName, linkVal, extType, extName, extVal, 
+                       Rpath='C:/Program Files/R/R-2.15.3/bin/i386/Rterm.exe')
 {
-  #---  Check that arguments are valid
-  stopStr <- AddAvoidN(cmtDfr)
-  if( !is.null(stopStr) ) stop(stopStr)
-  stopStr <- AddNameMatch(names(funDfr), c("Token", "Open", "Close", "First", "Name"))
-  if( !is.null(stopStr) ) stop(stopStr)
-  stopStr <- AddNameMatch(names(cmtDfr), c("Open", "Close"))
-  if( !is.null(stopStr) ) stop(stopStr)
-  
-  funChr <- c("OrderSend", "OrderModify", "OrderClose", funThatChr)
-  endNum <- length(mt.list)
-  retDfr <- dataFrame( colClasses=c(Token="character", Open="numeric", 
-                                    Close="numeric", First="numeric",
-                                    Name="character"), nrow=0 )
-  for( n in seq_along(funDfr$Open) )
-  {
-    #---  Knowledge when "for" has OrderSelect and ONE (1) or more of OrderSend
-    #     (1) check for OrderSelect
-    #     (2) check for OrderSend
-    #     (3) check for OrderModify
-    #     (4) check for OrderClose
-    #     (5) check for OrderDelete
-    tokenStr  <- funDfr$Token[n]
-    openNum   <- funDfr$Open[n]
-    closeNum  <- funDfr$Close[n]
-    firstNum  <- funDfr$First[n]
-    nameStr   <- funDfr$Name[n]
-    rowNum    <- which(lapply(mt.list[openNum:closeNum],
-                              function(x) { sum(grep("OrderSelect", x)) })>0)
-    if( length(rowNum)>0 )
-    {
-      cmtBln    <- MtrIsComment(mt.list, "OrderSelect", rowNum+openNum-1, cmtDfr)
-      isOpenSelect <- sum(cmtBln)<length(cmtBln)
-    } else isOpenSelect <- FALSE
-    if( !isOpenSelect )
-    {
-      isOpenFun   <- FALSE
-      for( o in seq_along(funChr) )
-      {
-        funStr    <- funChr[o]
-        fRowNum   <- which(lapply(mt.list[openNum:closeNum],
-                                  function(x) { sum(grep(funStr, x)) })>0)
-        if( length(fRowNum)>0 )
-        {
-          fCmtBln   <- MtrIsComment(mt.list, funStr, fRowNum+openNum-1, cmtDfr)
-          isOpenFun <- isOpenFun | (sum(fCmtBln)<length(fCmtBln))
-        } else isOpenFun <- isOpenFun | FALSE
-      }
-      if( isOpenFun )
-      {
-        rDfr        <- data.frame( tokenStr, openNum, closeNum, firstNum, nameStr )
-        names(rDfr) <- names(retDfr)
-        retDfr      <- rbind(retDfr, rDfr)
-      }
-    }
-  }  
-  retDfr
+  mt.list <- MtrAddTop(lType,lName,lVal,eType,eName,eVal)
+  mt.list <- MtrAddInLink(mt.list,'include','<mt4R.mqh>','')
+  mt.list <- MtrAddInExtern(mt.list,'string','Rpath',pasteq(Rpath))
+  mt.list
 }
-MtrBetweenLoopDfr <- function(mt.list, loopDfr, cmtDfr, funThatChr=NULL)
+MtrAddRInit <- function(nameStr, verStr, bufNum, styleChr=NULL, drawBegin=NULL,
+                        Rlibrary=NULL, Rsource=NULL, Rsourcedir=RegRSourceDir())
 {
-  #---  Check that arguments are valid
-  stopStr <- AddAvoidN(cmtDfr)
-  if( !is.null(stopStr) ) stop(stopStr)
-  stopStr <- AddNameMatch(names(loopDfr), c("Token", "Open", "Close", "First"))
-  if( !is.null(stopStr) ) stop(stopStr)
-  stopStr <- AddNameMatch(names(cmtDfr), c("Open", "Close"))
-  if( !is.null(stopStr) ) stop(stopStr)
-  
-  funChr <- c("OrderSend", "OrderModify", "OrderClose", funThatChr)
-  endNum <- length(mt.list)
-  retDfr <- dataFrame( colClasses=c(Token="character", Open="numeric", 
-                                    Close="numeric", First="numeric"), nrow=0 )
-  for( n in seq_along(loopDfr$Open) )
-  {
-    #---  Knowledge when "for" has OrderSelect and ONE (1) or more of OrderSend
-    #     (1) check for OrderSelect
-    #     (2) check for OrderSend
-    #     (3) check for OrderModify
-    #     (4) check for OrderClose
-    #     (5) check for OrderDelete
-    tokenStr  <- loopDfr$Token[n]
-    openNum   <- loopDfr$Open[n]
-    closeNum  <- loopDfr$Close[n]
-    firstNum  <- loopDfr$First[n]
-    rowNum    <- which(lapply(mt.list[openNum:closeNum],
-                              function(x) { sum(grep("OrderSelect", x)) })>0)
-    if( length(rowNum)>0 )
-    {
-      cmtBln <- MtrIsComment(mt.list, "OrderSelect", rowNum+openNum-1, cmtDfr)
-      isOpenSelect <- sum(cmtBln)<length(cmtBln)
-    } else isOpenSelect <- FALSE
-    if( isOpenSelect )
-    {
-      isOpenFun   <- FALSE
-      for( o in seq_along(funChr) )
-      {
-        funStr    <- funChr[o]
-        fRowNum   <- which(lapply(mt.list[openNum:closeNum],
-                                  function(x) { sum(grep(funStr, x)) })>0)
-        if( length(fRowNum)>0 )
-        {
-          fCmtBln   <- MtrIsComment(mt.list, funStr, fRowNum+openNum-1, cmtDfr)
-          isOpenFun <- isOpenFun | (sum(fCmtBln)<length(fCmtBln))
-        } else isOpenFun <- isOpenFun | FALSE
-      }
-      if( isOpenFun )
-      {
-        rDfr        <- data.frame(tokenStr, openNum, closeNum, firstNum )
-        names(rDfr) <- names(retDfr)
-        retDfr      <- rbind(retDfr, rDfr)
-      }
-    }
-  }  
-  retDfr
+  mt.list <- MtrAddInit(nameStr, verStr, bufNum, styleChr, drawBegin)
+  mt.list <- MtrAddInRInit(mt.list, Rlibrary, Rsource, Rsourcedir)
+  mt.list
 }
-MtrFindFunDfr <- function(mt.list, cmtDfr, tokenChr=c("public"), offset=3)
+MtrAddRStart <- function()
 {
-  #---  Check that arguments are valid
-  stopStr <- AddAvoidN(cmtDfr)
-  if( !is.null(stopStr) ) stop(stopStr)
-  stopStr <- AddNameMatch(names(cmtDfr), c("Open", "Close"))
-  if( !is.null(stopStr) ) stop(stopStr)
-  stopStr <- AddMore(offset, 1)
-  if( !is.null(stopStr) ) stop(stopStr)
-  
-  endNum <- length(mt.list)
-  retDfr <- dataFrame( colClasses=c(Token="character", Open="numeric", 
-                                    Close="numeric", First="numeric",
-                                    Name="character"), nrow=0 )
-  for( m in seq_along(tokenChr) )
-  {
-    tokenStr  <- tokenChr[m]
-    rowNum    <- which(lapply(mt.list, function(x) { sum(grep(tokenStr, x)) })>0)
-    cmtBln    <- MtrIsComment(mt.list, tokenStr, rowNum, cmtDfr)
-    for( n in seq_along(rowNum) )
-    {
-      openNum     <- rowNum[n]
-      indentNum   <- which(nchar(mt.list[[openNum]])>0)
-      isOpenCmt   <- cmtBln[n]
-      #---  Identify non-valid tokens
-      #     (1) tokens may be within a string, i.e. " this is a string "
-      if( length(indentNum)>1 )
-        isOpenStr   <- sum(grep("\\(", mt.list[[openNum]][indentNum[offset]]))==0
-      else
-        isOpenStr   <- TRUE
-      if( !isOpenCmt &  !isOpenStr )
-      {
-        #---  Knowledge when "for" has braces OR NOT
-        #     (1) check if next token is "{"
-        nameStr     <- substr(mt.list[[openNum]][indentNum[offset]], 1,
-                              as.numeric(gregexpr("\\(", mt.list[[openNum]][indentNum[offset]]))-1)
-        nextNum     <- openNum+1
-        indnxtNum   <- which(nchar(mt.list[[nextNum]])>0)
-        if( indentNum[1]==indnxtNum[1] )
-          isOpenBrs   <- substr(mt.list[[nextNum]][indnxtNum[1]],1,1)=="{"
-        else
-          isOpenBrs   <- FALSE
-        if( !isOpenBrs )
-          startNum <- openNum + 1
-        else
-          startNum <- openNum + 2
-        for( mRow in startNum:endNum )
-        {
-          iNum <- which(nchar(mt.list[[mRow]])>0)
-          if( length(iNum)>0 )
-            if( iNum[1]==indentNum[1] )
-            {
-              isCloseCmt  <- nrow(cmtDfr[cmtDfr$Open==mRow,])>0
-              if( !isCloseCmt ) break
-            }
-        }
-        if( !isOpenBrs ) 
-          closeNum  <- mRow - 1
-        else
-          closeNum  <- mRow
-        rDfr        <- data.frame(tokenStr, openNum, closeNum, indentNum[1],
-                                  nameStr)
-        names(rDfr) <- names(retDfr)
-        retDfr      <- rbind(retDfr, rDfr)
-      }
-    }
-  }
-  retDfr
+  mt.list   <- MtrAddStart()
+  ins.list  <- MtrCVar(2, rep('double',2), c('hist[]','ret[]'))
+  mt.list   <- append( mt.list, ins.list, after=w(mt.list,"_start")+2 )
+  ins.list  <- list(cs(2,'if(RIsBusy(R))','return(0);'))
+  ins.list  <- append( ins.list, MtrAddInResult() )
+  ins.list  <- append( ins.list, MtrAddInModel() )
+  mt.list   <- append( mt.list, ins.list, after=w(mt.list,"_start_end")-2 )  
+  mt.list
 }
-MtrFindLoopDfr <- function(mt.list, cmtDfr, tokenChr=c("for"))
+MtrAddInModel <- function()
 {
-  #---  Check that arguments are valid
-  stopStr <- AddAvoidN(cmtDfr)
-  if( !is.null(stopStr) ) stop(stopStr)
-  stopStr <- AddNameMatch(names(cmtDfr), c("Open", "Close"))
-  if( !is.null(stopStr) ) stop(stopStr)
+  ret <- list(cs(2,'ArrayResize(hist,unused_bars-1);'),
+              cs(2,'for(i=unused_bars-2;i>=0;i--)'),
+              cs(2,'{'),
+              cs(4,'hist[i]','=','Close[i];'),
+              cs(2,'}'),
+              cs(2,MtrAssignVector0("hNum",',hist,ArraySize(hist)')),
+              cs(2,MtrExecute0("hNum <- rev(hNum)")),
+              cs(2,MtrExecute0("histNum <- c(histNum,hNum)")),
+              cs(2,MtrExecuteAsync0("#model <- lm(x ~ seq_along(x))")))
+  names(ret)[1] <- "model"
+  names(ret)[length(ret)] <- "model_end"
   
-  endNum <- length(mt.list)
-  retDfr <- dataFrame( colClasses=c(Token="character", Open="numeric", 
-                                    Close="numeric", First="numeric"), nrow=0 )
-  for( m in seq_along(tokenChr) )
-  {
-    tokenStr  <- tokenChr[m]
-    rowNum    <- which(lapply(mt.list, function(x) { sum(grep(tokenStr, x)) })>0)
-    if(length(rowNum)>0)
-      cmtBln    <- MtrIsComment(mt.list, tokenStr, rowNum, cmtDfr)
-    for( n in seq_along(rowNum) )
-    {
-      openNum     <- rowNum[n]
-      indentNum   <- which(nchar(mt.list[[openNum]])>0)
-      isOpenCmt   <- cmtBln[n]
-      #---  Identify non-valid tokens
-      #     (1) tokens may be within a string, i.e. " this is a string "
-      if( length(indentNum)>1 )
-        isOpenStr   <- substr(mt.list[[openNum]][indentNum[2]],1,1)!="("
-      else
-        isOpenStr   <- TRUE
-      if( !isOpenCmt &  !isOpenStr )
-      {
-        #---  Knowledge when "for" has braces OR NOT
-        #     (1) check if next token is "{"
-        nextNum     <- openNum+1
-        indnxtNum   <- which(nchar(mt.list[[nextNum]])>0)
-        if( indentNum[1]==indnxtNum[1] )
-          isOpenBrs   <- substr(mt.list[[nextNum]][indnxtNum[1]],1,1)=="{"
-        else
-          isOpenBrs   <- FALSE
-        if( !isOpenBrs )
-          startNum <- openNum + 1
-        else
-          startNum <- openNum + 2
-        for( mRow in startNum:endNum )
-        {
-          iNum <- which(nchar(mt.list[[mRow]])>0)
-          if( length(iNum)>0 )
-            if( iNum[1]==indentNum[1] )
-            {
-              isCloseCmt  <- nrow(cmtDfr[cmtDfr$Open==mRow,])>0
-              if( !isCloseCmt ) break
-            }
-        }
-        if( !isOpenBrs ) 
-          closeNum  <- mRow - 1
-        else
-          closeNum  <- mRow
-        rDfr        <- data.frame(tokenStr, openNum, closeNum, indentNum[1] )
-        names(rDfr) <- names(retDfr)
-        retDfr      <- rbind(retDfr, rDfr)
-      }
-    }
-  }
-  retDfr
+  return( ret )
 }
-MtrConvertStr <- function(name.str, exe.dir=paste0(RegProgramDir(),"mq4_converter/"),
-                          ea.dir=RegEaDir(), java.dir=RegJavaDir())
+MtrAddInResult <- function()
 {
-  #---  Check that arguments are valid
-  stopStr <- AddAvoidN(name.str)
-  if( !is.null(stopStr) ) stop(stopStr)
-  stopStr <- AddExistN(substr(exe.dir,1,nchar(exe.dir)-1))
-  if( !is.null(stopStr) ) stop(stopStr)
-  stopStr <- AddExistN(substr(ea.dir,1,nchar(ea.dir)-1))
-  if( !is.null(stopStr) ) stop(stopStr)
-  stopStr <- AddExistN(substr(java.dir,1,nchar(java.dir)-1))
-  if( !is.null(stopStr) ) stop(stopStr)
+  cmd <- paste0("as.integer(exists(",pasteq0("model"),"))")
+  ret <- list(cs(2,'int','len=',MtrGetInteger0("length(histNum)")),
+              cs(2,'ArrayResize(ret,len);'),
+              cs(2,'if(',MtrGetInteger(cmd),'==1)'),
+              cs(2,'{'),
+              cs(4,MtrGetVector0("histNum",',ret,len')),
+              cs(4,'for(i=0;i<len;i++)'),
+              cs(4,'{'),
+              cs(6,'ExtMapBuffer1[i]','=','ret[i];'),
+              cs(4,'}'),
+              cs(2,'}'))
+  names(ret)[1] <- "result"
+  names(ret)[length(ret)] <- "result_end"
   
-  ea.str    <- paste0(name.str, ".mq4")
-  java.str  <- paste0(name.str, ".java")
-  exe.str   <- "mq4_writer.exe"
-  
-  stopStr <- AddExists(paste0(exe.dir, exe.str))
-  if( !is.null(stopStr) ) stop(stopStr)
-  stopStr <- AddExists(paste0(ea.dir, ea.str))  
-  if( !is.null(stopStr) ) stop(stopStr)
-  
-  cmd.str   <- paste0('"', exe.dir, exe.str, '" "', ea.dir, ea.str, 
-                      '" java "', java.dir, java.str, '"')
-  
-  errNum <- RegSystemNum(cmd.str)
-  if( errNum!=0 | !file.exists(paste0(java.dir, java.str)) )
-    return( paste0(errNum, ': ', java.str, ' is missing (OR NOT converted correctly)') )
-  else
-    return( paste0(java.dir, java.str) )
+  return( ret) 
 }
-MtrFindCmtDfr <- function(mt.list)
+MtrAddRDeinit <- function()
 {
-  endNum <- length(mt.list)
-  retDfr <- dataFrame( colClasses=c(Token="character", Open="numeric", Close="numeric",
-                                    First="numeric", Last="numeric"), nrow=0 )
-  rowNum <- which(lapply(mt.list, function(x) { sum(grep("//", x)) })>0)
-  for( n in seq_along(rowNum) )
-  {
-    openNum     <- rowNum[n]
-    betweenNum  <- grep("//", mt.list[[openNum]])
-    rDfr        <- data.frame("cmt", openNum, openNum, betweenNum[1], 1e6 )
-    names(rDfr) <- names(retDfr)
-    retDfr      <- rbind(retDfr, rDfr)
-  }
-  rowNum    <- which(lapply(mt.list, function(x) { sum(grep("\\/\\*", x)) })>0)
-  rowcNum   <- which(lapply(mt.list, function(x) { sum(grep("\\*\\/", x)) })>0)
-  for( n in seq_along(rowNum) )
-  {
-    openNum     <- rowNum[n]
-    betweenNum  <- grep("\\/\\*", mt.list[[openNum]])
-    closeNum    <- rowcNum[n]
-    betweencNum <- grep("\\*\\/", mt.list[[closeNum]])
-    rDfr        <- data.frame("cmt", openNum, closeNum, betweenNum[1], betweencNum[1] )
-    names(rDfr) <- names(retDfr)
-    retDfr      <- rbind(retDfr, rDfr)
-  }
-  retDfr
+  mt.list   <- MtrAddDeinit()
+  ins.list  <- list(cs(2,'RDeinit(R);'))
+  mt.list   <- append( mt.list, ins.list, after=w(mt.list,"_deinit_end")-2 )
 }
-
-#|------------------------------------------------------------------------------------------|
-#|                            I N T E R N A L   F U N C T I O N S                           |
-#|------------------------------------------------------------------------------------------|
-MtrIsComment <- function(mt.list, tokenStr, rowNum, cmtDfr)
+MtrAddInRInit <- function(mt.list, Rlibrary=NULL, Rsource=NULL, Rsourcedir=RegRSourceDir())
 {
   #---  Check that arguments are valid
   stopStr <- AddAvoidN(mt.list)
   if( !is.null(stopStr) ) stop(stopStr)
-  stopStr <- AddAvoidN(tokenStr)
+  stopStr <- AddMore(length(w(mt.list,"_init")),0)
   if( !is.null(stopStr) ) stop(stopStr)
-  stopStr <- AddAvoidN(rowNum)
-  if( !is.null(stopStr) ) stop(stopStr)
-  stopStr <- AddMore(rowNum, 0)
-  if( !is.null(stopStr) ) stop(stopStr)
-  stopStr <- AddMoreE(length(mt.list), length(rowNum))
-  if( !is.null(stopStr) ) stop(stopStr)
-  stopStr <- AddAvoidN(cmtDfr)
-  if( !is.null(stopStr) ) stop(stopStr)
-  stopStr <- AddNameMatch(names(cmtDfr), c("Open", "Close", "First", "Last"))
+  stopStr <- AddMore(length(w(mt.list,"_init_end")),0)
   if( !is.null(stopStr) ) stop(stopStr)
   
-  retBln  <- NULL
-  for( n in seq_along(rowNum) )
+  ins.list  <- MtrCVar(0,'int','R')
+  mt.list   <- append( mt.list, ins.list, after=w(mt.list,"_init")-1 )
+
+  end <- list(cs(2,'string','Rterm','=','StringConcatenate(Rpath,',pasteq(" --no-save"),');'),
+              cs(2,'R=Rinit(Rterm,2);'))
+  if( !is.null(Rlibrary) )
   {
-    openNum     <- rowNum[n]
-    betweenNum  <- grep(tokenStr, mt.list[[openNum]])
-    #---  Identify non-valid tokens
-    #     (1) tokens may be within a comment: (a) // ; (b) /*  */
-    cDfr        <- cmtDfr[cmtDfr$Open<=openNum & openNum<=cmtDfr$Close,]
-    if( nrow(cDfr)>0 )
-    {
-      if( cmtDfr$Open==cmtDfr$Close )
-        isBetween   <- betweenNum>=cDfr$First & betweenNum<=cDfr$Last 
-      else
-      {
-        if( openNum==cmtDfr$Open )
-          isBetween   <- betweenNum>=cDfr$First
-        else if( openNum==cmtDfr$Close )
-          isBetween   <- betweenNum<=cDfr$Last 
-        else
-          isBetween   <- betweenNum>=1 & betweenNum<=1e6
-      }
-      isCmt       <- sum(isBetween)==length(betweenNum)
-    }
-    else
-      isCmt       <- FALSE
-    retBln <- c(retBln, isCmt)
+    for( i in seq_along(Rlibrary) )
+      end <- append(end, list(cs(2,MtrExecute0(paste0("library(",Rlibrary[i],")")))))
   }
-  retBln
+  if( !is.null(Rsource) )
+  {
+    for( i in seq_along(Rsource) )
+      end <- append(end, list(cs(2,MtrExecute0(paste0("suppressPackageStartupMessages(source(paste0(",
+                                                 pasteq0(Rsourcedir,Rsource[i]),"), echo=FALSE))")))))
+  }
+  
+  mt.list   <- append( mt.list, end, after=w(mt.list,"_init_end")-2 )
+  mt.list
+}
+
+#|------------------------------------------------------------------------------------------|
+#|                        E X T E R N A L   C   F U N C T I O N S                           |
+#|------------------------------------------------------------------------------------------|
+w       <- function(x, pat) which(names(x)==pat)
+pasteq  <- function(...) paste0("\"",...,"\"")
+pasteq0 <- function(...) paste0("\'",...,"\'")
+cs      <- function(n, ...) c(rep('',n), ...)
+MtrExecute0         <- function(x,...) c('RExecute(R,',pasteq(x),...,');')
+MtrExecuteAsync0    <- function(x,...) c('RExecuteAsync(R,',pasteq(x),...,');')
+MtrGetBool          <- function(x,...) c('RGetBool(R,',pasteq(x),...,')')
+MtrGetInteger       <- function(x,...) c('RGetInteger(R,',pasteq(x),...,')')
+MtrGetInteger0      <- function(x,...) c('RGetInteger(R,',pasteq(x),...,');')
+MtrGetVector0       <- function(x,...) c('RGetVector(R,',pasteq(x),...,');')
+MtrAssignVector0    <- function(x,...) c('RAssignVector(R,',pasteq(x),...,');')
+MtrGb   <- function(x,...) c('Rgb(',pasteq(x),...,')')
+MtrGi   <- function(x,...) c('Rgi(',pasteq(x),...,')')
+MtrGi0  <- function(x,...) c('Rgi(',pasteq(x),...,');')
+MtrX    <- function(x,...) c('Rx(',pasteq(x),...,')')
+MtrX0   <- function(x,...) c('Rx(',pasteq(x),...,');')
+
+#|------------------------------------------------------------------------------------------|
+#|                        E X T E R N A L   B   F U N C T I O N S                           |
+#|------------------------------------------------------------------------------------------|
+MtrAddInLink <- function(mt.list, linkType, linkName, linkVal)
+{
+  #---  Check that arguments are valid
+  stopStr <- AddAvoidN(mt.list)
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddAvoidN(linkType)
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddEqual(length(linkType),length(linkName))
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddEqual(length(linkType),length(linkVal))
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddMore(length(w(mt.list,"link")),0)
+  if( !is.null(stopStr) ) stop(stopStr)
+  
+  top <- mt.list
+  names(top)[w(mt.list,"link")] <- NA
+  
+  end <- list()
+  for( i in seq_along(linkType) )
+    end <- append(end, list(c(paste0('#',linkType[i]),linkName[i],linkVal[i])))
+  names(end)[length(end)] <- "link"
+  
+  mt.list   <- append( top, end, after=w(mt.list,"link") )  
+  mt.list
+}
+MtrAddInExtern <- function(mt.list, extType, extName, extVal)
+{
+  #---  Check that arguments are valid
+  stopStr <- AddAvoidN(mt.list)
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddAvoidN(extType)
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddEqual(length(extType),length(extName))
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddEqual(length(extType),length(extVal))
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddMore(length(w(mt.list,"extern")),0)
+  if( !is.null(stopStr) ) stop(stopStr)
+  
+  top <- mt.list
+  names(top)[w(mt.list,"extern")] <- NA
+  
+  end <- list()
+  for( i in seq_along(extType) )
+    end <- append(end, list(c('extern',extType[i],extName[i],'=',paste0(extVal[i],';'))))
+  names(end)[length(end)] <- "extern"
+  
+  mt.list   <- append( top, end, after=w(mt.list,"extern") )  
+  mt.list
+}
+MtrCVar <- function(indent, varType, varName)
+{
+  #---  Check that arguments are valid
+  stopStr <- AddAvoidN(indent)
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddAvoidN(varType)
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddEqual(length(varType),length(varName))
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddMoreE(indent,0)
+  if( !is.null(stopStr) ) stop(stopStr)
+  
+  ret <- list()
+  for( i in seq_along(varType) )
+    ret <- append(ret, list(cs(indent,varType[i],varName[i],';')))
+  ret
+}
+MtrEaWriterStr <- function(name.str, mt.list, save.dir=RegHomeDir(), ext.str=".mq4")
+{
+  #---  Check that arguments are valid
+  stopStr <- AddAvoidN(name.str)
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddAvoidN(mt.list)
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddExistN(substr(save.dir,1,nchar(save.dir)-1))
+  if( !is.null(stopStr) ) stop(stopStr)
+  
+  ea.str  <- paste0(name.str, ext.str)
+  
+  #---  Write data
+  #       Write EACH node of the list as a line
+  #       Separate the elements of EACH node with a space.
+  fCon    <-file(paste0(save.dir,ea.str))
+  writeLines(unlist(lapply(mt.list, paste, collapse=" ")), fCon)
+  close(fCon)
+  return( paste0(save.dir,ea.str) )
+}
+MtrWriterStr <- function(mt.list)
+{
+  #---  Check that arguments are valid
+  stopStr <- AddAvoidN(mt.list)
+  if( !is.null(stopStr) ) stop(stopStr)
+  
+  #---  Write data
+  #       Write EACH node of the list as a line
+  #       Separate the elements of EACH node with a space.
+  unlist(lapply(mt.list, paste, collapse=" "))
+}
+
+#|------------------------------------------------------------------------------------------|
+#|                        E X T E R N A L   A   F U N C T I O N S                           |
+#|------------------------------------------------------------------------------------------|
+MtrAddStart <- function()
+{
+  top <- list(c('int','start()'),
+              c('{'),
+              cs(2,'int','i;'),
+              cs(2,'int','unused_bars;'),
+              cs(2,'int','used_bars=IndicatorCounted();'),
+              c(''),
+              cs(2,'if','(used_bars<0)','return(-1);'),
+              cs(2,'if','(used_bars>0)','used_bars--;'),
+              cs(2,'unused_bars=Bars-used_bars;'),
+              c(''))
+  names(top)[1] <- "_start"
+  
+  mid <- list(cs(2,'for(i=unused_bars-1;i>=0;i--)'),
+              cs(2,'{'),
+              cs(2,'}'))
+  
+  end <- list(cs(2,'return(0);'), 
+              c('}'),
+              c('//:::::::::::::::::::::::::::::::::::::::::::::'))
+  names(end)[2] <- "_start_end"
+  
+  #ret <- append(top, mid)
+  ret <- append(top, end)
+  
+  return( ret )
+}
+MtrAddLink <- function(linkType, linkName, linkVal)
+{
+  #---  Check that arguments are valid
+  stopStr <- AddAvoidN(linkType)
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddEqual(length(linkType),length(linkName))
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddEqual(length(linkType),length(linkVal))
+  if( !is.null(stopStr) ) stop(stopStr)
+  
+  top <- list()
+  for( i in seq_along(linkType) )
+    top <- append(top, list(c(paste0('#',linkType[i]),linkName[i],linkVal[i])))
+  names(top)[length(top)] <- "link"
+
+  return( top )
+}
+MtrAddTop <- function(linkType, linkName, linkVal, extType, extName, extVal)
+{
+  #---  Check that arguments are valid
+  stopStr <- AddAvoidN(linkType)
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddEqual(length(linkType),length(linkName))
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddEqual(length(linkType),length(linkVal))
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddAvoidN(extType)
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddEqual(length(extType),length(extName))
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddEqual(length(extType),length(extVal))
+  if( !is.null(stopStr) ) stop(stopStr)
+  
+  top <- list(c('//:::::::::::::::::::::::::::::::::::::::::::::'))
+  for( i in seq_along(linkType) )
+    top <- append(top, list(c(paste0('#',linkType[i]),linkName[i],linkVal[i])))
+  names(top)[length(top)] <- "link"
+  
+  end <- list()
+  for( i in seq_along(extType) )
+    end <- append(end, list(c('extern',extType[i],extName[i],'=',paste0(extVal[i],';'))))
+  names(end)[length(end)] <- "extern"
+  
+  return( append(top,end) )
+}
+MtrAddInit <- function(nameStr, verStr, bufNum, styleChr=NULL, drawBegin=NULL)
+{
+  if( is.null(styleChr) )
+    styleChr  <- rep( 'DRAW_LINE', bufNum )
+  if( is.null(drawBegin) )
+    drawBegin <- rep( 0, bufNum )
+  
+  top <- list(c('//:::::::::::::::::::::::::::::::::::::::::::::'),
+              c('string','IndName=',paste0('\"',nameStr,'\";')),
+              c('string','IndVer=',paste0('\"',verStr,'\";')))
+  
+  for( i in 1:bufNum )
+    top <- append(top, list(c('double',paste0('ExtMapBuffer',i,'[];'))))
+  
+  mid <- list(c('int','init()'),
+              c('{'),
+              cs(2,paste0('IndicatorBuffers(',bufNum,');')),
+              cs(2,'IndicatorDigits(Digits+10);'),
+              cs(2,'IndicatorShortName(StringConcatenate(IndName," ",IndVer));'))
+  names(mid)[1] <- "_init"
+  
+  for( i in 1:bufNum )
+    mid <- append(mid, list(cs(2,'SetIndexStyle(',i-1,',',styleChr[i],');')))
+  for( i in 1:bufNum )
+    mid <- append(mid, list(cs(2,'SetIndexDrawBegin(',i-1,',',drawBegin[i],');')))
+  for( i in 1:bufNum )
+    mid <- append(mid, list(cs(2,'SetIndexBuffer(',i-1,',',paste0('ExtMapBuffer',i),');')))
+  
+  end <- list(cs(2,'return(0);'), 
+              c('}'),
+              c('//:::::::::::::::::::::::::::::::::::::::::::::'))
+  names(end)[2] <- "_init_end"
+  
+  ret <- append(top, mid)
+  ret <- append(ret, end)
+  
+  return( ret )
+}
+MtrAddDeinit <- function()
+{
+  ret <- list(c('//:::::::::::::::::::::::::::::::::::::::::::::'),
+              c('int','deinit()'),
+              c('{'),
+              cs(2,'return(0);'), 
+              c('}'),
+              c('//:::::::::::::::::::::::::::::::::::::::::::::'))
+  names(ret)[2] <- "_deinit"
+  names(ret)[5] <- "_deinit_end"
+  
+  return( ret )
 }
 #|------------------------------------------------------------------------------------------|
 #|                                E N D   O F   S C R I P T                                 |
