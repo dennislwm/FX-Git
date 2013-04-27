@@ -3,6 +3,9 @@
 #|                                                             Copyright © 2012, Dennis Lee |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  0.9.1   Added THREE (3) functions: MtrAddInGvar(), MtrAddInRsource(), MtrAddInRlibrary. |
+#|          Added code markers "gvar", "Rsource", "Rlibrary" to the above respectively.     |
+#|          Parameters "nameStr" and "verStr" has been moved to function MtrAddTop().       |
 #|  0.9.0   This library contains external R functions to interact with MetaTrader 4.       |
 #|          Note: The previous "PlusMtr.R" has been renamed to "PlusMtrGhost.R".            |
 #|------------------------------------------------------------------------------------------|
@@ -17,18 +20,19 @@ if( Sys.info()["sysname"] == "Windows" )
 suppressPackageStartupMessages(source(paste0(RegRSourceDir(),"PlusAddThat.R"), echo=FALSE))
 suppressPackageStartupMessages(library(R.utils))
 
-MtrAddRTop <- function(linkType, linkName, linkVal, extType, extName, extVal, 
+MtrAddRTop <- function(nameStr, verStr, linkType, linkName, linkVal, extType, extName, extVal, 
                        Rpath='C:/Program Files/R/R-2.15.3/bin/i386/Rterm.exe')
 {
-  mt.list <- MtrAddTop(lType,lName,lVal,eType,eName,eVal)
+  mt.list <- MtrAddTop(nameStr, verStr, linkType,linkName,linkVal,extType,extName,extVal)
   mt.list <- MtrAddInLink(mt.list,'include','<mt4R.mqh>','')
   mt.list <- MtrAddInExtern(mt.list,'string','Rpath',pasteq(Rpath))
+  mt.list <- MtrAddInGvar(mt.list,'int','R')
   mt.list
 }
-MtrAddRInit <- function(nameStr, verStr, bufNum, styleChr=NULL, drawBegin=NULL,
+MtrAddRInit <- function(bufNum, styleChr=NULL, drawBegin=NULL,
                         Rlibrary=NULL, Rsource=NULL, Rsourcedir=RegRSourceDir())
 {
-  mt.list <- MtrAddInit(nameStr, verStr, bufNum, styleChr, drawBegin)
+  mt.list <- MtrAddInit(bufNum, styleChr, drawBegin)
   mt.list <- MtrAddInRInit(mt.list, Rlibrary, Rsource, Rsourcedir)
   mt.list
 }
@@ -92,22 +96,21 @@ MtrAddInRInit <- function(mt.list, Rlibrary=NULL, Rsource=NULL, Rsourcedir=RegRS
   if( !is.null(stopStr) ) stop(stopStr)
   stopStr <- AddMore(length(w(mt.list,"_init_end")),0)
   if( !is.null(stopStr) ) stop(stopStr)
-  
-  ins.list  <- MtrCVar(0,'int','R')
-  mt.list   <- append( mt.list, ins.list, after=w(mt.list,"_init")-1 )
 
   end <- list(cs(2,'string','Rterm','=','StringConcatenate(Rpath,',pasteq(" --no-save"),');'),
               cs(2,'R=Rinit(Rterm,2);'))
   if( !is.null(Rlibrary) )
   {
     for( i in seq_along(Rlibrary) )
-      end <- append(end, list(cs(2,MtrExecute0(paste0("library(",Rlibrary[i],")")))))
+      end <- append(end, list(cs(2,MtrExecute0(paste0("suppressPackageStartupMessages(library(",Rlibrary[i],"))")))))
+    names(end)[length(end)] <- "Rlibrary"
   }
   if( !is.null(Rsource) )
   {
     for( i in seq_along(Rsource) )
       end <- append(end, list(cs(2,MtrExecute0(paste0("suppressPackageStartupMessages(source(paste0(",
                                                  pasteq0(Rsourcedir,Rsource[i]),"), echo=FALSE))")))))
+    names(end)[length(end)] <- "Rsource"
   }
   
   mt.list   <- append( mt.list, end, after=w(mt.list,"_init_end")-2 )
@@ -115,12 +118,54 @@ MtrAddInRInit <- function(mt.list, Rlibrary=NULL, Rsource=NULL, Rsourcedir=RegRS
 }
 
 #|------------------------------------------------------------------------------------------|
+#|                        E X T E R N A L   D   F U N C T I O N S                           |
+#|------------------------------------------------------------------------------------------|
+MtrAddInRlibrary <- function(mt.list, Rlibrary)
+{
+  #---  Check that arguments are valid
+  stopStr <- AddAvoidN(mt.list)
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddAvoidN(Rlibrary)
+  if( !is.null(stopStr) ) stop(stopStr)
+  
+  top <- mt.list
+  names(top)[w(mt.list,"Rlibrary")] <- NA
+  
+  end <- list()
+  for( i in seq_along(Rlibrary) )
+    end <- append(end, list(cs(2,MtrExecute0(paste0("suppressPackageStartupMessages(library(",Rlibrary[i],"))")))))
+  names(end)[length(end)] <- "Rlibrary"
+  
+  mt.list   <- append( top, end, after=w(mt.list,"Rlibrary") )  
+  mt.list
+}
+MtrAddInRsource <- function(mt.list, Rsource)
+{
+  #---  Check that arguments are valid
+  stopStr <- AddAvoidN(mt.list)
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddAvoidN(Rsource)
+  if( !is.null(stopStr) ) stop(stopStr)
+  
+  top <- mt.list
+  names(top)[w(mt.list,"Rsource")] <- NA
+  
+  end <- list()
+  for( i in seq_along(Rsource) )
+    end <- append(end, list(cs(2,MtrExecute0(paste0("suppressPackageStartupMessages(source(paste0(",
+                                                    pasteq0(Rsourcedir,Rsource[i]),"), echo=FALSE))")))))
+  names(end)[length(end)] <- "Rsource"
+  
+  mt.list   <- append( top, end, after=w(mt.list,"Rsource") )  
+  mt.list
+}
+#|------------------------------------------------------------------------------------------|
 #|                        E X T E R N A L   C   F U N C T I O N S                           |
 #|------------------------------------------------------------------------------------------|
 w       <- function(x, pat) which(names(x)==pat)
 pasteq  <- function(...) paste0("\"",...,"\"")
 pasteq0 <- function(...) paste0("\'",...,"\'")
-cs      <- function(n, ...) c(rep('',n), ...)
+cs      <- function(n,...) c(rep('',n), ...)
 MtrExecute0         <- function(x,...) c('RExecute(R,',pasteq(x),...,');')
 MtrExecuteAsync0    <- function(x,...) c('RExecuteAsync(R,',pasteq(x),...,');')
 MtrGetBool          <- function(x,...) c('RGetBool(R,',pasteq(x),...,')')
@@ -185,6 +230,25 @@ MtrAddInExtern <- function(mt.list, extType, extName, extVal)
   names(end)[length(end)] <- "extern"
   
   mt.list   <- append( top, end, after=w(mt.list,"extern") )  
+  mt.list
+}
+MtrAddInGvar <- function(mt.list, varType, varName)
+{
+  #---  Check that arguments are valid
+  stopStr <- AddAvoidN(varType)
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddEqual(length(varType),length(varName))
+  if( !is.null(stopStr) ) stop(stopStr)
+  
+  top <- mt.list
+  names(top)[w(mt.list,"gvar")] <- NA
+  
+  end <- list()
+  for( i in seq_along(varType) )
+    end <- append(end, list(c(varType[i],varName[i],';')))
+  names(end)[length(end)] <- "gvar"
+  
+  mt.list   <- append( top, end, after=w(mt.list,"gvar") )  
   mt.list
 }
 MtrCVar <- function(indent, varType, varName)
@@ -284,7 +348,7 @@ MtrAddLink <- function(linkType, linkName, linkVal)
 
   return( top )
 }
-MtrAddTop <- function(linkType, linkName, linkVal, extType, extName, extVal)
+MtrAddTop <- function(nameStr, verStr, linkType, linkName, linkVal, extType, extName, extVal)
 {
   #---  Check that arguments are valid
   stopStr <- AddAvoidN(linkType)
@@ -305,24 +369,28 @@ MtrAddTop <- function(linkType, linkName, linkVal, extType, extName, extVal)
     top <- append(top, list(c(paste0('#',linkType[i]),linkName[i],linkVal[i])))
   names(top)[length(top)] <- "link"
   
-  end <- list()
+  mid <- list()
   for( i in seq_along(extType) )
-    end <- append(end, list(c('extern',extType[i],extName[i],'=',paste0(extVal[i],';'))))
-  names(end)[length(end)] <- "extern"
+    mid <- append(mid, list(c('extern',extType[i],extName[i],'=',paste0(extVal[i],';'))))
+  names(mid)[length(mid)] <- "extern"
   
-  return( append(top,end) )
+  end <- list(c('//:::::::::::::::::::::::::::::::::::::::::::::'),
+              c('string','IndName=',paste0('\"',nameStr,'\";')),
+              c('string','IndVer=',paste0('\"',verStr,'\";')))
+  names(end)[length(end)] <- "gvar"
+  
+  ret <- append(top, mid)
+  ret <- append(ret, end)
+  return( ret )
 }
-MtrAddInit <- function(nameStr, verStr, bufNum, styleChr=NULL, drawBegin=NULL)
+MtrAddInit <- function(bufNum, styleChr=NULL, drawBegin=NULL)
 {
   if( is.null(styleChr) )
     styleChr  <- rep( 'DRAW_LINE', bufNum )
   if( is.null(drawBegin) )
     drawBegin <- rep( 0, bufNum )
   
-  top <- list(c('//:::::::::::::::::::::::::::::::::::::::::::::'),
-              c('string','IndName=',paste0('\"',nameStr,'\";')),
-              c('string','IndVer=',paste0('\"',verStr,'\";')))
-  
+  top <- list(c('//:::::::::::::::::::::::::::::::::::::::::::::'))
   for( i in 1:bufNum )
     top <- append(top, list(c('double',paste0('ExtMapBuffer',i,'[];'))))
   
