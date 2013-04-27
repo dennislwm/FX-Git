@@ -13,14 +13,17 @@ if( Sys.info()["sysname"] == "Linux" )
 if( Sys.info()["sysname"] == "Windows" )
   suppressPackageStartupMessages(source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusReg.R", echo=FALSE))
 suppressPackageStartupMessages(source(paste0(RegRSourceDir(),"PlusFile.R"), echo=FALSE))
-suppressPackageStartupMessages(source(paste0(RegRSourceDir(),"PlusMtr.R"), echo=FALSE))
+suppressPackageStartupMessages(source(paste0(RegRSourceDir(),"PlusMtrDevice.R"), echo=FALSE))
 suppressPackageStartupMessages(library(R.utils))
 suppressPackageStartupMessages(library(tseries))
-name.str      <- "GradientVolatility"
-ver.str       <- "0.1.0"
-exe.dir     <- paste0(RegProgramDir(), "Go MT4 001/")
+name.str    <- "GradientVolatility"
+ver.str     <- "0.1.0"
+mt4.str     <- "MT4 Go 001/"
+exe.dir     <- paste0(RegProgramDir(), mt4.str)
 exe.str     <- "metalang.exe"
-ind.dir     <- paste0(RegLocalProgramDir(), "Go MT4 001/experts/indicators/")
+ind.dir     <- paste0(RegLocalProgramDir(), mt4.str, "experts/indicators/")
+mqh.dir     <- paste0(RegLocalProgramDir(), mt4.str, "experts/include/")
+MtrDeviceWriterStr(mqh.dir)
 ```
 
 ```{r}
@@ -34,16 +37,17 @@ lVal          <- c(bufNum,'Red','Black','-1','1','')
 eType         <- c('int','int','double')
 eName         <- c('GdvPeriod','GdvLookBack','GdvAlpha')
 eVal          <- c('20','500','1.0')
-mt.list       <- MtrAddRTop(lType,lName,lVal,eType,eName,eVal)
-mt.list       <- append( mt.list, MtrAddRInit(name.str,ver.str,bufNum,
-                                              styleChr,rep(eName[1],bufNum),
-                                              c('zoo'), c('PlusReg.R')) )
+mt.list       <- MtrAddRdeviceTop(name.str,ver.str,lType,lName,lVal,eType,eName,eVal)
+mt.list       <- append( mt.list, MtrAddRdeviceInit(bufNum,styleChr,rep(eName[1],bufNum),
+                                                    c('zoo'), c('PlusReg.R')) )
 mt.list       <- append( mt.list, MtrAddRStart() )
-mt.list       <- append( mt.list, MtrAddRDeinit() )
+mt.list       <- append( mt.list, MtrAddRdeviceDeinit() )
 ```
 
 ```{r}
-mt.list
+mt.chr        <- MtrWriterStr(mt.list)
+names(mt.chr) <- NULL
+mt.chr
 ea.dir.str  <- MtrEaWriterStr(name.str, mt.list, save.dir=ind.dir)
 cmd.str     <- paste0('"', exe.dir, exe.str, '" "', ea.dir.str, '"')
 cmd.str
