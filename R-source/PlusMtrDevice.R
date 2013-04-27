@@ -3,6 +3,12 @@
 #|                                                             Copyright © 2012, Dennis Lee |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  0.9.1   Added THREE (3) high-level functions: MtrAddRdeviceTop(), MtrAddRdeviceInit(),  |
+#|          MtrAddRdeviceDeinit(). These functions call MtrAddRTop(), MtrAddRInit() and     |
+#|          MtrAddRDeinit() respectively. However, there are NO changes to MtrAddRStart(),  |
+#|          hence there is NO associated function MtrAddRdeviceStart().                     |
+#|          Removed parameter "name.str" from MtrDeviceWriterStr(), as its mandatory name   |
+#|          is "mt4Rdevice". Todo: (a) test function "mt4RdeviceEval()" in MetaTrader.      |
 #|  0.9.0   This library contains external R functions for an include file "mt4Rdevice.mqh".|
 #|------------------------------------------------------------------------------------------|
 if( Sys.info()["sysname"] == "Linux" )
@@ -14,11 +20,60 @@ suppressPackageStartupMessages(source(paste0(RegRSourceDir(),"PlusMtr.R"), echo=
 #|------------------------------------------------------------------------------------------|
 #|                        E X T E R N A L   C   F U N C T I O N S                           |
 #|------------------------------------------------------------------------------------------|
-MtrDeviceWriterStr <- function(name.str, save.dir=RegHomeDir())
+MtrAddRdeviceTop <- function(nameStr, verStr, linkType, linkName, linkVal, extType, extName, extVal, 
+                       Rpath='C:/Program Files/R/R-2.15.3/bin/i386/Rterm.exe')
+{
+  mt.list <- MtrAddRTop(nameStr, verStr, linkType,linkName,linkVal,extType,extName,extVal,Rpath)
+  mt.list <- MtrAddInLink(mt.list,'include','<mt4Rdevice.mqh>','')
+  mt.list <- MtrAddInExtern(mt.list,rep('bool',2),c('Rtext','Rplot'),rep('false',2))
+  mt.list <- MtrAddInGvar(mt.list,rep('int',2),c('hText','hPlot'))
+  mt.list
+}
+MtrAddRdeviceInit <- function(bufNum, styleChr=NULL, drawBegin=NULL,
+                              Rlibrary=NULL, Rsource=NULL, Rsourcedir=RegRSourceDir())
+{
+  if( length(which(Rlibrary=='gplots'))==0 )
+    Rlibrary <- c('gplots',Rlibrary)
+  
+  mt.list   <- MtrAddRInit(bufNum, styleChr, drawBegin,
+                           Rlibrary, Rsource, Rsourcedir)
+  ins.list  <- list(cs(2,'hR=R;'),
+                    cs(2,'if(','Rtext',')'),
+                    cs(2,'{'),
+                    cs(4,'hText=',MtrDeviceNew0()),
+                    cs(4,MtrDeviceText0('hText','Initialized Rtext ...')),
+                    cs(4,'if(','RIsStopped()','||','hText==0',')'),
+                    cs(4,'{'),
+                    cs(6,'Print(',pasteq("hText failed: Ensure (a) Rterm; (b) gplots; (c) mt4R installed."),');'),
+                    cs(6,'Rtext=false;'),
+                    cs(4,'}'),
+                    cs(2,'}'),
+                    cs(2,'if(','Rplot',')'),
+                    cs(2,'{'),
+                    cs(4,'hPlot=',MtrDeviceNew0()),
+                    cs(4,MtrDeviceText0('hPlot','Initialized Rplot ...')),
+                    cs(4,'if(','RIsStopped()','||','hPlot==0',')'),
+                    cs(4,'{'),
+                    cs(6,'Print(',pasteq("hPlot failed: Ensure (a) Rterm; (b) gplots; (c) mt4R installed."),');'),
+                    cs(6,'Rplot=false;'),
+                    cs(4,'}'),
+                    cs(2,'}'))
+  mt.list   <- append( mt.list, ins.list, after=w(mt.list,"_init_end")-2 )
+  mt.list
+}
+MtrAddRdeviceDeinit <- function()
+{
+  mt.list   <- MtrAddRDeinit()
+  ins.list  <- list(cs(2,'if(','hText>0',')',MtrDeviceOff0("hText")),
+                    cs(2,'if(','hPlot>0',')',MtrDeviceOff0("hPlot")))
+  mt.list   <- append( mt.list, ins.list, after=w(mt.list,"_deinit_end")-3 )
+  mt.list
+}
+MtrDeviceWriterStr <- function(save.dir=RegHomeDir())
 {
   mt.list <- MtrAddLink('include', '<mt4R.mqh>', '')
   mt.list <- append( mt.list, MtrCVar(0,'int','RhUsedbySink') )
-  mt.list <- append( mt.list, MtrAddRdeviceExpr() )
+  mt.list <- append( mt.list, MtrAddRdeviceEval() )
   mt.list <- append( mt.list, MtrAddRdeviceText() )
   mt.list <- append( mt.list, MtrAddRdeviceSinkOff() )
   mt.list <- append( mt.list, MtrAddRdeviceSinkOn() )
@@ -28,30 +83,31 @@ MtrDeviceWriterStr <- function(name.str, save.dir=RegHomeDir())
   mt.list <- append( mt.list, MtrAddRdeviceIsCur() )
   mt.list <- append( mt.list, MtrAddRdeviceIsNull() )
   mt.list <- append( mt.list, MtrAddRdeviceTotal() )
-  MtrEaWriterStr(name.str, mt.list, save.dir, ext.str=".mqh")
+  MtrEaWriterStr("mt4Rdevice", mt.list, save.dir, ext.str=".mqh")
 }
 
 #|------------------------------------------------------------------------------------------|
 #|                        E X T E R N A L   B   F U N C T I O N S                           |
 #|------------------------------------------------------------------------------------------|
-MtrDeviceSinkOff    <- function(x)  c('mt4RdeviceSinkOff(',x,')')
-MtrDeviceSinkOn     <- function(x)  c('mt4RdeviceSinkOn(',x,')')
-MtrDeviceNew        <- function()   c('mt4RdeviceNew()')
-MtrDeviceOff        <- function(x)  c('mt4RdeviceOff(',x,')')
-MtrDeviceSet        <- function(x)  c('mt4RdeviceSet(',x,')')
-MtrDeviceSet0       <- function(x)  c('mt4RdeviceSet(',x,');')
-MtrDeviceIsCur      <- function(x)  c('mt4RdeviceIsCur(',x,')')
-MtrDeviceIsNull     <- function(x)  c('mt4RdeviceIsNull(',x,')')
-MtrDeviceTotal      <- function()   c('mt4RdeviceTotal()')
-MtrDeviceTotal0     <- function()   c('mt4RdeviceTotal();')
+MtrDeviceText0      <- function(h,x)  c('mt4RdeviceText(',h,',Rqs(',pasteq(x),'),0.8);')
+MtrDeviceSinkOff    <- function(h)    c('mt4RdeviceSinkOff(',h,')')
+MtrDeviceSinkOn     <- function(h)    c('mt4RdeviceSinkOn(',h,')')
+MtrDeviceNew0       <- function()     c('mt4RdeviceNew();')
+MtrDeviceOff0       <- function(h)    c('mt4RdeviceOff(',h,');')
+MtrDeviceSet        <- function(h)    c('mt4RdeviceSet(',h,')')
+MtrDeviceSet0       <- function(h)    c('mt4RdeviceSet(',h,');')
+MtrDeviceIsCur      <- function(h)    c('mt4RdeviceIsCur(',h,')')
+MtrDeviceIsNull     <- function(h)    c('mt4RdeviceIsNull(',h,')')
+MtrDeviceTotal      <- function()     c('mt4RdeviceTotal()')
+MtrDeviceTotal0     <- function()     c('mt4RdeviceTotal();')
 
 #|------------------------------------------------------------------------------------------|
 #|                        E X T E R N A L   A   F U N C T I O N S                           |
 #|------------------------------------------------------------------------------------------|
-MtrAddRdeviceExpr <- function()
+MtrAddRdeviceEval <- function()
 {
   cmd <- paste0("textplot(capture.output(",pasteq("+retStr+"),"),halign='left',valign='top',cex=",pasteq("+cex+"),")")
-  ret <- list(c('void','mt4RdeviceExpr(','int','devInt,','string','exprStr,',
+  ret <- list(c('void','mt4RdeviceEval(','int','devInt,','string','exprStr,',
                 'double','cex=0.9,','bool','quoteBln=TRUE',')'),
               c('{'),
               cs(2,'string','retStr=exprStr;'),
