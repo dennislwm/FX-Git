@@ -6,14 +6,20 @@
 #|    J.  > mt.list <- MtrTagInJClass(mt.list, name.str)                                    |
 #|        > mt.list <- MtrTagInJLink(mt.list)                                               |
 #|        > mt.list <- MtrTagInJExtern(mt.list)                                             |
-#|        > cmtDfr  <- MtrFindCmtDfr(mt.list)                                               |
-#|        > funDfr  <- MtrFindFunDfr(mt.list, cmtDfr)                                       |
+#|        > cmtDfr  <- MtrLookupJCmt(mt.list)                                               |
+#|        > funDfr  <- MtrLookupJFun(mt.list, cmtDfr)                                       |
 #|        > mt.list <- MtrTagInJFun(mt.list, funDfr)                                        |
 #|        > mt.list <- MtrTagInJGvar(mt.list, funDfr)                                       |
 #|        > mt.list <- MtrJConvert(mt.list, funDfr)                                         |
 #|        > mt.list <- MtrJType(mt.list)                                                    |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.1.1   Renamed test script to "R-test-10-mtrghost/testPlusMtrGhost.R" and test for ONE |
+#|          (1) function MtrLookupJFun(). Renamed TWO (2) functions MtrFindFunDfr() and     |
+#|          MtrFindCmtDfr() to MtrLookupJFun() and MtrLookupJCmt() respectively.            |
+#|          Fixed TWO (2) errors in function MtrIsComment(): (a) typo "cmtDfr" changed to   |
+#|          "cDfr"; (b) parameter "tokenStr" changed to "first" - if numeric, then "first"  |
+#|          refers to the position within a line, else it is a "token" character.           |
 #|  1.1.0   Added SEVEN (7) MtrJxxx() functions to re-convert a "normalized" java file back |
 #|          into an mq4 file. The Rmd file "Mt4r_03_Keiji_probot_tseries" has an example of |
 #|          converting an mq4 file into a SqLite file, with an intermediate java file.      |
@@ -21,8 +27,8 @@
 #|  1.0.1   Fixed minor bugs: (a) missing argument for MtrIsComment(); (b) empty rowNum in  |
 #|          functions MtrBetweenxxx(). Note: This file was previously named "PlusMtr.R".    |
 #|  1.0.0   Added test script "R-test-09-mtr/testPlusMtr.R" for TWO (2) functions           |
-#|          MtrFindCmtDfr() and MtrIsComment(). Todo: Test script for FIVE (5) functions    |
-#|          MtrConvertStr(), MtrFindLoopDfr(), MtrFindFunDfr(), MtrBetweenLoopDfr(), and    |
+#|          MtrLookupJCmt() and MtrIsComment(). Todo: Test script for FIVE (5) functions    |
+#|          MtrConvertStr(), MtrFindLoopDfr(), MtrLookupJFun(), MtrBetweenLoopDfr(), and    |
 #|          MtrBetweenFunDfr().                                                             |
 #|  0.9.0   This library contains external R functions to interact with MetaTrader 4.       |
 #|------------------------------------------------------------------------------------------|
@@ -337,16 +343,16 @@ MtrBetweenLoopDfr <- function(mt.list, loopDfr, cmtDfr, funThatChr=NULL)
   }  
   retDfr
 }
-MtrFindFunDfr <- function(mt.list, cmtDfr, tokenChr=c("public"), offset=3)
+MtrLookupJFun <- function(mt.list, cmtDfr)
 {
   #---  Check that arguments are valid
   stopStr <- AddAvoidN(cmtDfr)
   if( !is.null(stopStr) ) stop(stopStr)
   stopStr <- AddNameMatch(names(cmtDfr), c("Open", "Close"))
   if( !is.null(stopStr) ) stop(stopStr)
-  stopStr <- AddMore(offset, 1)
-  if( !is.null(stopStr) ) stop(stopStr)
   
+  tokenChr  <- c("public")
+  offset    <- 3
   endNum <- length(mt.list)
   retDfr <- dataFrame( colClasses=c(Token="character", Open="numeric", 
                                     Close="numeric", First="numeric",
@@ -373,23 +379,28 @@ MtrFindFunDfr <- function(mt.list, cmtDfr, tokenChr=c("public"), offset=3)
         #     (1) check if next token is "{"
         nameStr     <- substr(mt.list[[openNum]][indentNum[offset]], 1,
                               as.numeric(gregexpr("\\(", mt.list[[openNum]][indentNum[offset]]))-1)
-        nextNum     <- openNum+1
+        for( mRow in (openNum+1):endNum )
+        {
+          isNextCmt <- MtrIsComment(mt.list,indentNum[1],mRow,cmtDfr)
+          if( !isNextCmt ) break          
+        }
+        nextNum     <- mRow
         indnxtNum   <- which(nchar(mt.list[[nextNum]])>0)
         if( indentNum[1]==indnxtNum[1] )
           isOpenBrs   <- substr(mt.list[[nextNum]][indnxtNum[1]],1,1)=="{"
         else
           isOpenBrs   <- FALSE
         if( !isOpenBrs )
-          startNum <- openNum + 1
+          startNum <- nextNum
         else
-          startNum <- openNum + 2
+          startNum <- nextNum+1
         for( mRow in startNum:endNum )
         {
           iNum <- which(nchar(mt.list[[mRow]])>0)
           if( length(iNum)>0 )
             if( iNum[1]==indentNum[1] )
             {
-              isCloseCmt  <- nrow(cmtDfr[cmtDfr$Open==mRow,])>0
+              isCloseCmt  <- MtrIsComment(mt.list,iNum[1],mRow,cmtDfr)
               if( !isCloseCmt ) break
             }
         }
@@ -505,7 +516,7 @@ MtrConvertStr <- function(name.str, exe.dir=paste0(RegProgramDir(),"mq4_converte
 #|------------------------------------------------------------------------------------------|
 #|                        E X T E R N A L   A   F U N C T I O N S                           |
 #|------------------------------------------------------------------------------------------|
-MtrFindCmtDfr <- function(mt.list)
+MtrLookupJCmt <- function(mt.list)
 {
   endNum <- length(mt.list)
   retDfr <- dataFrame( colClasses=c(Token="character", Open="numeric", Close="numeric",
@@ -533,12 +544,12 @@ MtrFindCmtDfr <- function(mt.list)
   }
   retDfr
 }
-MtrIsComment <- function(mt.list, tokenStr, rowNum, cmtDfr)
+MtrIsComment <- function(mt.list, first, rowNum, cmtDfr)
 {
   #---  Check that arguments are valid
   stopStr <- AddAvoidN(mt.list)
   if( !is.null(stopStr) ) stop(stopStr)
-  stopStr <- AddAvoidN(tokenStr)
+  stopStr <- AddAvoidN(first)
   if( !is.null(stopStr) ) stop(stopStr)
   stopStr <- AddAvoidN(rowNum)
   if( !is.null(stopStr) ) stop(stopStr)
@@ -555,19 +566,22 @@ MtrIsComment <- function(mt.list, tokenStr, rowNum, cmtDfr)
   for( n in seq_along(rowNum) )
   {
     openNum     <- as.numeric(rowNum[n])
-    betweenNum  <- grep(tokenStr, mt.list[[openNum]])
+    if( is.numeric(first) )
+      betweenNum  <- first
+    else
+      betweenNum  <- grep(first, mt.list[[openNum]])
     #---  Identify non-valid tokens
     #     (1) tokens may be within a comment: (a) // ; (b) /*  */
     cDfr        <- cmtDfr[cmtDfr$Open<=openNum & openNum<=cmtDfr$Close,]
     if( nrow(cDfr)>0 )
     {
-      if( cmtDfr$Open==cmtDfr$Close )
+      if( cDfr$Open==cDfr$Close )
         isBetween   <- betweenNum>=cDfr$First & betweenNum<=cDfr$Last 
       else
       {
-        if( openNum==cmtDfr$Open )
+        if( openNum==cDfr$Open )
           isBetween   <- betweenNum>=cDfr$First
-        else if( openNum==cmtDfr$Close )
+        else if( openNum==cDfr$Close )
           isBetween   <- betweenNum<=cDfr$Last 
         else
           isBetween   <- betweenNum>=1 & betweenNum<=1e6
