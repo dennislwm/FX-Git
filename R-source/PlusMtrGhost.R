@@ -2,7 +2,22 @@
 #|                                                                           PlusMtrGhost.R |
 #|                                                             Copyright © 2012, Dennis Lee |
 #|                                                                                          |
+#| Example                                                                                  |
+#|    J.  > mt.list <- MtrTagInJClass(mt.list, name.str)                                    |
+#|        > mt.list <- MtrTagInJLink(mt.list)                                               |
+#|        > mt.list <- MtrTagInJExtern(mt.list)                                             |
+#|        > cmtDfr  <- MtrFindCmtDfr(mt.list)                                               |
+#|        > funDfr  <- MtrFindFunDfr(mt.list, cmtDfr)                                       |
+#|        > mt.list <- MtrTagInJFun(mt.list, funDfr)                                        |
+#|        > mt.list <- MtrTagInJGvar(mt.list, funDfr)                                       |
+#|        > mt.list <- MtrJConvert(mt.list, funDfr)                                         |
+#|        > mt.list <- MtrJType(mt.list)                                                    |
+#|                                                                                          |
 #| Assert History                                                                           |
+#|  1.1.0   Added SEVEN (7) MtrJxxx() functions to re-convert a "normalized" java file back |
+#|          into an mq4 file. The Rmd file "Mt4r_03_Keiji_probot_tseries" has an example of |
+#|          converting an mq4 file into a SqLite file, with an intermediate java file.      |
+#|          Todo: Test script for (a) FIVE (5) "B" functions; SEVEN (7) "J" functions.      |
 #|  1.0.1   Fixed minor bugs: (a) missing argument for MtrIsComment(); (b) empty rowNum in  |
 #|          functions MtrBetweenxxx(). Note: This file was previously named "PlusMtr.R".    |
 #|  1.0.0   Added test script "R-test-09-mtr/testPlusMtr.R" for TWO (2) functions           |
@@ -20,10 +35,191 @@ if( Sys.info()["sysname"] == "Windows" )
   suppressPackageStartupMessages(source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusReg.R", echo=FALSE))
 }
 suppressPackageStartupMessages(source(paste0(RegRSourceDir(),"PlusAddThat.R"), echo=FALSE))
+suppressPackageStartupMessages(source(paste0(RegRSourceDir(),"PlusMtr.R"), echo=FALSE))
 suppressPackageStartupMessages(library(R.utils))
 
 #|------------------------------------------------------------------------------------------|
-#|                            E X T E R N A L   F U N C T I O N S                           |
+#|                        E X T E R N A L   J   F U N C T I O N S                           |
+#|------------------------------------------------------------------------------------------|
+MtrJType <- function(mt.list)
+{
+  ret.list <- list()
+  j <- 1
+  for( i in seq_along(mt.list) )
+  {
+    #--- Read Line
+    lineChr <- mt.list[[i]]
+    
+    #--- Data types
+    lineChr <- gsub("Date",   "datetime", lineChr)
+    lineChr <- gsub("String", "string", lineChr)
+    
+    #--- Write Line
+    ret.list[[j]] <- lineChr
+    j <- j + 1
+  }
+  ret.list
+}
+MtrJConvert <- function(mt.list, funDfr)
+{
+  ret.list  <- list()
+  nameChr   <- names(mt.list)
+  nameChr[is.na(nameChr)] <- ""
+  for( i in 1:length(mt.list) )
+  {
+    mt.line <- mt.list[[i]]
+    mt.len  <- length(mt.line)
+    if( nameChr[i]=="jproperty" )
+      ret.list  <- append( ret.list, list(c(paste0('#',mt.line[6]),mt.line[7:mt.len])) )
+    else if( nameChr[i]=="jextern" )
+      ret.list  <- append( ret.list, list(c('extern',mt.line[6:mt.len])) )
+    else if( nameChr[i]=="jgvar" )
+      ret.list  <- append( ret.list, list(c(mt.line[6:mt.len])) )
+    else if( nameChr[i]=="jfun" )
+      ret.list  <- append( ret.list, list(c(mt.line[6:mt.len])))
+    else if( mt.len < 5 )
+      ret.list  <- append( ret.list, list(c('')) )
+    else
+      ret.list  <- append( ret.list, list(c(mt.line[5:mt.len])) )
+  }
+  ret.list
+}
+MtrTagInJGvar <- function(mt.list, funDfr)
+{
+  #---  Check that arguments are valid
+  stopStr <- AddAvoidN(mt.list)
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddAvoidN(funDfr)
+  if( !is.null(stopStr) ) stop(stopStr)
+  
+  tokenChr  <- c("jclass","jproperty","jextern")
+  openNum   <- 1
+  for( i in seq_along(tokenChr) )
+  {
+    retNum  <- w(mt.list,tokenChr[i])
+    if( max(retNum)>openNum )
+      openNum <- max(retNum)
+  }
+  closeNum  <- length(mt.list)
+  if( nrow(funDfr)>0 )
+  {
+    if( min(funDfr$Open) < closeNum )
+      closeNum <- min(funDfr$Open)
+  }
+
+  tagNum <- c()
+  rowNum <- which(lapply(mt.list, function(x) { sum(grep("private", x)) })>0)
+  rowNum <- rowNum[rowNum>openNum & rowNum<closeNum]
+  for( i in seq_along(rowNum) )
+  {
+    grepNum     <- grep("private", mt.list[[rowNum[i]]])
+    if(grepNum[1]==5)
+      extBln  <- TRUE
+    else
+      extBln  <- FALSE
+    if( extBln )  tagNum <- c(tagNum, rowNum[i])
+  }
+  names(mt.list)[tagNum] <- "jgvar"
+  mt.list
+}
+MtrTagInJFun <- function(mt.list, funDfr)
+{
+  #---  Check that arguments are valid
+  stopStr <- AddAvoidN(mt.list)
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddAvoidN(funDfr)
+  if( !is.null(stopStr) ) stop(stopStr)
+  
+  rowNum <- c()
+  for( i in 1:nrow(funDfr) )
+    rowNum <- c(rowNum, as.numeric(funDfr$Open))
+  names(mt.list)[rowNum] <- "jfun"
+  mt.list
+}
+MtrTagInJClass <- function(mt.list, name.str)
+{
+  #---  Check that arguments are valid
+  stopStr <- AddAvoidN(mt.list)
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddAvoidN(name.str)
+  if( !is.null(stopStr) ) stop(stopStr)
+  
+  tagNum <- c()
+  rowNum <- which(lapply(mt.list, function(x) { sum(grep(name.str, x)) })>0)
+  for( i in seq_along(rowNum) )
+  {
+    grepNum     <- grep(name.str, mt.list[[rowNum[i]]])
+    grepLeft    <- grep("class", mt.list[[rowNum[i]]])
+    if( length(grepLeft)==0 )
+      extBln    <- FALSE
+    else
+    {
+      if(grepLeft[1]==(grepNum[1]-1) & grepLeft[1]==1)
+        extBln  <- TRUE
+      else
+        extBln  <- FALSE
+    }
+    if( extBln )  tagNum <- c(tagNum, rowNum[i])
+  }
+  names(mt.list)[tagNum] <- "jclass"
+  mt.list
+}
+MtrTagInJLink <- function(mt.list)
+{
+  #---  Check that arguments are valid
+  stopStr <- AddAvoidN(mt.list)
+  if( !is.null(stopStr) ) stop(stopStr)
+  
+  tagNum <- c()
+  rowNum <- which(lapply(mt.list, function(x) { sum(grep("property", x)) })>0)
+  for( i in seq_along(rowNum) )
+  {
+    grepNum     <- grep("property", mt.list[[rowNum[i]]])
+    grepLeft    <- grep("//", mt.list[[rowNum[i]]])
+    if( length(grepLeft)==0 )
+      extBln    <- FALSE
+    else
+    {
+      if(grepLeft[1]==(grepNum[1]-1) & grepLeft[1]==5)
+        extBln  <- TRUE
+      else
+        extBln  <- FALSE
+    }
+    if( extBln )  tagNum <- c(tagNum, rowNum[i])
+  }
+  names(mt.list)[tagNum] <- "jproperty"
+  mt.list
+}
+MtrTagInJExtern <- function(mt.list)
+{
+  #---  Check that arguments are valid
+  stopStr <- AddAvoidN(mt.list)
+  if( !is.null(stopStr) ) stop(stopStr)
+  
+  tagNum <- c()
+  rowNum <- which(lapply(mt.list, function(x) { sum(grep("External", x)) })>0)
+  for( i in seq_along(rowNum) )
+  {
+    grepNum     <- grep("External", mt.list[[rowNum[i]]])
+    grepLeft    <- grep("//", mt.list[[rowNum[i]]])
+    grepRight   <- grep("variable\\(s\\)", mt.list[[rowNum[i]]])
+    if( length(grepLeft)==0 || length(grepRight)==0 )
+      extBln    <- FALSE
+    else
+    {
+      if(grepLeft[1]==(grepNum[1]-1) & grepLeft[1]==5
+         & grepRight[1]==(grepNum[1]+1))
+        extBln  <- TRUE
+      else
+        extBln  <- FALSE
+    }
+    if( extBln )  tagNum <- c(tagNum, rowNum[i])
+  }
+  names(mt.list)[tagNum+1] <- "jextern"
+  mt.list
+}
+#|------------------------------------------------------------------------------------------|
+#|                        E X T E R N A L   B   F U N C T I O N S                           |
 #|------------------------------------------------------------------------------------------|
 MtrBetweenFunDfr <- function(mt.list, funDfr, cmtDfr, funThatChr=NULL)
 {
@@ -162,7 +358,7 @@ MtrFindFunDfr <- function(mt.list, cmtDfr, tokenChr=c("public"), offset=3)
     cmtBln    <- MtrIsComment(mt.list, tokenStr, rowNum, cmtDfr)
     for( n in seq_along(rowNum) )
     {
-      openNum     <- rowNum[n]
+      openNum     <- as.numeric(rowNum[n])
       indentNum   <- which(nchar(mt.list[[openNum]])>0)
       isOpenCmt   <- cmtBln[n]
       #---  Identify non-valid tokens
@@ -229,7 +425,7 @@ MtrFindLoopDfr <- function(mt.list, cmtDfr, tokenChr=c("for"))
       cmtBln    <- MtrIsComment(mt.list, tokenStr, rowNum, cmtDfr)
     for( n in seq_along(rowNum) )
     {
-      openNum     <- rowNum[n]
+      openNum     <- as.numeric(rowNum[n])
       indentNum   <- which(nchar(mt.list[[openNum]])>0)
       isOpenCmt   <- cmtBln[n]
       #---  Identify non-valid tokens
@@ -305,6 +501,10 @@ MtrConvertStr <- function(name.str, exe.dir=paste0(RegProgramDir(),"mq4_converte
   else
     return( paste0(java.dir, java.str) )
 }
+
+#|------------------------------------------------------------------------------------------|
+#|                        E X T E R N A L   A   F U N C T I O N S                           |
+#|------------------------------------------------------------------------------------------|
 MtrFindCmtDfr <- function(mt.list)
 {
   endNum <- length(mt.list)
@@ -313,7 +513,7 @@ MtrFindCmtDfr <- function(mt.list)
   rowNum <- which(lapply(mt.list, function(x) { sum(grep("//", x)) })>0)
   for( n in seq_along(rowNum) )
   {
-    openNum     <- rowNum[n]
+    openNum     <- as.numeric(rowNum[n])
     betweenNum  <- grep("//", mt.list[[openNum]])
     rDfr        <- data.frame("cmt", openNum, openNum, betweenNum[1], 1e6 )
     names(rDfr) <- names(retDfr)
@@ -323,7 +523,7 @@ MtrFindCmtDfr <- function(mt.list)
   rowcNum   <- which(lapply(mt.list, function(x) { sum(grep("\\*\\/", x)) })>0)
   for( n in seq_along(rowNum) )
   {
-    openNum     <- rowNum[n]
+    openNum     <- as.numeric(rowNum[n])
     betweenNum  <- grep("\\/\\*", mt.list[[openNum]])
     closeNum    <- rowcNum[n]
     betweencNum <- grep("\\*\\/", mt.list[[closeNum]])
@@ -333,10 +533,6 @@ MtrFindCmtDfr <- function(mt.list)
   }
   retDfr
 }
-
-#|------------------------------------------------------------------------------------------|
-#|                            I N T E R N A L   F U N C T I O N S                           |
-#|------------------------------------------------------------------------------------------|
 MtrIsComment <- function(mt.list, tokenStr, rowNum, cmtDfr)
 {
   #---  Check that arguments are valid
@@ -358,7 +554,7 @@ MtrIsComment <- function(mt.list, tokenStr, rowNum, cmtDfr)
   retBln  <- NULL
   for( n in seq_along(rowNum) )
   {
-    openNum     <- rowNum[n]
+    openNum     <- as.numeric(rowNum[n])
     betweenNum  <- grep(tokenStr, mt.list[[openNum]])
     #---  Identify non-valid tokens
     #     (1) tokens may be within a comment: (a) // ; (b) /*  */
