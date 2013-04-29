@@ -14,6 +14,10 @@
 #|        > mt.list <- MtrJType(mt.list)                                                    |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  1.1.2   Added THREE (3) MtrAddInRghostxxx() functions in new "C" section. For section   |
+#|          "J", added ONE (1) function MtrJConvertName() and expanded function MtrJType()  |
+#|          to include arrays. For section "A", added ONE (1) function MtrBraces() that     |
+#|          generically finds the matching close braces "}".                                |
 #|  1.1.1   Renamed test script to "R-test-10-mtrghost/testPlusMtrGhost.R" and test for ONE |
 #|          (1) function MtrLookupJFun(). Renamed TWO (2) functions MtrFindFunDfr() and     |
 #|          MtrFindCmtDfr() to MtrLookupJFun() and MtrLookupJCmt() respectively.            |
@@ -58,7 +62,21 @@ MtrJType <- function(mt.list)
     
     #--- Data types
     lineChr <- gsub("Date",   "datetime", lineChr)
-    lineChr <- gsub("String", "string", lineChr)
+    lineChr <- gsub("String$", "string", lineChr)
+    
+    #--- Reverse arrays []
+    first   <- grep("double\\[\\]", lineChr)
+    last    <- length(lineChr)
+    if( length(first)>0 & length(lineChr)>1 )
+    {
+      first     <- c("double")
+      col       <- as.numeric(regexpr(";",lineChr[2]))
+      if( col > 0 )
+        second  <- paste0(substr(lineChr[2], 1, col-1),"[];")
+      else
+        second  <- lineChr[2]
+      lineChr <- c(first, second, lineChr[3:last])
+    }
     
     #--- Write Line
     ret.list[[j]] <- lineChr
@@ -66,8 +84,44 @@ MtrJType <- function(mt.list)
   }
   ret.list
 }
+MtrJConvertName <- function(mt.list, funDfr)
+{
+  #---  Check that arguments are valid
+  stopStr <- AddAvoidN(mt.list)
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddAvoidN(funDfr)
+  if( !is.null(stopStr) ) stop(stopStr)
+  
+  #---  Save some tags
+  name.tag  <- rep(NA, length(mt.list))
+  pty.tag   <- w(mt.list,"jproperty")
+  ext.tag   <- w(mt.list,"jextern")
+  gvr.tag   <- w(mt.list,"jgvar")
+  fun.tag   <- w(mt.list,"jfun")
+  
+  #---  Replace Jtag with actual tags
+  if( length(pty.tag)>0 )   
+    name.tag[pty.tag[length(pty.tag)]] <- "link"
+  if( length(ext.tag)>0 )
+    name.tag[ext.tag[length(ext.tag)]] <- "extern"
+  if( length(gvr.tag)>0 )
+    name.tag[gvr.tag[length(gvr.tag)]] <- "gvar"
+  if( length(fun.tag)>0 )
+  {
+    cls.tag           <- as.numeric(funDfr$Close)
+    name.tag[fun.tag] <- paste0("_", funDfr$Name)
+    name.tag[cls.tag] <- paste0("_", funDfr$Name, "_end")
+  }
+  name.tag
+}
 MtrJConvert <- function(mt.list, funDfr)
 {
+  #---  Check that arguments are valid
+  stopStr <- AddAvoidN(mt.list)
+  if( !is.null(stopStr) ) stop(stopStr)
+  stopStr <- AddAvoidN(funDfr)
+  if( !is.null(stopStr) ) stop(stopStr)
+  
   ret.list  <- list()
   nameChr   <- names(mt.list)
   nameChr[is.na(nameChr)] <- ""
@@ -224,6 +278,48 @@ MtrTagInJExtern <- function(mt.list)
   names(mt.list)[tagNum+1] <- "jextern"
   mt.list
 }
+
+#|------------------------------------------------------------------------------------------|
+#|                        E X T E R N A L   C   F U N C T I O N S                           |
+#|------------------------------------------------------------------------------------------|
+MtrAddInRghostTop <- function(mt.list)
+{
+  mt.list <- MtrAddInLink(mt.list,'include','<PlusTurtle.mqh>','')
+  mt.list <- MtrAddInLink(mt.list,'include','<PlusGhost.mqh>','')
+  mt.list <- MtrAddInGvar(mt.list,'int','MaxAccountTrades=4')
+  mt.list
+}
+MtrAddInRghostInit <- function(mt.list)
+{
+  openNum   <- w(mt.list,"_init")
+  if( length(w1(mt.list,openNum))>0 ) 
+    d <- w1(mt.list,openNum)[1]-1
+  else
+    d <- 0
+  ins.list  <- list(cs(d+2,'TurtleInit();'),
+                    cs(d+2,'GhostInit();'))
+  mt.list   <- append( mt.list, ins.list, after=w(mt.list,"_init_end")-2 )
+  mt.list
+}
+MtrAddInRghostDeinit <- function(mt.list)
+{
+  d <- 0
+  if( length(w(mt.list,"_deinit"))>0 )
+  {
+    openNum <- w(mt.list,"_deinit")
+    if( length(w1(mt.list,openNum))>0 ) 
+      d <- w1(mt.list,openNum)[1]-1
+  }
+  else
+  {
+    openNum <- 0
+    mt.list <- append( mt.list, MtrAddDeinit(), after=w(mt.list,"_init_end") )
+  }
+  ins.list  <- list(cs(d+2,'GhostDeInit();'))
+  mt.list   <- append( mt.list, ins.list, after=w(mt.list,"_deinit_end")-2 )
+  mt.list
+}
+
 #|------------------------------------------------------------------------------------------|
 #|                        E X T E R N A L   B   F U N C T I O N S                           |
 #|------------------------------------------------------------------------------------------|
@@ -379,35 +475,7 @@ MtrLookupJFun <- function(mt.list, cmtDfr)
         #     (1) check if next token is "{"
         nameStr     <- substr(mt.list[[openNum]][indentNum[offset]], 1,
                               as.numeric(gregexpr("\\(", mt.list[[openNum]][indentNum[offset]]))-1)
-        for( mRow in (openNum+1):endNum )
-        {
-          isNextCmt <- MtrIsComment(mt.list,indentNum[1],mRow,cmtDfr)
-          if( !isNextCmt ) break          
-        }
-        nextNum     <- mRow
-        indnxtNum   <- which(nchar(mt.list[[nextNum]])>0)
-        if( indentNum[1]==indnxtNum[1] )
-          isOpenBrs   <- substr(mt.list[[nextNum]][indnxtNum[1]],1,1)=="{"
-        else
-          isOpenBrs   <- FALSE
-        if( !isOpenBrs )
-          startNum <- nextNum
-        else
-          startNum <- nextNum+1
-        for( mRow in startNum:endNum )
-        {
-          iNum <- which(nchar(mt.list[[mRow]])>0)
-          if( length(iNum)>0 )
-            if( iNum[1]==indentNum[1] )
-            {
-              isCloseCmt  <- MtrIsComment(mt.list,iNum[1],mRow,cmtDfr)
-              if( !isCloseCmt ) break
-            }
-        }
-        if( !isOpenBrs ) 
-          closeNum  <- mRow - 1
-        else
-          closeNum  <- mRow
+        closeNum    <- MtrBraces(mt.list, indentNum[1], openNum, endNum, cmtDfr)
         rDfr        <- data.frame(tokenStr, openNum, closeNum, indentNum[1],
                                   nameStr)
         names(rDfr) <- names(retDfr)
@@ -449,30 +517,7 @@ MtrFindLoopDfr <- function(mt.list, cmtDfr, tokenChr=c("for"))
       {
         #---  Knowledge when "for" has braces OR NOT
         #     (1) check if next token is "{"
-        nextNum     <- openNum+1
-        indnxtNum   <- which(nchar(mt.list[[nextNum]])>0)
-        if( indentNum[1]==indnxtNum[1] )
-          isOpenBrs   <- substr(mt.list[[nextNum]][indnxtNum[1]],1,1)=="{"
-        else
-          isOpenBrs   <- FALSE
-        if( !isOpenBrs )
-          startNum <- openNum + 1
-        else
-          startNum <- openNum + 2
-        for( mRow in startNum:endNum )
-        {
-          iNum <- which(nchar(mt.list[[mRow]])>0)
-          if( length(iNum)>0 )
-            if( iNum[1]==indentNum[1] )
-            {
-              isCloseCmt  <- nrow(cmtDfr[cmtDfr$Open==mRow,])>0
-              if( !isCloseCmt ) break
-            }
-        }
-        if( !isOpenBrs ) 
-          closeNum  <- mRow - 1
-        else
-          closeNum  <- mRow
+        closeNum    <- MtrBraces(mt.list, indentNum[1], openNum, endNum, cmtDfr)
         rDfr        <- data.frame(tokenStr, openNum, closeNum, indentNum[1] )
         names(rDfr) <- names(retDfr)
         retDfr      <- rbind(retDfr, rDfr)
@@ -480,6 +525,39 @@ MtrFindLoopDfr <- function(mt.list, cmtDfr, tokenChr=c("for"))
     }
   }
   retDfr
+}
+MtrBraces <- function(mt.list, first, openNum, endNum, cmtDfr)
+{
+  for( mRow in (openNum+1):endNum )
+  {
+    isNextCmt <- MtrIsComment(mt.list,first,mRow,cmtDfr)
+    if( !isNextCmt ) break
+  }
+  nextNum     <- mRow
+  indnxtNum   <- which(nchar(mt.list[[nextNum]])>0)
+  if( first==indnxtNum[1] )
+    isOpenBrs <- substr(mt.list[[nextNum]][first],1,1)=='{'
+  else
+    isOpenBrs <- FALSE
+  if( !isOpenBrs )
+    startNum  <- nextNum
+  else
+    startNum  <- nextNum + 1
+  for( mRow in startNum:endNum )
+  {
+    iNum  <- which(nchar(mt.list[[mRow]])>0)
+    if( length(iNum)>0 )
+      if( first==iNum[1] )
+      {
+        isCloseCmt  <- MtrIsComment(mt.list,first,mRow,cmtDfr)
+        if( !isCloseCmt ) break
+      }
+  }
+  if( !isOpenBrs )
+    closeNum  <- mRow - 1
+  else
+    closeNum  <- mRow
+  return( closeNum )
 }
 MtrConvertStr <- function(name.str, exe.dir=paste0(RegProgramDir(),"mq4_converter/"),
                           ea.dir=RegEaDir(), java.dir=RegJavaDir())
