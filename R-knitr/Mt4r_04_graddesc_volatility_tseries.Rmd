@@ -16,7 +16,7 @@ suppressPackageStartupMessages(source(paste0(RegRSourceDir(),"PlusFile.R"), echo
 suppressPackageStartupMessages(source(paste0(RegRSourceDir(),"PlusMtr.R"), echo=FALSE))
 suppressPackageStartupMessages(library(R.utils))
 suppressPackageStartupMessages(library(tseries))
-name.str      <- "GradientVolatility"
+name.str      <- "GradientVolatility0"
 ver.str       <- "0.1.0"
 exe.dir     <- paste0(RegProgramDir(), "Go MT4 001/")
 exe.str     <- "metalang.exe"
@@ -143,7 +143,7 @@ MtrAddInResult <- function()
               cs(2,'int','len=',MtrGetInteger0("length(histNum)")),
               cs(2,'if(',MtrGetInteger(cmd),'==1)'),
               cs(2,'{'),
-              cs(4,'RGetVector(R, StringConcatenate(',pasteq("model[1:"),',GdvLookBack,',pasteq("]"),'),ret,GdvLookBack);'),
+              cs(4,'RGetVector(R, StringConcatenate(',pasteq("rev(model)[1:"),',GdvLookBack,',pasteq("]"),'),ret,GdvLookBack);'),
               cs(4,'for(i=0;i<GdvLookBack;i++)'),
               cs(4,'{'),
               cs(6,'ExtMapBuffer1[i]','=','ret[i];'),
@@ -225,7 +225,9 @@ ins.list  <- append( ins.list, MtrAddInModel() )
 mt.list   <- append( mt.list, ins.list,
                      after=which(names(mt.list)=="start-end")-2 )
 
-mt.list
+mt.chr        <- MtrWriterStr(mt.list)
+names(mt.chr) <- NULL
+mt.chr
 ea.dir.str  <- MtrEaWriterStr(name.str, mt.list, save.dir=ind.dir)
 cmd.str     <- paste0('"', exe.dir, exe.str, '" "', ea.dir.str, '"')
 cmd.str
