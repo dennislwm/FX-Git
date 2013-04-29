@@ -3,6 +3,7 @@
 #|                                                             Copyright © 2012, Dennis Lee |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  0.9.2   Added THREE (3) MtrAddInRdevicexxx() functions.                                 |
 #|  0.9.1   Added THREE (3) high-level functions: MtrAddRdeviceTop(), MtrAddRdeviceInit(),  |
 #|          MtrAddRdeviceDeinit(). These functions call MtrAddRTop(), MtrAddRInit() and     |
 #|          MtrAddRDeinit() respectively. However, there are NO changes to MtrAddRStart(),  |
@@ -23,40 +24,52 @@ suppressPackageStartupMessages(source(paste0(RegRSourceDir(),"PlusMtr.R"), echo=
 MtrAddRdeviceTop <- function(nameStr, verStr, linkType, linkName, linkVal, extType, extName, extVal, 
                        Rpath='C:/Program Files/R/R-2.15.3/bin/i386/Rterm.exe')
 {
-  mt.list <- MtrAddRTop(nameStr, verStr, linkType,linkName,linkVal,extType,extName,extVal,Rpath)
+  mt.list <- MtrAddTop(nameStr, verStr, linkType,linkName,linkVal,extType,extName,extVal)
+  mt.list <- MtrAddInRdeviceTop(mt.list, Rpath)
+  mt.list
+}
+MtrAddInRdeviceTop <- function(mt.list, Rpath='C:/Program Files/R/R-2.15.3/bin/i386/Rterm.exe')
+{
+  mt.list <- MtrAddInRTop(mt.list, Rpath)
   mt.list <- MtrAddInLink(mt.list,'include','<mt4Rdevice.mqh>','')
   mt.list <- MtrAddInExtern(mt.list,rep('bool',2),c('Rtext','Rplot'),rep('false',2))
   mt.list <- MtrAddInGvar(mt.list,rep('int',2),c('hText','hPlot'))
-  mt.list
+  mt.list  
 }
 MtrAddRdeviceInit <- function(bufNum, styleChr=NULL, drawBegin=NULL,
                               Rlibrary=NULL, Rsource=NULL, Rsourcedir=RegRSourceDir())
 {
+  mt.list   <- MtrAddInit(bufNum, styleChr, drawBegin)
+  mt.list   <- MtrAddInRdeviceInit(mt.list, Rlibrary, Rsource, Rsourcedir)
+  mt.list
+}
+MtrAddInRdeviceInit <- function(mt.list, Rlibrary=NULL, Rsource=NULL, Rsourcedir=RegRSourceDir())
+{
   if( length(which(Rlibrary=='gplots'))==0 )
     Rlibrary <- c('gplots',Rlibrary)
   
-  mt.list   <- MtrAddRInit(bufNum, styleChr, drawBegin,
-                           Rlibrary, Rsource, Rsourcedir)
-  ins.list  <- list(cs(2,'hR=R;'),
+  mt.list <- MtrAddInRInit(mt.list, Rlibrary, Rsource, Rsourcedir)
+  ins.list  <- list(cs(2,MtrExecute0("options(device='windows')")),
+                    cs(2,'hR=R;'),
                     cs(2,'if(','Rtext',')'),
                     cs(2,'{'),
                     cs(4,'hText=',MtrDeviceNew0()),
-                    cs(4,MtrDeviceText0('hText','Initialized Rtext ...')),
-                    cs(4,'if(','RIsStopped()','||','hText==0',')'),
+                    cs(4,'if(','hText==0',')'),
                     cs(4,'{'),
-                    cs(6,'Print(',pasteq("hText failed: Ensure (a) Rterm; (b) gplots; (c) mt4R installed."),');'),
+                    cs(6,'Print(',pasteq("hText failed: Ensure (a) gplots is installed (b) options() is set."),');'),
                     cs(6,'Rtext=false;'),
-                    cs(4,'}'),
+                    cs(4,'}','else'),
+                    cs(6,MtrDeviceText0('hText','Initialized Rtext ...')),
                     cs(2,'}'),
                     cs(2,'if(','Rplot',')'),
                     cs(2,'{'),
                     cs(4,'hPlot=',MtrDeviceNew0()),
-                    cs(4,MtrDeviceText0('hPlot','Initialized Rplot ...')),
-                    cs(4,'if(','RIsStopped()','||','hPlot==0',')'),
+                    cs(4,'if(','hPlot==0',')'),
                     cs(4,'{'),
-                    cs(6,'Print(',pasteq("hPlot failed: Ensure (a) Rterm; (b) gplots; (c) mt4R installed."),');'),
+                    cs(6,'Print(',pasteq("hPlot failed: Ensure (a) gplots is installed (b) options() is set."),');'),
                     cs(6,'Rplot=false;'),
-                    cs(4,'}'),
+                    cs(4,'}','else'),
+                    cs(6,MtrDeviceText0('hPlot','Initialized Rplot ...')),
                     cs(2,'}'))
   mt.list   <- append( mt.list, ins.list, after=w(mt.list,"_init_end")-2 )
   mt.list
@@ -64,6 +77,12 @@ MtrAddRdeviceInit <- function(bufNum, styleChr=NULL, drawBegin=NULL,
 MtrAddRdeviceDeinit <- function()
 {
   mt.list   <- MtrAddRDeinit()
+  mt.list   <- MtrAddInRdeviceDeinit(mt.list)
+  mt.list
+}
+MtrAddInRdeviceDeinit <- function(mt.list)
+{
+  mt.list   <- MtrAddInRDeinit(mt.list)
   ins.list  <- list(cs(2,'if(','hText>0',')',MtrDeviceOff0("hText")),
                     cs(2,'if(','hPlot>0',')',MtrDeviceOff0("hPlot")))
   mt.list   <- append( mt.list, ins.list, after=w(mt.list,"_deinit_end")-3 )
