@@ -3,6 +3,12 @@
 #|                                                             Copyright © 2012, Dennis Lee |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  0.9.3   The R function capture.output(x) does NOT expect a string, therefore we do NOT  |
+#|          enclose the parameter in quotes for function MtrDeviceEval0(). For example,     |
+#|          capture.output(getwd()) is the correct syntax when used in MtrDeviceEval0().    |
+#|          When we plot a graph, we do NOT use the function MtrDeviceEval0(), but instead, |
+#|          first we call the function MtrDeviceSinkOn() and followed by MtrRx("plot(x)").  |
+#|          Note that we do NOT need the function MtrDeviceSinkOff() when plotting a graph. |
 #|  0.9.2   Added THREE (3) MtrAddInRdevicexxx() functions.                                 |
 #|  0.9.1   Added THREE (3) high-level functions: MtrAddRdeviceTop(), MtrAddRdeviceInit(),  |
 #|          MtrAddRdeviceDeinit(). These functions call MtrAddRTop(), MtrAddRInit() and     |
@@ -108,9 +114,12 @@ MtrDeviceWriterStr <- function(save.dir=RegHomeDir())
 #|------------------------------------------------------------------------------------------|
 #|                        E X T E R N A L   B   F U N C T I O N S                           |
 #|------------------------------------------------------------------------------------------|
+MtrDeviceEval0      <- function(h,x)  c('mt4RdeviceEval(',h,',',pasteq(x),',0.8);')
 MtrDeviceText0      <- function(h,x)  c('mt4RdeviceText(',h,',Rqs(',pasteq(x),'),0.8);')
 MtrDeviceSinkOff    <- function(h)    c('mt4RdeviceSinkOff(',h,')')
+MtrDeviceSinkOff0   <- function(h)    c('mt4RdeviceSinkOff(',h,');')
 MtrDeviceSinkOn     <- function(h)    c('mt4RdeviceSinkOn(',h,')')
+MtrDeviceSinkOn0    <- function(h)    c('mt4RdeviceSinkOn(',h,');')
 MtrDeviceNew0       <- function()     c('mt4RdeviceNew();')
 MtrDeviceOff0       <- function(h)    c('mt4RdeviceOff(',h,');')
 MtrDeviceSet        <- function(h)    c('mt4RdeviceSet(',h,')')
@@ -127,7 +136,7 @@ MtrAddRdeviceEval <- function()
 {
   cmd <- paste0("textplot(capture.output(",pasteq("+retStr+"),"),halign='left',valign='top',cex=",pasteq("+cex+"),")")
   ret <- list(c('void','mt4RdeviceEval(','int','devInt,','string','exprStr,',
-                'double','cex=0.9,','bool','quoteBln=TRUE',')'),
+                'double','cex=0.9,','bool','quoteBln=FALSE',')'),
               c('{'),
               cs(2,'string','retStr=exprStr;'),
               cs(2,'if(',MtrDeviceIsNull("devInt"),')','return(0);'),
