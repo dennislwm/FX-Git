@@ -2,6 +2,7 @@
 #|                                                                              PlusMonte.R |
 #|                                                             Copyright © 2012, Dennis Lee |
 #| Assert History                                                                           |
+#|  0.9.6   Added missing package 'snow' and added a function monteTradeSummary().          |
 #|  0.9.5   Added initNum to class Monte and function summary(). Created testPlusMonte to   |
 #|             perform unit tests on functions monteShuffleIndexNum() and                   |
 #|             monteSimulateReturnsZoo(), as well as some minor fixes.                      |
@@ -31,6 +32,7 @@
 #|------------------------------------------------------------------------------------------|
 require(quantmod)
 require(parallel)
+require(snow)
 require(PerformanceAnalytics)
 source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusReg.R")
 source("C:/Users/denbrige/100 FxOption/103 FxOptionVerBack/080 Fx Git/R-source/PlusFile.R")
@@ -234,7 +236,28 @@ monteCalcReturnsZoo <- function(rawNum, initNum=10000)
   retZoo <- zoo(matrix(retNum, ncol=1),
                 as.Date(retDte, "%Y-%m-%d"))  
 }
-
+monteTradeSummary <- function(rawNum)
+{
+  #---  Check that arguments are valid
+  if( length(as.numeric(rawNum)) < 1 ) 
+    stop("rawNum MUST be a numeric vector with AT LEAST ONE (1) row")
+  
+  total.all   <- length(rawNum)
+  total.win   <- length(rawNum[rawNum>0])
+  total.lss   <- length(rawNum[rawNum<=0])
+  avg.win     <- mean(rawNum[rawNum>0])
+  avg.lss     <- mean(rawNum[rawNum<=0])
+  pct.win     <- total.win/total.all
+  pct.lss     <- total.lss/total.all
+  
+  list("total.all"=total.all,
+       "total.win"=total.win,
+       "total.lss"=total.lss,
+       "avg.win"=avg.win,
+       "avg.lss"=avg.lss,
+       "pct.win"=pct.win,
+       "pct.lss"=pct.lss)
+}
 monteMakeCluster <- function()
 {
   ret.cl <- NULL
