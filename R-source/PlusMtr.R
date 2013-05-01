@@ -3,6 +3,7 @@
 #|                                                             Copyright © 2012, Dennis Lee |
 #|                                                                                          |
 #| Assert History                                                                           |
+#|  0.9.3   Added function MtrAv0() and parameter Rsourcedir in function MtrAddInRsource(). |
 #|  0.9.2   Added function isNewBar() and added THREE (3) MtrAddInxxx() functions. Added    |
 #|          optional "extName" parameter to functions MtrAddInModel() and MtrAddInResult(). |
 #|  0.9.1   Added THREE (3) functions: MtrAddInGvar(), MtrAddInRsource(), MtrAddInRlibrary. |
@@ -191,7 +192,7 @@ MtrAddInRlibrary <- function(mt.list, Rlibrary)
   mt.list   <- append( top, end, after=w(mt.list,"Rlibrary") )  
   mt.list
 }
-MtrAddInRsource <- function(mt.list, Rsource)
+MtrAddInRsource <- function(mt.list, Rsource, Rsourcedir=RegRSourceDir())
 {
   #---  Check that arguments are valid
   stopStr <- AddAvoidN(mt.list)
@@ -229,6 +230,7 @@ MtrAssignVector0    <- function(x,...) c('RAssignVector(R,',pasteq(x),...,');')
 MtrGb   <- function(x,...) c('Rgb(',pasteq(x),...,')')
 MtrGi   <- function(x,...) c('Rgi(',pasteq(x),...,')')
 MtrGi0  <- function(x,...) c('Rgi(',pasteq(x),...,');')
+MtrAv0  <- function(x,...) c('Rv(',pasteq(x),...,');')
 MtrX    <- function(x,...) c('Rx(',pasteq(x),...,')')
 MtrX0   <- function(x,...) c('Rx(',pasteq(x),...,');')
 
