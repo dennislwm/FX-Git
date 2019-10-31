@@ -1,5 +1,16 @@
 # FX-Git
 
+<!--- See https://shields.io for others or to customize this set of shields.  --->
+
+![GitHub repo size](https://img.shields.io/github/repo-size/dennislwm/FX-Git?style=plastic)
+![GitHub language count](https://img.shields.io/github/languages/count/dennislwm/FX-Git?style=plastic)
+![GitHub top language](https://img.shields.io/github/languages/top/dennislwm/FX-Git?style=plastic)
+![GitHub last commit](https://img.shields.io/github/last-commit/dennislwm/FX-Git?color=red&style=plastic)
+![GitHub stars](https://img.shields.io/github/stars/dennislwm/FX-Git?style=social)
+![GitHub forks](https://img.shields.io/github/forks/dennislwm/FX-Git?style=social)
+![GitHub watchers](https://img.shields.io/github/watchers/dennislwm/FX-Git?style=social)
+![GitHub followers](https://img.shields.io/github/followers/dennislwm?style=social)
+
 A collection of Metatrader 4 ["MT4"] and R scripts
 
 ### About FX-Git
@@ -72,9 +83,17 @@ This collection of scripts was written using either MT4 or R.
 
 ---
 
-### MT4 Scripts
+### MT4 Packages
 
 1. [Ghost Package](https://gist.github.com/dennislwm/b153a1c8183f6e93864e348eca6601d6) - Paper trading module in Metatrader 4.
+
+### MT4 Indicators
+
+1. [Cumulant Ratio Indicator](https://gist.github.com/dennislwm/10f492868fb2c6d281e4155cc723a90c) - A Digital Signal Processing indicator in Metatrader 4.
+
+### TODO
+
+Add more documentation for MT4 Packages, Expert Advisors, and Indicators.
 
 ---
 
@@ -96,4 +115,4 @@ In the following example, the default application will be created in the folder 
 
 ### Reach Out!
 
-Please consider giving this repository a star on GitHub.
+Please consider giving this [repository](https://profile-summary-for-github.com/user/dennislwm) a star on GitHub.
