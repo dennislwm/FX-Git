@@ -6,6 +6,7 @@
 1. My [FX-Git](https://github.com/dennislwm/FX-Git) repository has not been updated for more than 7 years.
 1. Some of the source code does not work with the latest Metatrader build.
 1. The updates and new files are available in my private repository only.
+2. Documentation and articles on how to use the scripts, including strategies.
 
 I have been writing source code for 20+ years and started trading 8+ years ago. My indie tradreprenuer has led me to write scripts that focus on sole traders to give them a financial edge in the markets.
 
@@ -14,6 +15,7 @@ I have been writing source code for 20+ years and started trading 8+ years ago. 
 - [Table of Contents](#table-of-contents)
 - [Benefits](#benefits)
 - [Fx-Git-Pro](#fx-git-pro)
+  - [Project Structure](#project-structure)
   - [Metatrader Modules](#metatrader-modules)
     - [1. Ghost-Mql](#1-ghost-mql)
     - [2. Python-Mql](#2-python-mql)
@@ -37,6 +39,18 @@ I have been writing source code for 20+ years and started trading 8+ years ago. 
 1. This repository has latest updates to MT4 packages and new resources, such as Python scripts.
 1. This repository is available to members of [dennislwm's Patreon](https://www.patreon.com/dennislwm?fan_landing=true) only.
 1. Each module or package, within its own subfolder, can be used as a standalone and has a README file.
+
+## Project Structure
+
+     FX-Git-Pro/              <-- Root of this project
+       +- docker/             <-- Root of Docker images
+       +- ghost/              <-- Metatrader Ghost
+       +- mt4/                <-- Root of MT4 scripts
+       +- python/             <-- Root of Python scripts
+       +- python-mql/         <-- Python-Mql connector
+       +- R/                  <-- Root of R scripts
+       +- R-mql/              <-- R-Mql connector
+       +- tf/                 <-- Root of Terraform modules
 
 ## Metatrader Modules 
 
