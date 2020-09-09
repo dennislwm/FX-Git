@@ -6,7 +6,7 @@
 2. Roblox Studio has a client-server architecture, which is an extra layer of difficulty.
 3. There is no central repository for Lua scripts and documentation.
 4. There is no community support for beginners, who may become frustrated.
-5. There is no progress indicicator on how fast you are learning.
+5. There is no progress indicator on how fast you are learning.
 6. There is no mentor to help you with best practices and guidelines.
 7. There is no buddy to review your code and give tips.
 
@@ -27,7 +27,7 @@ I have been writing source code for 20+ years and started Roblox Studio this yea
 
 # Benefits
 
-1. All Roblox game creations. Sample work: [ObbotMaster 2020](#1-obbymaster-2020)
+1. All Roblox game creations. Sample work (see below): [ObbotMaster 2020](#1-obbymaster-2020)
 2. Lua scripts and documentation.
 3. Updates (bug fixes, enhancements)
 4. The updates and new files are available in my private repository only.
@@ -65,6 +65,11 @@ This is what I built on top of it:
 * I was lazy to create a Wizard from a random player, so I gave Fireball ability to all players instead.
 * Obbys are random each round, and a Lumberjack Zombie (free NPC model) spawns 30 seconds after participants are teleported into the Castle.
 * Participants can spectate each other even while inside castle (I was lazy to make a spectate for only participants outside castle).
+
+**Screenshots**
+* [Screenshot 1](https://doy2mn9upadnk.cloudfront.net/uploads/default/original/4X/1/9/1/191146f6a92d88d964c2c59f331ae871de9444f1.png)
+* [Screenshot 2](https://doy2mn9upadnk.cloudfront.net/uploads/default/original/4X/9/7/b/97b397638c2d42651b97c21511b09b9e440b0f2f.jpeg)
+* [Screenshot 3](https://doy2mn9upadnk.cloudfront.net/uploads/default/original/4X/a/3/f/a3fdae0346979e85d994e668ba80436a740d1487.jpeg)
 
 That’s pretty much the whole game. There is room for future development. You can play it below:
 
